@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="#3730A3"/>
+  <!-- Plane body -->
+  <g transform="translate(256,256) rotate(-35)">
+    <!-- Fuselage -->
+    <ellipse cx="0" cy="0" rx="28" ry="105" fill="white"/>
+    <!-- Wings -->
+    <ellipse cx="0" cy="-20" rx="110" ry="22" fill="white"/>
+    <!-- Tail -->
+    <ellipse cx="0" cy="80" rx="55" ry="14" fill="white"/>
+    <!-- Nose tip -->
+    <ellipse cx="0" cy="-105" rx="14" ry="18" fill="#E0E7FF"/>
+  </g>
+  <!-- Price tag / budget indicator dots -->
+  <circle cx="380" cy="140" r="12" fill="#818CF8" opacity="0.8"/>
+  <circle cx="408" cy="120" r="8" fill="#C7D2FE" opacity="0.6"/>
+  <circle cx="428" cy="148" r="6" fill="#E0E7FF" opacity="0.5"/>
+</svg>
