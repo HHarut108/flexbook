@@ -1,4 +1,7 @@
 {
+  "installCommand": "cd .. && npm install",
+  "buildCommand": "cd .. && npm run build --workspace=packages/shared && npm run build --workspace=frontend",
+  "outputDirectory": "dist",
   "rewrites": [
     { "source": "/((?!api|icons|assets|sw\\.js|workbox-.*\\.js|manifest\\.webmanifest).*)", "destination": "/index.html" }
   ],
