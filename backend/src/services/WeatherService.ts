@@ -1,4 +1,4 @@
-import { WeatherSummary } from '@fast-travel/shared';
+import { WeatherCondition, WeatherSummary } from '@fast-travel/shared';
 import { fetchWeather } from '../providers/OpenWeatherMapProvider';
 import { getCache, setCache } from '../utils/cache';
 import { config } from '../config';
@@ -14,18 +14,15 @@ interface WeatherResult extends WeatherRequest {
   weather: WeatherSummary | null;
 }
 
-function generateMockWeather(): WeatherSummary {
-  const descriptions = ['Sunny', 'Cloudy', 'Partly Cloudy', 'Rainy', 'Windy', 'Clear'];
-  const temperature = Math.round(Math.random() * 40 + 50); // Between 50-90°F
-  const humidity = Math.round(Math.random() * 50 + 40); // Between 40-90%
-  const windSpeed = Math.round(Math.random() * 25 + 5); // Between 5-30 mph
+function generateMockWeather(date: string): WeatherSummary {
+  const conditions: WeatherCondition[] = ['clear', 'cloudy', 'rain', 'snow', 'storm', 'unknown'];
+  const temperatureC = Math.round(Math.random() * 25 + 10); // 10–35°C
 
   return {
-    temperature,
-    description: descriptions[Math.floor(Math.random() * descriptions.length)],
-    humidity,
-    windSpeed,
-    feelsLike: Math.max(temperature - Math.round(Math.random() * 5), 40),
+    temperatureC,
+    condition: conditions[Math.floor(Math.random() * conditions.length)],
+    isForecast: false,
+    date,
   };
 }
 
@@ -35,7 +32,7 @@ export class WeatherService {
     if (apiMode === 'mock') {
       return requests.map((r) => ({
         ...r,
-        weather: generateMockWeather(),
+        weather: generateMockWeather(r.date),
       }));
     }
 
