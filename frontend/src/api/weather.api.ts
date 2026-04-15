@@ -1,6 +1,5 @@
 import { WeatherSummary } from '@fast-travel/shared';
 import { apiClient, getApiMode } from './client';
-import { mockWeather } from './mock-data';
 
 export interface WeatherRequest {
   iata: string;

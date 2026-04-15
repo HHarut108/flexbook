@@ -186,11 +186,10 @@ export const mockAirlines = [
  * Mock Weather Data - Yerevan Climate
  */
 export const mockWeather = {
-  temperature: 24,
-  description: 'Sunny',
-  humidity: 45,
-  windSpeed: 8,
-  feelsLike: 23,
+  temperatureC: 24,
+  condition: 'clear' as const,
+  isForecast: false,
+  date: new Date().toISOString().slice(0, 10),
 };
 
 /**

@@ -83,6 +83,7 @@ describe('FlightCard', () => {
       condition: 'clear',
       temperatureC: 22,
       isForecast: true,
+      date: '2026-04-10',
     };
     render(<FlightCard flight={BASE_FLIGHT} weather={weather} onSelect={vi.fn()} />);
     expect(screen.getByText('22°C')).toBeInTheDocument();
