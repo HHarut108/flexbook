@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: flexbook-backend
+    env: node
+    plan: free
+    # Run from repo root so npm resolves the @fast-travel/shared workspace
+    # package correctly, then pre-build shared types before compiling the backend.
+    buildCommand: npm install && npm run build --workspace=packages/shared && npm run build --workspace=backend
+    startCommand: node backend/dist/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Set the remaining secrets (API keys, FRONTEND_URL) in the
+      # Render dashboard — do NOT commit secret values here.
+      - key: FRONTEND_URL
+        sync: false
+      - key: KIWI_API_KEY
+        sync: false
+      - key: SERPAPI_API_KEY
+        sync: false
+      - key: OPENWEATHER_API_KEY
+        sync: false
+      - key: AIRHEX_API_KEY
+        sync: false
