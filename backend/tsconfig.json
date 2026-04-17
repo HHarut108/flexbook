@@ -12,11 +12,7 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "sourceMap": true,
-    "types": ["node"],
-    "paths": {
-      "@fast-travel/shared": ["../packages/shared/src/index.ts"]
-    },
-    "baseUrl": "."
+    "types": ["node"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
