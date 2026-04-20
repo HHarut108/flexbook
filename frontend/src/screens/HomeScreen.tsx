@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Airport } from '@fast-travel/shared';
 import { useAirportSearch } from '../hooks/useAirportSearch';
 import { nearbyAirportsByCoords } from '../api/airports.api';
+import { resolveUserCoords } from '../utils/geolocation.utils';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
 import { formatYMD } from '../utils/date.utils';
@@ -231,25 +232,27 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
 
   const minDate = formatYMD(addDays(new Date(), 1));
 
-  /* Geolocation */
+  /* Geolocation: browser first, IP fallback */
   useEffect(() => {
-    if (!navigator.geolocation) return;
+    let cancelled = false;
     setGeoLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const airports = await nearbyAirportsByCoords(pos.coords.latitude, pos.coords.longitude);
-          setNearby(airports.slice(0, 3));
-          if (airports.length > 0) setGeoCity(airports[0].city.name);
-        } catch {
-          /* silent */
-        } finally {
-          setGeoLoading(false);
-        }
-      },
-      () => setGeoLoading(false),
-      { timeout: 5000 },
-    );
+    (async () => {
+      try {
+        const coords = await resolveUserCoords();
+        if (cancelled) return;
+        const airports = await nearbyAirportsByCoords(coords.lat, coords.lng);
+        if (cancelled) return;
+        setNearby(airports.slice(0, 3));
+        if (airports.length > 0) setGeoCity(airports[0].city.name);
+      } catch {
+        /* both browser and IP geolocation failed — fall back to POPULAR_AIRPORTS */
+      } finally {
+        if (!cancelled) setGeoLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const selectAirport = useCallback(
