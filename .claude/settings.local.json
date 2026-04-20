@@ -41,7 +41,11 @@
       "Bash(ps -p 95376 -o pid,comm,args)",
       "Bash(kill 95376)",
       "Bash(ls /Users/harut/Desktop/Fast-Travel-Assistant/*.md /Users/harut/Desktop/Fast-Travel-Assistant/Docs/)",
-      "Bash(find /Users/harut/Desktop/Fast-Travel-Assistant/packages -name \"*.ts\" -exec grep -l \"Airport\" {} \\\\;)"
+      "Bash(find /Users/harut/Desktop/Fast-Travel-Assistant/packages -name \"*.ts\" -exec grep -l \"Airport\" {} \\\\;)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "WebFetch(domain:flexbook-frontend.vercel.app)"
     ]
   }
 }
