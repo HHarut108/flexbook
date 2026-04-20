@@ -1,8 +1,13 @@
 import axios from 'axios';
 import { useApiSwitcher } from '../store/api-switcher';
 
+const getBaseURL = () => {
+  const apiUrl = import.meta.env.VITE_API_URL;
+  return apiUrl ? `${apiUrl}` : '/api';
+};
+
 export const apiClient = axios.create({
-  baseURL: '/api',
+  baseURL: getBaseURL(),
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
 });
