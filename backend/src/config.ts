@@ -8,7 +8,7 @@ const envSchema = z.object({
   SERPAPI_API_KEY: z.string().default(''),
   OPENWEATHER_API_KEY: z.string().default(''),
   AIRHEX_API_KEY: z.string().default(''),
-  FRONTEND_URL: z.string().default('http://localhost:5173'),
+  FRONTEND_URL: z.string().default('https://flexbook-frontend.vercel.app'),
 });
 
 const parsed = envSchema.safeParse(process.env);
