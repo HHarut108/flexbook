@@ -5,6 +5,7 @@ import { computeNextDeparture, formatDateLong } from '../utils/date.utils';
 import { formatPrice, totalPrice } from '../utils/price.utils';
 import { ArrowLeft, Minus, Plus } from 'lucide-react';
 import { TripTimeline } from '../components/TripTimeline';
+import { getStayDurationHint } from '../utils/copy.utils';
 import recommendationsRaw from '../../public/stayRecommendations.json';
 const recommendations = recommendationsRaw as Record<string, string>;
 
@@ -59,7 +60,7 @@ export function StayDurationScreen() {
           How long do you want to stay in {selectedFlight.destinationCity}?
         </h2>
         <p className="text-sm leading-6 text-text-muted">
-          Most travelers stay 2–3 days. You can always change your mind.
+          {getStayDurationHint(selectedFlight.flightId)}
         </p>
         <p className="text-text-muted text-sm mt-3">
           {selectedFlight.destinationCity}, {selectedFlight.destinationCountry}

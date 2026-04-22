@@ -41,8 +41,8 @@ function PassengerStepper({
 }) {
   return (
     <div
-      className="input-field relative flex items-center gap-1 pl-11 pr-1.5 py-1 rounded-2xl"
-      style={{ minHeight: '48px' }}
+      className="input-field relative flex items-center gap-1 pl-11 pr-1.5 rounded-2xl"
+      style={{ height: '48px' }}
       role="group"
       aria-label={`${value} passenger${value > 1 ? 's' : ''}`}
     >
@@ -103,8 +103,8 @@ function DateField({
       </span>
       <input
         type="date"
-        className="input-field pl-11 pr-4 py-3.5 rounded-2xl text-base w-full cursor-pointer"
-        style={{ minHeight: '48px', color: 'transparent', caretColor: 'transparent', colorScheme: 'light' }}
+        className="input-field pl-11 pr-4 rounded-2xl text-base w-full cursor-pointer"
+        style={{ height: '48px', color: 'transparent', caretColor: 'transparent', colorScheme: 'light' }}
         value={value}
         min={min}
         onChange={(e) => {
@@ -221,7 +221,6 @@ function TrustBar() {
 export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const [query, setQuery] = useState('');
   const [nearby, setNearby] = useState<Airport[]>([]);
-  const [geoCity, setGeoCity] = useState<string | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
   const [passengers, setPassengers] = useState(1);
   const [departureDate, setDepartureDate] = useState(formatYMD(addDays(new Date(), 1)));
@@ -243,7 +242,6 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
         const airports = await nearbyAirportsByCoords(coords.lat, coords.lng);
         if (cancelled) return;
         setNearby(airports.slice(0, 3));
-        if (airports.length > 0) setGeoCity(airports[0].city.name);
       } catch {
         /* both browser and IP geolocation failed — fall back to POPULAR_AIRPORTS */
       } finally {
@@ -316,7 +314,7 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
             </span>
           </h1>
           <p className="mt-4 text-base leading-7 text-text-muted max-w-[30ch]">
-            Flexible dates, better prices.
+            Cheapest fares. Biggest adventures.
           </p>
         </div>
 
@@ -427,7 +425,7 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
             <div className="flex items-center gap-2 mb-2.5 mt-2">
               <MapPin size={13} className="text-indigo-mid" />
               <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold">
-                {geoCity ? `Departing from ${geoCity}` : 'Nearby airports'}
+                Departing from
               </p>
             </div>
 

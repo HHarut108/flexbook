@@ -4,6 +4,7 @@ import { formatPrice, totalPrice } from '../utils/price.utils';
 import { formatDate } from '../utils/date.utils';
 import { TripTimeline } from '../components/TripTimeline';
 import { ArrowLeft, Ticket } from 'lucide-react';
+import { getDecisionHeadline } from '../utils/copy.utils';
 
 export function DecisionScreen() {
   const legs = useTripStore((s) => s.legs);
@@ -39,7 +40,7 @@ export function DecisionScreen() {
           <span className="pill-brand">Stop {nonReturnLegs.length}</span>
         </div>
         <h2 className="text-2xl font-bold text-text-primary mb-1">
-          {lastLeg.destinationCity} feels like a good chapter.
+          {getDecisionHeadline(lastLeg.destinationCity, lastLeg.flightId)}
         </h2>
         <p className="text-sm leading-6 text-text-muted">
           From here, you can keep the trip going by choosing your next destination or wrap it up
