@@ -2,6 +2,7 @@ import { FlightOption } from '@fast-travel/shared';
 import { config } from '../config';
 import { getCache, setCache } from '../utils/cache';
 import { fetchKiwiFlights, KiwiSearchOptions } from '../providers/KiwiFlightProvider';
+import { fetchRapidApiKiwiFlights } from '../providers/RapidApiKiwiFlightProvider';
 import { fetchSerpApiFlights, fetchSerpApiOpenFlights } from '../providers/SerpApiFlightProvider';
 import { fetchMockFlights } from '../providers/MockFlightProvider';
 import { airportService } from './AirportService';
@@ -48,14 +49,16 @@ export class FlightService {
     const { sort = 'price', maxStopovers, currency = 'USD' } = options;
     
     // If apiMode is explicitly set to 'mock', use mock provider
-    const provider = apiMode === 'mock' ? 'mock' : this.selectProvider(destinationIata);
+    const provider = apiMode === 'mock' ? 'mock' : this.selectProvider();
     const cacheKey = `flights:${provider}:${originIata}:${date}:${destinationIata ?? 'any'}:${deduplicate}:${sort}:${maxStopovers ?? 'any'}:${currency}`;
     const cached = getCache<FlightOption[]>(cacheKey);
     if (cached) return cached.slice(0, limit);
 
     let raw: FlightOption[];
 
-    if (provider === 'serpapi') {
+    if (provider === 'rapidapi-kiwi') {
+      raw = await fetchRapidApiKiwiFlights(originIata, date, destinationIata, options);
+    } else if (provider === 'serpapi') {
       const partial = destinationIata
         ? await fetchSerpApiFlights(originIata, destinationIata, date, currency)
         : await fetchSerpApiOpenFlights(originIata, date, currency);
@@ -74,9 +77,10 @@ export class FlightService {
     return top10.slice(0, limit);
   }
 
-  private selectProvider(_destinationIata?: string): 'serpapi' | 'kiwi' | 'mock' {
-    if (config.SERPAPI_API_KEY) return 'serpapi';
+  private selectProvider(): 'rapidapi-kiwi' | 'serpapi' | 'kiwi' | 'mock' {
+    if (config.RAPIDAPI_KEY) return 'rapidapi-kiwi';
     if (config.KIWI_API_KEY) return 'kiwi';
+    if (config.SERPAPI_API_KEY) return 'serpapi';
     return 'mock';
   }
 }

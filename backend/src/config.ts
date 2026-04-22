@@ -5,6 +5,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   KIWI_API_KEY: z.string().default(''),
+  RAPIDAPI_KEY: z.string().default(''),
   SERPAPI_API_KEY: z.string().default(''),
   OPENWEATHER_API_KEY: z.string().default(''),
   AIRHEX_API_KEY: z.string().default(''),
