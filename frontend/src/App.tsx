@@ -33,8 +33,8 @@ export default function App() {
       {screen === 'decision' && <DecisionScreen />}
       {screen === 'return-flights' && <ReturnFlightsScreen />}
       {screen === 'itinerary' && <ItineraryScreen />}
-      {screen === 'booking-review' && <BookingReviewScreen />}
-      {screen === 'partial-booking' && <BookingReviewScreen partial />}
+      {screen === 'booking-review' && <BookingReviewScreen onMenuOpen={() => setDrawerOpen(true)} />}
+      {screen === 'partial-booking' && <BookingReviewScreen partial onMenuOpen={() => setDrawerOpen(true)} />}
     </div>
   );
 }

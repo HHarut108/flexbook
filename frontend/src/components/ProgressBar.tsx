@@ -49,9 +49,11 @@ export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
           borderBottom: '1px solid rgba(255,255,255,0.10)',
         }}
       >
-        {/* fb monogram */}
-        <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
-          <span className="text-white font-black text-xs tracking-tight">fb</span>
+        {/* flex/book logo */}
+        <div className="flex items-baseline gap-0 shrink-0">
+          <span className="text-[1.1rem] font-black tracking-[-0.05em] text-white">flex</span>
+          <span className="text-[1.1rem] font-black tracking-[-0.05em] text-orange">/</span>
+          <span className="text-[1.1rem] font-black tracking-[-0.05em] text-white">book</span>
         </div>
 
         {/* Step label + breadcrumb */}

@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   Luggage,
   CheckCircle2,
+  Menu,
 } from 'lucide-react';
 
 const TripMap = lazy(() => import('../components/TripMap').then((m) => ({ default: m.TripMap })));
@@ -357,7 +358,7 @@ function PriceBreakdown({ legs }: { legs: TripLeg[] }) {
 
 /* ── Main Screen ── */
 
-export function BookingReviewScreen({ partial = false }: { partial?: boolean } = {}) {
+export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?: boolean; onMenuOpen?: () => void } = {}) {
   const origin = useTripStore((s) => s.origin);
   const allLegs = useTripStore((s) => s.legs);
   const setScreen = useSessionStore((s) => s.setScreen);
@@ -403,6 +404,29 @@ export function BookingReviewScreen({ partial = false }: { partial?: boolean } =
 
   return (
     <div className="pb-8">
+      {/* ── Top brand header ── */}
+      <div
+        className="sticky top-0 z-50 px-4 py-2.5 flex items-center justify-between"
+        style={{
+          background: 'rgba(55,48,163,0.97)',
+          backdropFilter: 'blur(12px)',
+          borderBottom: '1px solid rgba(255,255,255,0.10)',
+        }}
+      >
+        <div className="flex items-baseline gap-0">
+          <span className="text-[1.1rem] font-black tracking-[-0.05em] text-white">flex</span>
+          <span className="text-[1.1rem] font-black tracking-[-0.05em] text-orange">/</span>
+          <span className="text-[1.1rem] font-black tracking-[-0.05em] text-white">book</span>
+        </div>
+        <button
+          onClick={onMenuOpen}
+          className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-white hover:bg-white/25 transition-all active:scale-95"
+          aria-label="Open menu"
+        >
+          <Menu size={16} />
+        </button>
+      </div>
+
       {/* ── Hero header ── */}
       <div className="px-4 pt-4 pb-3">
         <div className="hero-panel">
