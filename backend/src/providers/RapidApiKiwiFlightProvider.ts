@@ -4,33 +4,39 @@ import { config } from '../config';
 import { KiwiSearchOptions } from './KiwiFlightProvider';
 
 const RAPIDAPI_HOST = 'kiwi-com-cheap-flights.p.rapidapi.com';
+const KIWI_BASE = 'https://www.kiwi.com';
+
+interface RapidKiwiStation {
+  code: string;
+  name: string;
+  gps?: { lat: number; lng: number };
+  city?: { name: string };
+  country?: { code: string; name?: string };
+}
 
 interface RapidKiwiSegment {
   id: string;
-  source: {
-    station: { code: string; city: { name: string; country: { name: string }; coordinates: { lat: number; lng: number } } };
-    localTime: string;
-    utcTime: string;
-  };
-  destination: {
-    station: { code: string; city: { name: string; coordinates: { lat: number; lng: number } } };
-    localTime: string;
-  };
+  source: { localTime: string; utcTime: string; station: RapidKiwiStation };
+  destination: { localTime: string; utcTime: string; station: RapidKiwiStation };
   duration: number;
   carrier: { code: string; name: string };
   operatingCarrier?: { code: string; name: string };
+  cabinClass?: string;
 }
 
 interface RapidKiwiItinerary {
   id: string;
-  duration: number;
-  price: { amount: number; currencyCode: string };
-  segments: RapidKiwiSegment[];
-  bookingOptions: { bookingUrl: string }[];
+  price: { amount: string };
+  priceEur?: { amount: string };
+  bookingOptions?: { edges: { node: { bookingUrl: string } }[] };
+  sector: {
+    id: string;
+    sectorSegments: { segment: RapidKiwiSegment; layover: unknown }[];
+  };
 }
 
 interface RapidKiwiResponse {
-  itineraries: RapidKiwiItinerary[];
+  itineraries?: RapidKiwiItinerary[];
 }
 
 export async function fetchRapidApiKiwiFlights(
@@ -43,9 +49,9 @@ export async function fetchRapidApiKiwiFlights(
 
   const cabinClassMap: Record<string, string> = {
     M: 'ECONOMY',
-    W: 'PREMIUM_ECONOMY',
+    W: 'ECONOMY_PREMIUM',
     C: 'BUSINESS',
-    F: 'FIRST',
+    F: 'FIRST_CLASS',
   };
 
   const sortByMap: Record<string, string> = {
@@ -67,15 +73,17 @@ export async function fetchRapidApiKiwiFlights(
     sortBy: sortByMap[sort] ?? 'PRICE',
     sortOrder: 'ASCENDING',
     transportTypes: 'FLIGHT',
+    contentProviders: 'KIWI',
     limit: 50,
-    outboundDepartureDate: date,
+    outboundDepartureDateStart: `${date}T00:00:00`,
+    outboundDepartureDateEnd: `${date}T23:59:59`,
   };
 
   if (destinationIata) {
     params['destination'] = `Airport:${destinationIata}`;
   }
   if (maxStopovers !== undefined) {
-    params['maxStopovers'] = maxStopovers;
+    params['maxStopsCount'] = maxStopovers;
   }
 
   let response: RapidKiwiResponse;
@@ -87,8 +95,8 @@ export async function fetchRapidApiKiwiFlights(
         headers: {
           'x-rapidapi-key': config.RAPIDAPI_KEY,
           'x-rapidapi-host': RAPIDAPI_HOST,
-          'Content-Type': 'application/json',
         },
+        timeout: 20000,
       },
     );
     response = data;
@@ -103,37 +111,46 @@ export async function fetchRapidApiKiwiFlights(
     throw err;
   }
 
-  if (!Array.isArray(response.itineraries)) return [];
+  const itineraries = response.itineraries ?? [];
 
-  return response.itineraries
-    .filter((it) => it.segments?.length > 0)
+  return itineraries
+    .filter((it) => it.sector?.sectorSegments?.length > 0)
     .map((it): FlightOption => {
-      const first = it.segments[0];
-      const last = it.segments[it.segments.length - 1];
-      const dest = last.destination.station;
-      const orig = first.source.station;
-      const viaIatas = it.segments.length > 1
-        ? it.segments.slice(0, -1).map((s) => s.destination.station.code)
+      const segments = it.sector.sectorSegments.map((s) => s.segment);
+      const first = segments[0];
+      const last = segments[segments.length - 1];
+      const origStation = first.source.station;
+      const destStation = last.destination.station;
+
+      const totalDurationSec = segments.reduce((sum, s) => sum + (s.duration ?? 0), 0);
+
+      const viaIatas = segments.length > 1
+        ? segments.slice(0, -1).map((s) => s.destination.station.code)
         : undefined;
+
+      const rawBookingUrl = it.bookingOptions?.edges?.[0]?.node?.bookingUrl ?? '';
+      const bookingUrl = rawBookingUrl.startsWith('http')
+        ? rawBookingUrl
+        : rawBookingUrl ? `${KIWI_BASE}${rawBookingUrl}` : '';
 
       return {
         flightId: it.id,
-        originIata: orig.code,
-        originCity: orig.city.name,
-        destinationIata: dest.code,
-        destinationCity: dest.city.name,
-        destinationCountry: orig.city.country?.name ?? '',
-        destinationLat: dest.city.coordinates?.lat ?? 0,
-        destinationLng: dest.city.coordinates?.lng ?? 0,
+        originIata: origStation.code,
+        originCity: origStation.city?.name ?? origStation.code,
+        destinationIata: destStation.code,
+        destinationCity: destStation.city?.name ?? destStation.code,
+        destinationCountry: destStation.country?.name ?? destStation.country?.code ?? '',
+        destinationLat: destStation.gps?.lat ?? 0,
+        destinationLng: destStation.gps?.lng ?? 0,
         departureDatetime: first.source.localTime,
         arrivalDatetime: last.destination.localTime,
-        durationMinutes: Math.round(it.duration / 60),
+        durationMinutes: Math.round(totalDurationSec / 60),
         airlineName: first.carrier.name ?? first.carrier.code,
         airlineCode: first.carrier.code,
-        stops: it.segments.length - 1,
+        stops: segments.length - 1,
         viaIatas,
-        priceUsd: it.price.amount,
-        bookingUrl: it.bookingOptions?.[0]?.bookingUrl ?? '',
+        priceUsd: parseFloat(it.price.amount),
+        bookingUrl,
       };
     });
 }
