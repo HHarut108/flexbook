@@ -1,11 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSavedTripsStore, SavedTrip } from '../store/saved-trips.store';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
-import { buildShareUrl } from '../utils/url.utils';
+import { buildShortShareUrl } from '../utils/url.utils';
+import { createTripShare } from '../api/trips.api';
 import { formatPrice } from '../utils/price.utils';
 import { ApiModeSwitcher } from './ApiModeSwitcher';
-import { X, MapPin, Share2, Trash2, Plane, BookmarkCheck } from 'lucide-react';
+import { X, MapPin, Share2, Trash2, Plane, BookmarkCheck, Loader2 } from 'lucide-react';
 
 interface Props {
   open: boolean;
@@ -17,11 +18,13 @@ function SavedTripCard({
   onLoad,
   onShare,
   onDelete,
+  sharing,
 }: {
   trip: SavedTrip;
   onLoad: () => void;
   onShare: () => void;
   onDelete: () => void;
+  sharing: boolean;
 }) {
   const legs = trip.itinerary.legs;
   const total = legs.reduce((s, l) => s + l.priceUsd, 0);
@@ -60,10 +63,11 @@ function SavedTripCard({
         </button>
         <button
           onClick={onShare}
-          className="w-9 h-9 flex items-center justify-center rounded-xl border border-border text-text-muted hover:text-indigo hover:border-indigo-border transition-all active:scale-95"
-          title="Copy share link"
+          disabled={sharing}
+          className="w-9 h-9 flex items-center justify-center rounded-xl border border-border text-text-muted hover:text-indigo hover:border-indigo-border transition-all active:scale-95 disabled:opacity-50"
+          title="Share trip"
         >
-          <Share2 size={14} />
+          {sharing ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}
         </button>
         <button
           onClick={onDelete}
@@ -82,6 +86,8 @@ export function AppDrawer({ open, onClose }: Props) {
   const loadFromItinerary = useTripStore((s) => s.loadFromItinerary);
   const setScreen = useSessionStore((s) => s.setScreen);
   const showToast = useSessionStore((s) => s.showToast);
+  const showShareModal = useSessionStore((s) => s.showShareModal);
+  const [sharingTripId, setSharingTripId] = useState<string | null>(null);
 
   // Lock body scroll when open
   useEffect(() => {
@@ -105,10 +111,17 @@ export function AppDrawer({ open, onClose }: Props) {
     onClose();
   }
 
-  function handleShare(trip: SavedTrip) {
-    const url = buildShareUrl(trip.itinerary);
-    navigator.clipboard.writeText(url);
-    showToast('Trip link copied!');
+  async function handleShare(trip: SavedTrip) {
+    if (sharingTripId) return;
+    setSharingTripId(trip.id);
+    try {
+      const id = await createTripShare(trip.itinerary);
+      showShareModal(buildShortShareUrl(id));
+    } catch {
+      showToast('Could not generate share link. Please try again.');
+    } finally {
+      setSharingTripId(null);
+    }
   }
 
   function handleDelete(id: string) {
@@ -183,6 +196,7 @@ export function AppDrawer({ open, onClose }: Props) {
                       onLoad={() => handleLoad(trip)}
                       onShare={() => handleShare(trip)}
                       onDelete={() => handleDelete(trip.id)}
+                      sharing={sharingTripId === trip.id}
                     />
                   ))}
                 </div>
