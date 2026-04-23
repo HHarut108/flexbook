@@ -132,7 +132,7 @@ S1 Origin Search  ──►  S2 Flight Results  ◄──► [DatePickerOverlay]
 | 3.1 | Zustand `trip.store` — `origin`, `legs`, `addLeg`, `canContinue`, `reset` | `[x]` | Max 15 non-return legs enforced |
 | 3.2 | Zustand `session.store` — current screen, pending flights, selected flight | `[x]` | Screen type: `'home' \| 'flight-results' \| 'stay-duration' \| 'decision' \| 'return-flights' \| 'itinerary' \| 'booking-review'` |
 | 3.3 | URL sync — active trip state persisted to `?t=` on every change | `[x]` | `useUrlSync` hook in `App.tsx`; restores screen + trip on refresh |
-| 3.4 | Share URL — copy-to-clipboard, restores full completed itinerary | `[x]` | `buildShareUrl` in itinerary screen |
+| 3.4 | Share URL — copy-to-clipboard, restores full completed itinerary | `[x]` | Server-side: `POST /trips` stores itinerary in NodeCache (24h TTL), returns 8-char ID → `?trip=<id>`. `ShareModal` shows link + Copy + 24h notice. `ExpiredLinkModal` on 404. Legacy `?t=` still used for live session continuity only. |
 
 ### 3B — Backend Business Logic
 
@@ -152,7 +152,7 @@ S1 Origin Search  ──►  S2 Flight Results  ◄──► [DatePickerOverlay]
 | 3.11 | **S6 — Timeline tab:** per-leg cards, airline, route, time, "Book" links | `[x]` | Itinerary remains shareable and leads forward to booking review |
 | 3.12 | **S6 — Map tab:** Leaflet, numbered pins, solid/dashed lines, auto-fit | `[x]` | Lazy-loaded; stops with missing coords silently omitted |
 | 3.13 | **S6 — Total price** sum + disclaimer | `[x]` | |
-| 3.14 | **S6 — Share CTA** copy-to-clipboard | `[x]` | |
+| 3.14 | **S6 — Share CTA** copy-to-clipboard | `[x]` | Replaced toast with `ShareModal`. Share button calls `POST /trips`, opens modal with short link, Copy button (clipboard + execCommand fallback), 24h expiry notice. |
 | 3.15 | 15-stop limit guard (store + UI) | `[x]` | |
 | 3.15b | **S7 — Booking Review:** ticket list, total estimate, airline logos, bulk-book CTA, per-flight booking links | `[x]` | Final review step after itinerary; logos fall back to initials when unavailable |
 
@@ -177,6 +177,7 @@ S1 Origin Search  ──►  S2 Flight Results  ◄──► [DatePickerOverlay]
 | 3.25 | `MockFlightProvider` respects `destinationIata` parameter | `[x]` | Known dest → filtered; unknown dest (e.g. EVN) → 3 synthetic flights: direct + 2 via-hub |
 | 3.26 | `ReturnFlightCard` component — ticket-style route card | `[x]` | Route: `BCN ——•—— EVN`; Non-stop / N stop badge; times + duration; price |
 | 3.27 | `ReturnFlightCardSkeleton` matching the 3-row layout | `[x]` | |
+| 3.28 | Filter same-origin destinations from flight results | `[x]` | `FlightService.ts`: strip flights where `destinationIata === originIata` before dedup — covers all providers |
 
 ---
 
