@@ -69,7 +69,8 @@ export class FlightService {
       raw = await fetchMockFlights(originIata, originCity, date, destinationIata);
     }
 
-    const deduplicated = deduplicate ? deduplicateByDestination(raw) : raw;
+    const filtered = raw.filter((f) => f.destinationIata !== originIata);
+    const deduplicated = deduplicate ? deduplicateByDestination(filtered) : filtered;
     const sorted = deduplicated.sort((a, b) => a.priceUsd - b.priceUsd);
     const top10 = sorted.slice(0, 10);
     setCache(cacheKey, top10);
