@@ -4,6 +4,8 @@ import { useUrlSync } from './hooks/useUrlSync';
 import { ProgressBar } from './components/ProgressBar';
 import { Toast } from './components/Toast';
 import { AppDrawer } from './components/AppDrawer';
+import { ShareModal } from './components/ShareModal';
+import { ExpiredLinkModal } from './components/ExpiredLinkModal';
 import { HomeScreen } from './screens/HomeScreen';
 import { FlightResultsScreen } from './screens/FlightResultsScreen';
 import { StayDurationScreen } from './screens/StayDurationScreen';
@@ -26,6 +28,8 @@ export default function App() {
     <div className={appClassName}>
       <ProgressBar onMenuOpen={() => setDrawerOpen(true)} />
       <Toast />
+      <ShareModal />
+      <ExpiredLinkModal />
       <AppDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
       {screen === 'home' && <HomeScreen onMenuOpen={() => setDrawerOpen(true)} />}
       {screen === 'flight-results' && <FlightResultsScreen />}

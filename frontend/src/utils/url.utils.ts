@@ -32,3 +32,11 @@ export function readShareParam(): Itinerary | null {
   if (!encoded) return null;
   return decodeItinerary(encoded);
 }
+
+export function buildShortShareUrl(id: string): string {
+  const url = new URL(window.location.href);
+  url.pathname = '/';
+  url.search = '';
+  url.searchParams.set('trip', id);
+  return url.toString();
+}

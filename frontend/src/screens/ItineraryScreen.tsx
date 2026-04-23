@@ -4,8 +4,9 @@ import { useSessionStore } from '../store/session.store';
 import { useSavedTripsStore } from '../store/saved-trips.store';
 import { formatDate, formatTime, durationLabel } from '../utils/date.utils';
 import { formatPrice, totalPrice } from '../utils/price.utils';
-import { buildShareUrl } from '../utils/url.utils';
-import { ArrowLeft, Plane, Map, List, Share2, ExternalLink, Check, CreditCard, Bookmark } from 'lucide-react';
+import { buildShortShareUrl } from '../utils/url.utils';
+import { createTripShare } from '../api/trips.api';
+import { ArrowLeft, Plane, Map, List, Share2, ExternalLink, Check, CreditCard, Bookmark, Loader2 } from 'lucide-react';
 import { MapErrorBoundary } from '../components/MapErrorBoundary';
 
 const TripMap = lazy(() => import('../components/TripMap').then((m) => ({ default: m.TripMap })));
@@ -18,20 +19,25 @@ export function ItineraryScreen() {
   const resetSession = useSessionStore((s) => s.reset);
   const setScreen = useSessionStore((s) => s.setScreen);
   const showToast = useSessionStore((s) => s.showToast);
+  const showShareModal = useSessionStore((s) => s.showShareModal);
   const saveTrip = useSavedTripsStore((s) => s.saveTrip);
   const [tab, setTab] = useState<'timeline' | 'map'>('timeline');
-  const [copied, setCopied] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const total = totalPrice(legs);
 
   async function handleShare() {
-    if (!itinerary) return;
-    const url = buildShareUrl(itinerary);
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    showToast('Trip link copied! Share with your travel buddy.');
-    setTimeout(() => setCopied(false), 2000);
+    if (!itinerary || sharing) return;
+    setSharing(true);
+    try {
+      const id = await createTripShare(itinerary);
+      showShareModal(buildShortShareUrl(id));
+    } catch {
+      showToast('Could not generate share link. Please try again.');
+    } finally {
+      setSharing(false);
+    }
   }
 
   function handleNewTrip() {
@@ -173,8 +179,8 @@ export function ItineraryScreen() {
           >
             {saved ? <><Check size={16} /> Saved</> : <><Bookmark size={16} /> Save trip</>}
           </button>
-          <button className="btn-secondary flex-1 flex items-center justify-center gap-2" onClick={handleShare}>
-            {copied ? <><Check size={16} /> Copied!</> : <><Share2 size={16} /> Share trip</>}
+          <button className="btn-secondary flex-1 flex items-center justify-center gap-2" onClick={handleShare} disabled={sharing}>
+            {sharing ? <><Loader2 size={16} className="animate-spin" /> Generating…</> : <><Share2 size={16} /> Share trip</>}
           </button>
         </div>
         <button className="btn-outline" onClick={handleNewTrip}>
