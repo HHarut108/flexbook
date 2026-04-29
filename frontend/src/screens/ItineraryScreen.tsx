@@ -47,7 +47,7 @@ export function ItineraryScreen() {
   }
 
   return (
-    <div className="pb-8">
+    <div className={tab === 'map' ? 'h-screen overflow-hidden flex flex-col' : 'pb-8'}>
       {/* Header */}
       <div className="px-4 pt-4 pb-4">
         <div className="hero-panel">
@@ -149,7 +149,7 @@ export function ItineraryScreen() {
 
       {/* Map */}
       {tab === 'map' && origin && (
-        <div className="mx-3 mt-3" style={{ height: 'calc(100vh - 340px)', minHeight: '320px', maxHeight: '520px' }}>
+        <div className="mx-3 mt-3 flex-1 min-h-0">
           <MapErrorBoundary>
             <Suspense fallback={<div className="h-full bg-surface rounded-[20px] animate-pulse" />}>
               <TripMap origin={origin} legs={legs} />
