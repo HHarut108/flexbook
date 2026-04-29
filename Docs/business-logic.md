@@ -2,6 +2,74 @@
 
 ---
 
+## 0. How Origin Airport Is Auto-Detected
+
+### Plain English
+
+When the Home screen loads, the app tries to detect the user's location so it can surface nearby airports without requiring any typing. It runs two detection methods simultaneously and takes whichever resolves first. On repeat visits it skips detection entirely by reading a 24-hour localStorage cache.
+
+### Algorithm
+
+```
+FUNCTION resolveUserCoords():
+
+  // Fast path: return cached coords if fresh (< 24 hours old)
+  cached = localStorage.getItem("fta_coords_v1")
+  IF cached EXISTS AND (now - cached.ts) < 86_400_000ms:
+    RETURN { lat: cached.lat, lng: cached.lng }
+
+  // Cold path: race browser geolocation against IP lookup
+  // Promise.any rejects only if BOTH fail (AggregateError)
+  coords = await Promise.any([
+    getBrowserCoords(timeout = 5000ms),   // navigator.geolocation
+    getIpCoords()                          // ipapi.co/json/
+  ])
+
+  // Persist result for next visit
+  localStorage.setItem("fta_coords_v1", { ...coords, ts: now })
+
+  RETURN coords
+
+
+FUNCTION getBrowserCoords(timeoutMs):
+  USE navigator.geolocation.getCurrentPosition()
+  TIMEOUT after timeoutMs
+  ON SUCCESS: RETURN { lat, lng }
+  ON ERROR / UNSUPPORTED: REJECT
+
+
+FUNCTION getIpCoords():
+  FETCH https://ipapi.co/json/
+  ON SUCCESS: RETURN { lat: data.latitude, lng: data.longitude }
+  ON ERROR / MISSING FIELDS: REJECT
+```
+
+### Decision Rules
+
+- **Cache hit (repeat visit):** instant return, no network call.
+- **Cache miss (first visit, or > 24h since last visit):** both methods fire simultaneously; fastest wins.
+- **Browser geo wins** when the user has previously granted location permission (~0–1 s).
+- **IP geo wins** when browser geo is slow or denied (~300–500 ms).
+- **Both fail** (e.g. browser denied + network error): `Promise.any` throws `AggregateError`; the UI falls back to showing `POPULAR_AIRPORTS` (Istanbul IST, London LHR, Paris CDG).
+- Cache key `fta_coords_v1` is versioned — incrementing the suffix busts all cached values.
+- Cache writes are wrapped in try/catch to silently tolerate private-browsing localStorage restrictions.
+
+### Latency profile
+
+| Scenario | Approx. time to airports |
+|---|---|
+| Repeat visit (cache hit) | ~0 ms (synchronous read) |
+| Browser geo already permitted | ~200–800 ms |
+| Browser geo denied / slow, IP resolves | ~300–600 ms |
+| Both sources fail | instant (popular airports shown) |
+
+### Fallback
+
+- Coords resolve but `/airports/nearby-coords` returns 0 results → FE shows `POPULAR_AIRPORTS`.
+- `localStorage` unavailable → detection still works (cache write silently skipped); every visit does the cold-path race.
+
+---
+
 ## 1. How City Input Becomes Airport Options
 
 ### Plain English

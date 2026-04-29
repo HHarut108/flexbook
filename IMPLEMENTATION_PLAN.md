@@ -1,6 +1,6 @@
 # FlexBook — Implementation Plan
 
-> **Last updated:** 2026-04-06
+> **Last updated:** 2026-04-29
 > **Status key:** `[ ]` Not started · `[~]` In progress · `[x]` Done · `[!]` Blocked
 
 ---
@@ -111,7 +111,7 @@ S1 Origin Search  ──►  S2 Flight Results  ◄──► [DatePickerOverlay]
 |---|------|--------|-------|
 | 2.13 | Global layout + Tailwind warm light theme with structured cards and teal accent | `[x]` | Inter + JetBrains Mono fonts |
 | 2.14 | Sticky progress bar (stop count + breadcrumb) | `[x]` | Hidden on home screen and booking review |
-| 2.15 | **S1 — Home:** search input, autocomplete 7 results, nearby airport pills | `[x]` | Geolocation → `nearby-coords`; selecting origin auto-sets tomorrow and jumps to S2 |
+| 2.15 | **S1 — Home:** search input, autocomplete 7 results, nearby airport pills | `[x]` | Geolocation → `nearby-coords`; selecting origin auto-sets tomorrow and jumps to S2. Geo detection uses `Promise.any([browserGeo, ipGeo])` (parallel race) + 24h `localStorage` cache (`fta_coords_v1`) for instant repeat-visit detection. |
 | 2.16 | **`DatePickerOverlay` bottom-sheet component** | `[x]` | Replaces standalone Date Picker screen; opened by tapping date bar on S2/S5 |
 | 2.17 | **S2 — Flight Results:** prominent ← date → arrows, tap-to-calendar date bar, 10 cards, skeletons | `[x]` | Reload loop fixed; "Nothing fitting? Try next day →" nudge below cards |
 | 2.18 | `FlightCard` component | `[x]` | Airline, destination city, route, time, duration, stops badge, price, weather widget |
