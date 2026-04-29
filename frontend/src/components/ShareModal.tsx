@@ -84,7 +84,7 @@ export function ShareModal() {
           <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
             <Clock size={15} className="text-amber-500 shrink-0 mt-0.5" />
             <p className="text-xs text-amber-700 leading-relaxed">
-              This link is active for <span className="font-semibold">24 hours</span>. After that it expires and the recipient will need to ask for a new link in order to view the trip plan.
+              This link expires in <span className="font-semibold">24 hours</span>. After that, the recipient will need to request a new one to view the trip plan.
             </p>
           </div>
 
