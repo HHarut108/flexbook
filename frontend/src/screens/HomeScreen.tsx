@@ -84,13 +84,13 @@ function DateField({
   const displayDate = value ? format(new Date(value + 'T12:00:00'), 'EEE, MMM d') : 'Pick a date';
 
   return (
-    <label className="relative block cursor-pointer">
-      <CalendarDays
-        size={16}
-        className="absolute left-4 top-1/2 -translate-y-1/2 text-text-xmuted pointer-events-none z-10"
-      />
+    <label
+      className="input-field relative flex items-center gap-2 px-3 rounded-2xl cursor-pointer"
+      style={{ height: '48px' }}
+    >
+      <CalendarDays size={16} className="text-text-xmuted shrink-0 pointer-events-none" />
       <span
-        className={`absolute left-11 top-1/2 -translate-y-1/2 pointer-events-none z-10 text-base ${
+        className={`text-base flex-1 truncate pointer-events-none ${
           value ? 'text-text-primary font-medium' : 'text-text-xmuted'
         }`}
       >
@@ -98,8 +98,7 @@ function DateField({
       </span>
       <input
         type="date"
-        className="input-field pl-11 pr-4 rounded-2xl text-base w-full cursor-pointer"
-        style={{ height: '48px', color: 'transparent', caretColor: 'transparent', colorScheme: 'light' }}
+        className="absolute inset-0 opacity-0 cursor-pointer"
         value={value}
         min={min}
         onChange={(e) => {
