@@ -47,7 +47,7 @@ export function ItineraryScreen() {
   }
 
   return (
-    <div className={tab === 'map' ? 'h-screen overflow-hidden flex flex-col' : 'pb-8'}>
+    <div className="pb-8">
       {/* Header */}
       <div className="px-4 pt-4 pb-4">
         <div className="hero-panel">
@@ -149,7 +149,7 @@ export function ItineraryScreen() {
 
       {/* Map */}
       {tab === 'map' && origin && (
-        <div className="mx-3 mt-3 flex-1 min-h-0">
+        <div className="mx-3 mt-3" style={{ height: 'calc(100vh - 250px)', minHeight: '320px' }}>
           <MapErrorBoundary>
             <Suspense fallback={<div className="h-full bg-surface rounded-[20px] animate-pulse" />}>
               <TripMap origin={origin} legs={legs} />
@@ -158,8 +158,8 @@ export function ItineraryScreen() {
         </div>
       )}
 
-      {/* Actions */}
-      <div className="px-4 mt-6 space-y-3">
+      {/* Actions — hidden in map tab */}
+      {tab === 'timeline' && <div className="px-4 mt-6 space-y-3">
         <button
           className="btn-primary flex items-center justify-center gap-2"
           onClick={() => setScreen('booking-review')}
@@ -186,7 +186,7 @@ export function ItineraryScreen() {
         <button className="btn-outline" onClick={handleNewTrip}>
           Plan another trip
         </button>
-      </div>
+      </div>}
     </div>
   );
 }
