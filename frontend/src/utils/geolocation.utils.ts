@@ -3,6 +3,29 @@ export interface Coords {
   lng: number;
 }
 
+const COORDS_CACHE_KEY = 'fta_coords_v1';
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+function readCachedCoords(): Coords | null {
+  try {
+    const raw = localStorage.getItem(COORDS_CACHE_KEY);
+    if (!raw) return null;
+    const { lat, lng, ts } = JSON.parse(raw) as { lat: number; lng: number; ts: number };
+    if (Date.now() - ts > CACHE_TTL_MS) return null;
+    return { lat, lng };
+  } catch {
+    return null;
+  }
+}
+
+function cacheCoords(coords: Coords): void {
+  try {
+    localStorage.setItem(COORDS_CACHE_KEY, JSON.stringify({ ...coords, ts: Date.now() }));
+  } catch {
+    // localStorage unavailable (e.g. private browsing quota exceeded)
+  }
+}
+
 export function getBrowserCoords(timeoutMs = 5000): Promise<Coords> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
@@ -28,9 +51,13 @@ export async function getIpCoords(): Promise<Coords> {
 }
 
 export async function resolveUserCoords(): Promise<Coords> {
-  try {
-    return await getBrowserCoords();
-  } catch {
-    return await getIpCoords();
-  }
+  // Return immediately if we have a fresh cached result (repeat visits)
+  const cached = readCachedCoords();
+  if (cached) return cached;
+
+  // Race browser geo against IP lookup — first to resolve wins.
+  // Promise.any rejects only if both fail (throws AggregateError).
+  const coords = await Promise.any([getBrowserCoords(), getIpCoords()]);
+  cacheCoords(coords);
+  return coords;
 }
