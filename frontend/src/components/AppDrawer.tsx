@@ -7,6 +7,7 @@ import { createTripShare } from '../api/trips.api';
 import { formatPrice } from '../utils/price.utils';
 import { ApiModeSwitcher } from './ApiModeSwitcher';
 import { X, MapPin, Share2, Trash2, Plane, BookmarkCheck, Loader2 } from 'lucide-react';
+import { GoHomeLogo } from './GoHomeLogo';
 
 interface Props {
   open: boolean;
@@ -159,9 +160,7 @@ export function AppDrawer({ open, onClose }: Props) {
               background: 'linear-gradient(135deg, rgba(55,48,163,0.97) 0%, rgba(79,70,229,0.97) 100%)',
             }}
           >
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-black tracking-tight text-white">flex<span className="text-orange">/</span>book</span>
-            </div>
+            <GoHomeLogo size="sm" variant="dark" onNavigate={onClose} />
             <button
               onClick={onClose}
               className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center text-white hover:bg-white/25 transition-all active:scale-95"

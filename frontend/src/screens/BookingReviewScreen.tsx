@@ -6,6 +6,7 @@ import { fetchAirlineLogos } from '../api/airlines.api';
 import { formatDate, formatTime, durationLabel } from '../utils/date.utils';
 import { formatPrice, totalPrice } from '../utils/price.utils';
 import { MapErrorBoundary } from '../components/MapErrorBoundary';
+import { GoHomeLogo } from '../components/GoHomeLogo';
 import {
   ArrowLeft,
   ExternalLink,
@@ -413,11 +414,7 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
           borderBottom: '1px solid rgba(255,255,255,0.10)',
         }}
       >
-        <div className="flex items-baseline gap-0">
-          <span className="text-[1.1rem] font-black tracking-[-0.05em] text-white">flex</span>
-          <span className="text-[1.1rem] font-black tracking-[-0.05em] text-orange">/</span>
-          <span className="text-[1.1rem] font-black tracking-[-0.05em] text-white">book</span>
-        </div>
+        <GoHomeLogo size="sm" variant="dark" />
         <button
           onClick={onMenuOpen}
           className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-white hover:bg-white/25 transition-all active:scale-95"

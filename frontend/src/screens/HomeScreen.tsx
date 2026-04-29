@@ -7,6 +7,7 @@ import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
 import { formatYMD } from '../utils/date.utils';
 import { addDays, format } from 'date-fns';
+import { GoHomeLogo } from '../components/GoHomeLogo';
 import {
   MapPin,
   Search,
@@ -279,11 +280,7 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
       <div className="relative px-5 pt-7 pb-10 max-w-screen-sm mx-auto">
         {/* ── Header ── */}
         <div className="flex items-center justify-between mb-10">
-          <div className="flex items-baseline gap-0">
-            <span className="text-[1.4rem] font-black tracking-[-0.05em] text-indigo">flex</span>
-            <span className="text-[1.4rem] font-black tracking-[-0.05em] text-orange">/</span>
-            <span className="text-[1.4rem] font-black tracking-[-0.05em] text-indigo">book</span>
-          </div>
+          <GoHomeLogo size="lg" variant="light" />
           <button
             onClick={onMenuOpen}
             className="w-11 h-11 rounded-2xl bg-surface border border-border flex items-center justify-center text-indigo-mid transition-all hover:bg-indigo-soft hover:border-indigo-border"
