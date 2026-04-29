@@ -1,5 +1,6 @@
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
+import { GoHomeLogo } from './GoHomeLogo';
 import { Menu } from 'lucide-react';
 
 const MAX_STOPS = 15;
@@ -49,11 +50,8 @@ export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
           borderBottom: '1px solid rgba(255,255,255,0.10)',
         }}
       >
-        {/* flex/book logo */}
-        <div className="flex items-baseline gap-0 shrink-0">
-          <span className="text-[1.1rem] font-black tracking-[-0.05em] text-white">flex</span>
-          <span className="text-[1.1rem] font-black tracking-[-0.05em] text-orange">/</span>
-          <span className="text-[1.1rem] font-black tracking-[-0.05em] text-white">book</span>
+        <div className="shrink-0">
+          <GoHomeLogo size="sm" variant="dark" />
         </div>
 
         {/* Step label + breadcrumb */}
