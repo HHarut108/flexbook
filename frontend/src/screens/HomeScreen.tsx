@@ -42,32 +42,26 @@ function PassengerStepper({
 }) {
   return (
     <div
-      className="input-field relative flex items-center gap-1 pl-11 pr-1.5 rounded-2xl"
+      className="input-field flex items-center justify-between gap-1 px-2 rounded-2xl"
       style={{ height: '48px' }}
       role="group"
       aria-label={`${value} passenger${value > 1 ? 's' : ''}`}
     >
-      <Users
-        size={16}
-        className="absolute left-4 top-1/2 -translate-y-1/2 text-text-xmuted pointer-events-none"
-      />
-      <span className="text-text-primary font-medium text-base flex-1">{value}</span>
       <button
         type="button"
         onClick={() => onChange(Math.max(1, value - 1))}
         disabled={value <= 1}
-        className="w-9 h-9 rounded-xl bg-surface-2 border border-border flex items-center justify-center text-text-primary font-semibold text-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed hover:border-indigo-border"
-        style={{ minWidth: '36px', minHeight: '36px' }}
+        className="w-8 h-8 rounded-xl bg-surface-2 border border-border flex items-center justify-center text-text-primary font-semibold text-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed hover:border-indigo-border shrink-0"
         aria-label="Remove passenger"
       >
         &minus;
       </button>
+      <span className="text-text-primary font-medium text-base text-center flex-1">{value}</span>
       <button
         type="button"
         onClick={() => onChange(value + 1)}
         disabled={value >= 9}
-        className="w-9 h-9 rounded-xl bg-surface-2 border border-border flex items-center justify-center text-text-primary font-semibold text-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed hover:border-indigo-border"
-        style={{ minWidth: '36px', minHeight: '36px' }}
+        className="w-8 h-8 rounded-xl bg-surface-2 border border-border flex items-center justify-center text-text-primary font-semibold text-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed hover:border-indigo-border shrink-0"
         aria-label="Add passenger"
       >
         +
