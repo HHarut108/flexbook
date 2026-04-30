@@ -1,0 +1,224 @@
+{
+  "PFO": {
+    "hotels": [
+      {
+        "name": "Amavi Hotel",
+        "neighborhood": "Coral Bay",
+        "pricePerNight": 89,
+        "why": "Adults-only resort with a long beach strip, all-day à la carte dining, and easy access to the Akamas Peninsula.",
+        "bookingUrl": "https://www.booking.com/hotel/cy/amavi.html"
+      },
+      {
+        "name": "Almyra Hotel",
+        "neighborhood": "Kato Paphos",
+        "pricePerNight": 145,
+        "why": "Design-forward seafront hotel. The pool-bar view of Paphos Castle at sunset is the best in town.",
+        "bookingUrl": "https://www.booking.com/hotel/cy/almyra.html"
+      },
+      {
+        "name": "Annabelle Hotel",
+        "neighborhood": "Paphos Harbour",
+        "pricePerNight": 120,
+        "why": "Full-service beach hotel with multiple pools and walking distance to the Archaeological Park.",
+        "bookingUrl": "https://www.booking.com/hotel/cy/annabelle.html"
+      }
+    ],
+    "activities": [
+      {
+        "name": "Paphos Archaeological Park",
+        "duration": "2–3 hours",
+        "cost": "€",
+        "note": "UNESCO site with 4th-century BC mosaics of Dionysus. Go early before tour buses arrive.",
+        "dontSkip": true,
+        "icon": "Building2"
+      },
+      {
+        "name": "Rock of Aphrodite",
+        "duration": "1–2 hours",
+        "cost": "free",
+        "note": "The legendary birthplace of Aphrodite. Short coastal walk with turquoise water below the cliffs.",
+        "dontSkip": true,
+        "icon": "Waves"
+      },
+      {
+        "name": "Akamas Peninsula Hike",
+        "duration": "3–4 hours",
+        "cost": "free",
+        "note": "7.5 km loop through protected wilderness. Bring water — no shade after the first kilometre.",
+        "dontSkip": false,
+        "icon": "Mountain"
+      },
+      {
+        "name": "Paphos Harbour & Castle",
+        "duration": "1 hour",
+        "cost": "€",
+        "note": "Byzantine-era castle at the harbour entrance. Best at golden hour for photos.",
+        "dontSkip": false,
+        "icon": "Camera"
+      },
+      {
+        "name": "Tombs of the Kings",
+        "duration": "1 hour",
+        "cost": "€",
+        "note": "Underground rock-cut tombs dating to the 4th century BC. Eerie and impressive scale.",
+        "dontSkip": false,
+        "icon": "Compass"
+      }
+    ],
+    "restaurants": [
+      {
+        "name": "7 St. Georges Tavern",
+        "mealType": "Lunch",
+        "description": "Order the meze — 20+ small dishes for €18. Outdoor terrace overlooking the old town."
+      },
+      {
+        "name": "Theo's Seafood Restaurant",
+        "mealType": "Dinner",
+        "description": "No menu, just the catch of the day priced by weight. Ask for the grilled octopus regardless."
+      },
+      {
+        "name": "Pralina Café",
+        "mealType": "Breakfast",
+        "description": "Local favourite for halloumi omelettes and fresh-squeezed orange juice."
+      },
+      {
+        "name": "Makedonia Souvlaki",
+        "mealType": "Snack",
+        "description": "The best souvlaki pittas in Paphos. €2.50. Eat standing at the counter."
+      },
+      {
+        "name": "Café Bar Akamantis",
+        "mealType": "Coffee",
+        "description": "Quiet courtyard café in the old town. Good Cypriot coffee and free Wi-Fi."
+      }
+    ],
+    "days": [
+      {
+        "title": "Arrival & Orient",
+        "slots": [
+          { "time": "Morning", "activity": "Check in, walk the harbour front, coffee at Pralina Café" },
+          { "time": "Afternoon", "activity": "Paphos Archaeological Park mosaics (get there before 1 pm heat)" },
+          { "time": "Evening", "activity": "Sunset at the Harbour Castle, dinner at Theo's Seafood" }
+        ]
+      },
+      {
+        "title": "Coast & History",
+        "slots": [
+          { "time": "Morning", "activity": "Rock of Aphrodite — drive 30 min east on the coastal road" },
+          { "time": "Afternoon", "activity": "Tombs of the Kings, then Coral Bay beach swim" },
+          { "time": "Evening", "activity": "Meze dinner at 7 St. Georges Tavern" }
+        ]
+      },
+      {
+        "title": "Wild Side",
+        "slots": [
+          { "time": "Morning", "activity": "Akamas Peninsula hike — start by 8 am, bring 2 L water per person" },
+          { "time": "Afternoon", "activity": "Recover at hotel pool or Lara Bay turtle beach" },
+          { "time": "Evening", "activity": "Souvlaki at Makedonia, walk the harbourfront" }
+        ]
+      }
+    ],
+    "practical": {
+      "currency": "Euro (€)",
+      "sim": "Cytamobile-Vodafone eSIM via their app. 10 GB for €10. Works island-wide.",
+      "transport": "Car hire strongly recommended — €25–40/day from PFO arrivals hall. Bolt operates in Paphos town only."
+    }
+  },
+  "LCA": {
+    "hotels": [
+      {
+        "name": "Radisson Blu Hotel Larnaka",
+        "neighborhood": "Larnaka Seafront",
+        "pricePerNight": 95,
+        "why": "Right on the Finikoudes promenade. Walk to everything — the castle, the salt lake, the best restaurants.",
+        "bookingUrl": "https://www.booking.com/hotel/cy/radisson-blu-larnaka.html"
+      },
+      {
+        "name": "Sun Hall Hotel",
+        "neighborhood": "Town Centre",
+        "pricePerNight": 75,
+        "why": "Classic seafront property with a rooftop pool. Great value and central location.",
+        "bookingUrl": "https://www.booking.com/hotel/cy/sun-hall.html"
+      }
+    ],
+    "activities": [
+      {
+        "name": "Hala Sultan Tekke Mosque",
+        "duration": "1 hour",
+        "cost": "free",
+        "note": "One of the most important Islamic sites in the world, set beside the salt lake. Serene.",
+        "dontSkip": true,
+        "icon": "Building2"
+      },
+      {
+        "name": "Larnaka Salt Lake & Flamingos",
+        "duration": "1–2 hours",
+        "cost": "free",
+        "note": "Flamingos arrive November to March. Off-season it's still a striking landscape.",
+        "dontSkip": true,
+        "icon": "Waves"
+      },
+      {
+        "name": "Larnaka Medieval Castle",
+        "duration": "45 minutes",
+        "cost": "€",
+        "note": "Ottoman-era castle right on the beach. Small but worth it for the views from the roof.",
+        "dontSkip": false,
+        "icon": "Camera"
+      },
+      {
+        "name": "Choirokoitia Neolithic Settlement",
+        "duration": "1–2 hours",
+        "cost": "€",
+        "note": "UNESCO site 30 min west. One of the oldest towns in Europe, dating to 7000 BC.",
+        "dontSkip": false,
+        "icon": "Compass"
+      }
+    ],
+    "restaurants": [
+      {
+        "name": "Art Café 1900",
+        "mealType": "Lunch",
+        "description": "Restored traditional house. Best mezedes in Larnaka, book ahead at weekends."
+      },
+      {
+        "name": "Militzis Restaurant",
+        "mealType": "Dinner",
+        "description": "Family-run tavern with live Cypriot music on weekends. Try the lamb kleftiko."
+      },
+      {
+        "name": "Zephyros Café",
+        "mealType": "Breakfast",
+        "description": "Seafront café with fresh pastries and strong coffee. Perfect starting point for the day."
+      },
+      {
+        "name": "Stou Rousha",
+        "mealType": "Snack",
+        "description": "The best souvlaki in Larnaka. Look for the queue — it's always there."
+      }
+    ],
+    "days": [
+      {
+        "title": "Salt Lake & Old Town",
+        "slots": [
+          { "time": "Morning", "activity": "Walk the Finikoudes promenade, breakfast at Zephyros" },
+          { "time": "Afternoon", "activity": "Hala Sultan Tekke and Salt Lake walk" },
+          { "time": "Evening", "activity": "Larnaka Castle at dusk, dinner at Militzis" }
+        ]
+      },
+      {
+        "title": "History & Coast",
+        "slots": [
+          { "time": "Morning", "activity": "Choirokoitia Neolithic Settlement — 30 min drive west" },
+          { "time": "Afternoon", "activity": "Back in town: Larnaka Medieval Castle + beach swim" },
+          { "time": "Evening", "activity": "Meze at Art Café 1900 (book ahead)" }
+        ]
+      }
+    ],
+    "practical": {
+      "currency": "Euro (€)",
+      "sim": "PrimeTel or Cyta eSIM available online. 5 GB for €8. Full island coverage.",
+      "transport": "Taxis from LCA airport are metered and reasonable. Car hire available if you plan day trips."
+    }
+  }
+}

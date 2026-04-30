@@ -13,6 +13,7 @@ import { DecisionScreen } from './screens/DecisionScreen';
 import { ReturnFlightsScreen } from './screens/ReturnFlightsScreen';
 import { ItineraryScreen } from './screens/ItineraryScreen';
 import { BookingReviewScreen } from './screens/BookingReviewScreen';
+import { PlanStayScreen } from './screens/PlanStayScreen';
 
 export default function App() {
   const screen = useSessionStore((s) => s.screen);
@@ -39,6 +40,7 @@ export default function App() {
       {screen === 'itinerary' && <ItineraryScreen />}
       {screen === 'booking-review' && <BookingReviewScreen onMenuOpen={() => setDrawerOpen(true)} />}
       {screen === 'partial-booking' && <BookingReviewScreen partial onMenuOpen={() => setDrawerOpen(true)} />}
+      {screen === 'plan-stay' && <PlanStayScreen />}
     </div>
   );
 }
