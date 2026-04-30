@@ -80,11 +80,11 @@ export function ShareModal() {
             </button>
           </div>
 
-          {/* 24h notice */}
+          {/* 30-day notice */}
           <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
             <Clock size={15} className="text-amber-500 shrink-0 mt-0.5" />
             <p className="text-xs text-amber-700 leading-relaxed">
-              This link expires in <span className="font-semibold">24 hours</span>. After that, the recipient will need to request a new one to view the trip plan.
+              This link expires in <span className="font-semibold">30 days</span>. After that, the recipient will need to request a new one to view the trip plan.
             </p>
           </div>
 

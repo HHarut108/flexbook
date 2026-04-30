@@ -4,7 +4,7 @@ import { useSessionStore } from '../store/session.store';
 import { useSavedTripsStore } from '../store/saved-trips.store';
 import { formatDate, formatTime, durationLabel } from '../utils/date.utils';
 import { formatPrice, totalPrice } from '../utils/price.utils';
-import { buildShortShareUrl } from '../utils/url.utils';
+import { buildSlugShareUrl } from '../utils/url.utils';
 import { createTripShare } from '../api/trips.api';
 import { ArrowLeft, Plane, Map, List, Share2, ExternalLink, Check, CreditCard, Bookmark, Loader2 } from 'lucide-react';
 import { MapErrorBoundary } from '../components/MapErrorBoundary';
@@ -32,7 +32,7 @@ export function ItineraryScreen() {
     setSharing(true);
     try {
       const id = await createTripShare(itinerary);
-      showShareModal(buildShortShareUrl(id));
+      showShareModal(buildSlugShareUrl(id));
     } catch {
       showToast('Could not generate share link. Please try again.');
     } finally {

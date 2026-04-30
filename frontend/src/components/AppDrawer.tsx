@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSavedTripsStore, SavedTrip } from '../store/saved-trips.store';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
-import { buildShortShareUrl } from '../utils/url.utils';
+import { buildSlugShareUrl } from '../utils/url.utils';
 import { createTripShare } from '../api/trips.api';
 import { formatPrice } from '../utils/price.utils';
 import { ApiModeSwitcher } from './ApiModeSwitcher';
@@ -117,7 +117,7 @@ export function AppDrawer({ open, onClose }: Props) {
     setSharingTripId(trip.id);
     try {
       const id = await createTripShare(trip.itinerary);
-      showShareModal(buildShortShareUrl(id));
+      showShareModal(buildSlugShareUrl(id));
     } catch {
       showToast('Could not generate share link. Please try again.');
     } finally {
