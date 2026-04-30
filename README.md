@@ -76,6 +76,7 @@ Start from your current city, discover the cheapest next places to fly, choose h
 - Trip map view
 - Shareable trip URL
 - Booking review screen
+- Plan Stay screen — per-city guide with live hotels, attractions, restaurants, and a day-by-day sketch, fetched dynamically from Google Places for any destination worldwide
 
 ## Project Structure
 
@@ -116,11 +117,14 @@ Optional backend API keys:
 SERPAPI_API_KEY=your_serpapi_api_key_here
 KIWI_API_KEY=your_kiwi_tequila_api_key_here
 AIRHEX_API_KEY=your_airhex_api_key_here
+GOOGLE_PLACES_API_KEY=your_google_places_api_key_here
 ```
 
 `SERPAPI_API_KEY` enables real flight data via Google Flights (SerpAPI). If absent, the app falls back to `KIWI_API_KEY` (Kiwi/Tequila). If neither key is set, the mock provider is used automatically (suitable for development and testing).
 
 `AIRHEX_API_KEY` enables real airline logos on the booking review screen. Without it, the app falls back to simple airline initials.
+
+`GOOGLE_PLACES_API_KEY` powers the Plan Stay screen — hotels, tourist attractions, and restaurants for any destination via the Google Places API (Text Search). Without it, the `/city-guide` and `/restaurants` endpoints return 503.
 
 ## Current Focus
 

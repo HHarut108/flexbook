@@ -23,7 +23,7 @@ import {
 interface Hotel {
   name: string;
   neighborhood: string;
-  pricePerNight: number;
+  pricePerNight: number | null;
   why: string;
   bookingUrl?: string;
 }
@@ -146,7 +146,7 @@ export function PlanStayScreen() {
   const crumbs = [origin?.iata ?? '?', ...nonReturnLegs.map((l) => l.destinationIata)];
   const nights = stayDurationDays ?? 1;
 
-  const [data, setData] = useState<Record<string, DestinationGuide> | null>(null);
+  const [data, setData] = useState<DestinationGuide | null>(null);
   const [fetchError, setFetchError] = useState(false);
   const [countryInfo, setCountryInfo] = useState<CountryInfo | null>(null);
   const [activeContentTab, setActiveContentTab] = useState(0);
@@ -158,11 +158,14 @@ export function PlanStayScreen() {
   const handleBack = () => setScreen('decision');
 
   useEffect(() => {
-    fetch('/planContent.json')
-      .then((r) => r.json())
-      .then(setData)
+    if (!destinationCity) return;
+    apiClient
+      .get<DestinationGuide>('/city-guide', {
+        params: { city: destinationCity, country: destinationCountry },
+      })
+      .then((res) => setData(res.data))
       .catch(() => setFetchError(true));
-  }, []);
+  }, [destinationCity, destinationCountry]);
 
   useEffect(() => {
     if (destinationCountry) {
@@ -196,7 +199,7 @@ export function PlanStayScreen() {
     );
   }
 
-  const content = data?.[destinationIata];
+  const content = data;
 
   // Fallback for unknown destinations or network errors
   if (!content) {
@@ -312,10 +315,12 @@ export function PlanStayScreen() {
                   <h3 className="text-[15px] font-bold text-text-primary leading-tight flex-1 min-w-0">
                     {hotel.name}
                   </h3>
-                  <div className="shrink-0 text-right">
-                    <span className="font-mono font-bold text-orange text-base">€{hotel.pricePerNight}</span>
-                    <span className="text-text-xmuted text-xs"> /night</span>
-                  </div>
+                  {hotel.pricePerNight != null && (
+                    <div className="shrink-0 text-right">
+                      <span className="font-mono font-bold text-orange text-base">€{hotel.pricePerNight}</span>
+                      <span className="text-text-xmuted text-xs"> /night</span>
+                    </div>
+                  )}
                 </div>
                 <div className="mb-3">
                   <span className="pill-default text-[10px]">{hotel.neighborhood}</span>
