@@ -1,7 +1,31 @@
 import LZString from 'lz-string';
 import { Itinerary } from '@fast-travel/shared';
+import type { Screen } from '../store/session.store';
 
 const PARAM_KEY = 't';
+
+const SCREEN_PATHS: Record<Screen, string> = {
+  home: '/',
+  'flight-results': '/flights',
+  'stay-duration': '/stay',
+  decision: '/review',
+  'return-flights': '/return',
+  itinerary: '/itinerary',
+  'booking-review': '/book',
+  'partial-booking': '/book/partial',
+};
+
+const PATH_SCREENS: Record<string, Screen> = Object.fromEntries(
+  Object.entries(SCREEN_PATHS).map(([screen, path]) => [path, screen as Screen]),
+);
+
+export function screenToPath(screen: Screen): string {
+  return SCREEN_PATHS[screen] ?? '/';
+}
+
+export function pathToScreen(path: string): Screen | null {
+  return PATH_SCREENS[path] ?? null;
+}
 
 export function encodeItinerary(itinerary: Itinerary): string {
   const json = JSON.stringify(itinerary);
@@ -18,14 +42,6 @@ export function decodeItinerary(encoded: string): Itinerary | null {
   }
 }
 
-export function buildShareUrl(itinerary: Itinerary): string {
-  const encoded = encodeItinerary(itinerary);
-  const url = new URL(window.location.href);
-  url.pathname = '/';
-  url.searchParams.set(PARAM_KEY, encoded);
-  return url.toString();
-}
-
 export function readShareParam(): Itinerary | null {
   const params = new URLSearchParams(window.location.search);
   const encoded = params.get(PARAM_KEY);
@@ -33,10 +49,6 @@ export function readShareParam(): Itinerary | null {
   return decodeItinerary(encoded);
 }
 
-export function buildShortShareUrl(id: string): string {
-  const url = new URL(window.location.href);
-  url.pathname = '/';
-  url.search = '';
-  url.searchParams.set('trip', id);
-  return url.toString();
+export function buildSlugShareUrl(slug: string): string {
+  return `${window.location.origin}/share/${slug}`;
 }
