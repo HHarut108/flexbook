@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
 import { formatPrice, totalPrice } from '../utils/price.utils';
 import { formatDate } from '../utils/date.utils';
 import { TripTimeline } from '../components/TripTimeline';
+import { PlanStayNudge } from '../components/PlanStayNudge';
 import { ArrowLeft, Ticket } from 'lucide-react';
 import { getDecisionHeadline } from '../utils/copy.utils';
 
@@ -10,6 +12,7 @@ export function DecisionScreen() {
   const legs = useTripStore((s) => s.legs);
   const canContinue = useTripStore((s) => s.canContinue());
   const { setScreen, setSelectedDate } = useSessionStore();
+  const [planVisited, setPlanVisited] = useState(false);
 
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
   const lastLeg = nonReturnLegs.at(-1)!;
@@ -64,6 +67,21 @@ export function DecisionScreen() {
         </div>
         <TripTimeline legs={legs} highlightLast />
       </div>
+
+      {/* Plan stay nudge — only shown for stays of 1+ days */}
+      {(lastLeg.stayDurationDays ?? 0) >= 1 && (
+        <div className="mb-5">
+          <PlanStayNudge
+            city={lastLeg.destinationCity}
+            nights={lastLeg.stayDurationDays ?? 1}
+            visited={planVisited}
+            onTap={() => {
+              setPlanVisited(true);
+              setScreen('plan-stay');
+            }}
+          />
+        </div>
+      )}
 
       {/* Action buttons */}
       <div className="space-y-3">

@@ -17,6 +17,8 @@ function stepLabel(screen: string, stopCount: number): string {
       return 'Finding your way home';
     case 'itinerary':
       return 'Your trip is ready!';
+    case 'plan-stay':
+      return 'Planning your stay';
     default:
       return '';
   }
@@ -76,7 +78,7 @@ export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
         </div>
 
         {/* Stops remaining pill */}
-        {screen !== 'itinerary' && screen !== 'return-flights' && (
+        {screen !== 'itinerary' && screen !== 'return-flights' && screen !== 'plan-stay' && (
           <div className="shrink-0 flex items-center gap-1.5">
             <div className="flex flex-col items-end">
               <span className="text-white/40 text-[9px] leading-none mb-0.5">stops left</span>

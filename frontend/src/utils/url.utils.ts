@@ -13,6 +13,7 @@ const SCREEN_PATHS: Record<Screen, string> = {
   itinerary: '/itinerary',
   'booking-review': '/book',
   'partial-booking': '/book/partial',
+  'plan-stay': '/plan',
 };
 
 const PATH_SCREENS: Record<string, Screen> = Object.fromEntries(

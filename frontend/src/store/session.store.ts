@@ -9,7 +9,8 @@ export type Screen =
   | 'return-flights'
   | 'booking-review'
   | 'partial-booking'
-  | 'itinerary';
+  | 'itinerary'
+  | 'plan-stay';
 
 interface SessionState {
   screen: Screen;

@@ -7,6 +7,7 @@ import { flightRoutes } from './routes/flights';
 import { weatherRoutes } from './routes/weather';
 import { airlineRoutes } from './routes/airlines';
 import { tripRoutes } from './routes/trips';
+import { placesRoutes } from './routes/places';
 
 const app = Fastify({
   logger: {
@@ -29,6 +30,7 @@ async function start() {
   await app.register(weatherRoutes);
   await app.register(airlineRoutes);
   await app.register(tripRoutes);
+  await app.register(placesRoutes);
 
   try {
     await app.listen({ port: config.PORT, host: '0.0.0.0' });
