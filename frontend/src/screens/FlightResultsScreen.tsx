@@ -9,12 +9,13 @@ import { DatePickerOverlay } from '../components/DatePickerOverlay';
 import { TripTimeline } from '../components/TripTimeline';
 import { formatDate } from '../utils/date.utils';
 import { formatPrice, totalPrice } from '../utils/price.utils';
-import { ChevronLeft, ChevronRight, Calendar, RefreshCw, ArrowLeft, Home } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, RefreshCw, ArrowLeft, Home, Users } from 'lucide-react';
 import { format, addDays, parseISO } from 'date-fns';
 
 export function FlightResultsScreen() {
   const origin = useTripStore((s) => s.origin);
   const legs = useTripStore((s) => s.legs);
+  const passengers = useTripStore((s) => s.passengers);
   const {
     selectedDate,
     pendingFlights,
@@ -164,6 +165,12 @@ export function FlightResultsScreen() {
           >
             <ChevronRight size={20} />
           </button>
+        </div>
+
+        {/* Traveler count pill */}
+        <div className="mt-2 flex items-center gap-1.5 text-xs text-text-muted">
+          <Users size={12} className="shrink-0" />
+          <span>{passengers} {passengers === 1 ? 'traveler' : 'travelers'} · prices shown per total</span>
         </div>
         </div>
       </div>

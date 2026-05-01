@@ -38,7 +38,7 @@ export async function searchFlights(
       ...(maxStopovers !== undefined && { maxStopovers }),
       ...(currency && { currency }),
       ...(cabinClass && { cabinClass }),
-      ...(passengers && passengers > 1 && { passengers }),
+      ...(passengers !== undefined && { passengers }),
       apiMode: mode,
     },
   });
