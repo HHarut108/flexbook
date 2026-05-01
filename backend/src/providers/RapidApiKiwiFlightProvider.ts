@@ -67,7 +67,7 @@ export async function fetchRapidApiKiwiFlights(
     adults: passengers,
     children: 0,
     infants: 0,
-    handbags: 1,
+    handbags: 0,
     holdbags: 0,
     cabinClass: cabinClassMap[cabinClass] ?? 'ECONOMY',
     sortBy: sortByMap[sort] ?? 'PRICE',
