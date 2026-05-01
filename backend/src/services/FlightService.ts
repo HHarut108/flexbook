@@ -46,11 +46,11 @@ export class FlightService {
     options: KiwiSearchOptions = {},
     apiMode?: 'real' | 'mock',
   ): Promise<FlightOption[]> {
-    const { sort = 'price', maxStopovers, currency = 'USD' } = options;
-    
+    const { sort = 'price', maxStopovers, currency = 'USD', passengers = 1 } = options;
+
     // If apiMode is explicitly set to 'mock', use mock provider
     const provider = apiMode === 'mock' ? 'mock' : this.selectProvider();
-    const cacheKey = `flights:${provider}:${originIata}:${date}:${destinationIata ?? 'any'}:${deduplicate}:${sort}:${maxStopovers ?? 'any'}:${currency}`;
+    const cacheKey = `flights:${provider}:${originIata}:${date}:${destinationIata ?? 'any'}:${deduplicate}:${sort}:${maxStopovers ?? 'any'}:${currency}:${passengers}`;
     const cached = getCache<FlightOption[]>(cacheKey);
     if (cached) return cached.slice(0, limit);
 
@@ -60,8 +60,8 @@ export class FlightService {
       raw = await fetchRapidApiKiwiFlights(originIata, date, destinationIata, options);
     } else if (provider === 'serpapi') {
       const partial = destinationIata
-        ? await fetchSerpApiFlights(originIata, destinationIata, date, currency)
-        : await fetchSerpApiOpenFlights(originIata, date, currency);
+        ? await fetchSerpApiFlights(originIata, destinationIata, date, currency, passengers)
+        : await fetchSerpApiOpenFlights(originIata, date, currency, passengers);
       raw = enrichWithAirportData(partial);
     } else if (provider === 'kiwi') {
       raw = await fetchKiwiFlights(originIata, date, destinationIata, options);

@@ -136,6 +136,7 @@ async function fetchCountryInfo(countryName: string): Promise<CountryInfo | null
 export function PlanStayScreen() {
   const legs = useTripStore((s) => s.legs);
   const origin = useTripStore((s) => s.origin);
+  const passengers = useTripStore((s) => s.passengers);
   const { setScreen } = useSessionStore();
 
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
@@ -157,15 +158,24 @@ export function PlanStayScreen() {
 
   const handleBack = () => setScreen('decision');
 
+  const checkin = arrivalDatetime ? arrivalDatetime.slice(0, 10) : undefined;
+  const checkout = nextDepartureDate ?? undefined;
+
   useEffect(() => {
     if (!destinationCity) return;
     apiClient
       .get<DestinationGuide>('/city-guide', {
-        params: { city: destinationCity, country: destinationCountry },
+        params: {
+          city: destinationCity,
+          country: destinationCountry,
+          ...(checkin && { checkin }),
+          ...(checkout && { checkout }),
+          passengers,
+        },
       })
       .then((res) => setData(res.data))
       .catch(() => setFetchError(true));
-  }, [destinationCity, destinationCountry]);
+  }, [destinationCity, destinationCountry, checkin, checkout, passengers]);
 
   useEffect(() => {
     if (destinationCountry) {

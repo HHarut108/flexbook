@@ -49,6 +49,8 @@ export interface KiwiSearchOptions {
   currency?: string;
   /** Cabin class. M=Economy, W=Premium Economy, C=Business, F=First. Default: M */
   cabinClass?: 'M' | 'W' | 'C' | 'F';
+  /** Number of adult passengers (1–9). Default: 1 */
+  passengers?: number;
 }
 
 export async function fetchKiwiFlights(
@@ -59,13 +61,14 @@ export async function fetchKiwiFlights(
 ): Promise<FlightOption[]> {
   const [year, month, day] = date.split('-');
   const dateFormatted = `${day}/${month}/${year}`;
-  const { sort = 'price', maxStopovers, currency = 'USD', cabinClass } = options;
+  const { sort = 'price', maxStopovers, currency = 'USD', cabinClass, passengers = 1 } = options;
 
   const searchParams: Record<string, string | number> = {
     fly_from: originIata,
     date_from: dateFormatted,
     date_to: dateFormatted,
     curr: currency,
+    adults: passengers,
     limit: 50,
     sort,
     partner: 'picky',

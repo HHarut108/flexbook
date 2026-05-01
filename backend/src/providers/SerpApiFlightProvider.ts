@@ -68,11 +68,12 @@ export async function fetchSerpApiOpenFlights(
   originIata: string,
   date: string,
   currency = 'USD',
+  passengers = 1,
 ): Promise<Omit<FlightOption, 'destinationCountry' | 'destinationLat' | 'destinationLng'>[]> {
   const destinations = OPEN_SEARCH_DESTINATIONS.filter((d) => d !== originIata);
 
   const results = await Promise.allSettled(
-    destinations.map((dest) => fetchSerpApiFlights(originIata, dest, date, currency)),
+    destinations.map((dest) => fetchSerpApiFlights(originIata, dest, date, currency, passengers)),
   );
 
   const flights: Omit<FlightOption, 'destinationCountry' | 'destinationLat' | 'destinationLng'>[] = [];
@@ -92,6 +93,7 @@ export async function fetchSerpApiFlights(
   destinationIata: string,
   date: string,
   currency = 'USD',
+  passengers = 1,
 ): Promise<Omit<FlightOption, 'destinationCountry' | 'destinationLat' | 'destinationLng'>[]> {
   let response: SerpApiResponse;
 
@@ -104,6 +106,7 @@ export async function fetchSerpApiFlights(
         outbound_date: date,
         type: 2, // one-way
         currency,
+        adults: passengers,
         hl: 'en',
         api_key: config.SERPAPI_API_KEY,
       },

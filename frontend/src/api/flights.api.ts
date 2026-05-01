@@ -14,6 +14,8 @@ export interface FlightSearchOptions {
   currency?: string;
   /** Cabin class. M=Economy, W=Premium Economy, C=Business, F=First */
   cabinClass?: 'M' | 'W' | 'C' | 'F';
+  /** Number of adult passengers (1–9). Default: 1 */
+  passengers?: number;
 }
 
 export async function searchFlights(
@@ -24,7 +26,7 @@ export async function searchFlights(
   const mode = getApiMode();
 
   // Real API call - pass mode to backend
-  const { destination, deduplicate = true, limit = 10, sort, maxStopovers, currency, cabinClass } = options;
+  const { destination, deduplicate = true, limit = 10, sort, maxStopovers, currency, cabinClass, passengers } = options;
   const { data } = await apiClient.get<FlightOption[]>('/flights/search', {
     params: {
       originIata,
@@ -36,7 +38,8 @@ export async function searchFlights(
       ...(maxStopovers !== undefined && { maxStopovers }),
       ...(currency && { currency }),
       ...(cabinClass && { cabinClass }),
-      apiMode: mode, // Pass the current API mode
+      ...(passengers && passengers > 1 && { passengers }),
+      apiMode: mode,
     },
   });
   return data;
