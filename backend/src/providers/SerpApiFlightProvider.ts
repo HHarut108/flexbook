@@ -49,8 +49,8 @@ interface SerpApiResponse {
   error?: string;
 }
 
-function buildGoogleFlightsUrl(origin: string, dest: string, date: string): string {
-  return `https://www.google.com/flights#search;f=${origin};t=${dest};d=${date};tt=o`;
+function buildGoogleFlightsUrl(origin: string, dest: string, date: string, passengers = 1): string {
+  return `https://www.google.com/flights#search;f=${origin};t=${dest};d=${date};tt=o;sc=${passengers}`;
 }
 
 function parseFlightTime(time: string): string {
@@ -154,7 +154,7 @@ export async function fetchSerpApiFlights(
       stops,
       viaIatas,
       priceUsd: result.price,
-      bookingUrl: buildGoogleFlightsUrl(originIata, destinationIata, date),
+      bookingUrl: buildGoogleFlightsUrl(originIata, destinationIata, date, passengers),
     };
   });
 }
