@@ -8,8 +8,10 @@ interface TripState {
   legs: TripLeg[];
   status: 'planning' | 'complete';
   createdAt: string;
+  passengers: number;
 
   setOrigin: (airport: Airport) => void;
+  setPassengers: (count: number) => void;
   addLeg: (leg: TripLeg) => void;
   updateStay: (stopIndex: number, days: number, nextDepartureDate: string) => void;
   finalize: () => void;
@@ -27,9 +29,12 @@ export const useTripStore = create<TripState>((set, get) => ({
   legs: [],
   status: 'planning',
   createdAt: new Date().toISOString(),
+  passengers: 1,
 
   setOrigin: (airport) =>
     set({ origin: airport, legs: [], status: 'planning', createdAt: new Date().toISOString() }),
+
+  setPassengers: (count) => set({ passengers: Math.max(1, Math.min(9, count)) }),
 
   addLeg: (leg) => set((s) => ({ legs: [...s.legs, leg] })),
 
@@ -43,10 +48,10 @@ export const useTripStore = create<TripState>((set, get) => ({
   finalize: () => set({ status: 'complete' }),
 
   reset: () =>
-    set({ origin: null, legs: [], status: 'planning', createdAt: new Date().toISOString() }),
+    set({ origin: null, legs: [], status: 'planning', createdAt: new Date().toISOString(), passengers: 1 }),
 
   loadFromItinerary: (it) =>
-    set({ origin: it.origin, legs: it.legs, status: it.status, createdAt: it.createdAt }),
+    set({ origin: it.origin, legs: it.legs, status: it.status, createdAt: it.createdAt, passengers: it.passengers ?? 1 }),
 
   canContinue: () => {
     const { legs } = get();
@@ -80,8 +85,8 @@ export const useTripStore = create<TripState>((set, get) => ({
   },
 
   toItinerary: () => {
-    const { origin, legs, status, createdAt } = get();
+    const { origin, legs, status, createdAt, passengers } = get();
     if (!origin) return null;
-    return { origin, legs, status, createdAt };
+    return { origin, legs, status, createdAt, passengers };
   },
 }));

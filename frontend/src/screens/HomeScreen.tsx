@@ -220,6 +220,7 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const [departureDate, setDepartureDate] = useState(formatYMD(addDays(new Date(), 1)));
   const { results, loading } = useAirportSearch(query);
   const setOrigin = useTripStore((s) => s.setOrigin);
+  const setStorePassengers = useTripStore((s) => s.setPassengers);
   const { setScreen, setSelectedDate } = useSessionStore();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -250,11 +251,12 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const selectAirport = useCallback(
     (airport: Airport) => {
       setOrigin(airport);
+      setStorePassengers(passengers);
       setSelectedDate(departureDate);
       setQuery('');
       setScreen('flight-results');
     },
-    [departureDate, setOrigin, setSelectedDate, setScreen],
+    [departureDate, passengers, setOrigin, setStorePassengers, setSelectedDate, setScreen],
   );
 
   const showResults = query.trim().length > 0;

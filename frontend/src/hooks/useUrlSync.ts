@@ -18,6 +18,7 @@ export function useUrlSync() {
   const origin = useTripStore((s) => s.origin);
   const status = useTripStore((s) => s.status);
   const createdAt = useTripStore((s) => s.createdAt);
+  const passengers = useTripStore((s) => s.passengers);
   const loadFromItinerary = useTripStore((s) => s.loadFromItinerary);
   const screen = useSessionStore((s) => s.screen);
   const setScreen = useSessionStore((s) => s.setScreen);
@@ -153,10 +154,10 @@ export function useUrlSync() {
       return;
     }
 
-    const itinerary = { origin, legs, status, createdAt };
+    const itinerary = { origin, legs, status, createdAt, passengers };
     const encoded = encodeItinerary(itinerary);
     const url = new URL(window.location.href);
     url.searchParams.set(PARAM_KEY, encoded);
     window.history.replaceState(null, '', url.toString());
-  }, [origin, legs, status, createdAt, screen]);
+  }, [origin, legs, status, createdAt, passengers, screen]);
 }

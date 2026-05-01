@@ -45,7 +45,7 @@ export async function fetchRapidApiKiwiFlights(
   destinationIata?: string,
   options: KiwiSearchOptions = {},
 ): Promise<FlightOption[]> {
-  const { sort = 'price', maxStopovers, currency = 'USD', cabinClass = 'M' } = options;
+  const { sort = 'price', maxStopovers, currency = 'USD', cabinClass = 'M', passengers = 1 } = options;
 
   const cabinClassMap: Record<string, string> = {
     M: 'ECONOMY',
@@ -64,7 +64,7 @@ export async function fetchRapidApiKiwiFlights(
     source: `Airport:${originIata}`,
     currency: currency.toLowerCase(),
     locale: 'en',
-    adults: 1,
+    adults: passengers,
     children: 0,
     infants: 0,
     handbags: 1,

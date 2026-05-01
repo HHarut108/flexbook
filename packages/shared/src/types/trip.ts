@@ -16,4 +16,5 @@ export interface Itinerary {
   status: ItineraryStatus;
   createdAt: string;         // ISO 8601
   completedAt?: string;      // ISO 8601
+  passengers: number;        // 1–9 adults
 }

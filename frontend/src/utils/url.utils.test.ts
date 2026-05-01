@@ -41,6 +41,7 @@ const SAMPLE_ITINERARY: Itinerary = {
   ],
   status: 'planning',
   createdAt: '2026-04-06T12:00:00.000Z',
+  passengers: 1,
 };
 
 describe('encodeItinerary / decodeItinerary round-trip', () => {

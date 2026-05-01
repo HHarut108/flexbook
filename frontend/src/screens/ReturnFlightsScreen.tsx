@@ -163,7 +163,7 @@ export function ReturnFlightsScreen() {
           <div className="card mb-4 text-center">
             <p className="text-text-muted text-sm mb-3">Couldn&apos;t load return flights.</p>
             <button
-              onClick={() => search(currentIata, localDate, originIata, false, 3)}
+              onClick={() => search(currentIata, localDate, { destination: originIata, deduplicate: false, limit: 3 })}
               className="flex items-center gap-2 mx-auto text-indigo-mid text-sm hover:underline"
             >
               <RefreshCw size={14} /> Retry

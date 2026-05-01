@@ -16,6 +16,7 @@ const searchQuerySchema = z.object({
   maxStopovers: z.coerce.number().int().min(0).max(2).optional(),
   currency: z.string().length(3).toUpperCase().default('USD'),
   cabinClass: z.enum(['M', 'W', 'C', 'F']).optional(),
+  passengers: z.coerce.number().int().min(1).max(9).default(1),
   apiMode: z.enum(['real', 'mock']).optional(),
 });
 
@@ -26,7 +27,7 @@ export async function flightRoutes(app: FastifyInstance) {
       return reply.status(400).send(fail('INVALID_PARAMS', parsed.error.issues[0]?.message ?? 'Invalid params'));
     }
 
-    const { originIata, date, destination, deduplicate, limit, sort, maxStopovers, currency, cabinClass, apiMode } = parsed.data;
+    const { originIata, date, destination, deduplicate, limit, sort, maxStopovers, currency, cabinClass, passengers, apiMode } = parsed.data;
 
     const origin = airportService.getByIata(originIata);
     const originCity = origin?.city.name ?? originIata;
@@ -34,7 +35,7 @@ export async function flightRoutes(app: FastifyInstance) {
     try {
       const flights = await flightService.search(
         originIata, originCity, date, destination, deduplicate, limit,
-        { sort, maxStopovers, currency, cabinClass },
+        { sort, maxStopovers, currency, cabinClass, passengers },
         apiMode,
       );
       return ok(flights);

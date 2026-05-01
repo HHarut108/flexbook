@@ -6,6 +6,9 @@ import { ok, fail } from '../utils/response';
 const querySchema = z.object({
   city: z.string().min(1).max(100),
   country: z.string().min(1).max(100).optional(),
+  checkin: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  checkout: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  passengers: z.coerce.number().int().min(1).max(9).default(1),
 });
 
 const PRICE_MAP: Record<string, string> = {
@@ -97,7 +100,7 @@ export async function cityGuideRoutes(app: FastifyInstance) {
       return reply.status(503).send(fail('NO_API_KEY', 'Google Places not configured'));
     }
 
-    const { city, country } = parsed.data;
+    const { city, country, checkin, checkout, passengers } = parsed.data;
     const location = country ? `${city}, ${country}` : city;
 
     const detailFields =
@@ -127,6 +130,16 @@ export async function cityGuideRoutes(app: FastifyInstance) {
       const hotels = hotelPlaces.slice(0, 3).map((p) => {
         const addressParts = (p.formattedAddress ?? '').split(',');
         const neighborhood = addressParts[1]?.trim() ?? city;
+
+        const bookingParams = new URLSearchParams({
+          ss: p.displayName?.text ?? city,
+          group_adults: String(passengers),
+          no_rooms: '1',
+          lang: 'en-gb',
+        });
+        if (checkin) bookingParams.set('checkin', checkin);
+        if (checkout) bookingParams.set('checkout', checkout);
+
         return {
           name: p.displayName?.text ?? 'Hotel',
           neighborhood,
@@ -134,7 +147,7 @@ export async function cityGuideRoutes(app: FastifyInstance) {
           why:
             p.editorialSummary?.text ??
             (p.rating ? `Rated ${p.rating.toFixed(1)}/5 by guests.` : 'Well-reviewed hotel in the city.'),
-          bookingUrl: `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(p.displayName?.text ?? city)}`,
+          bookingUrl: `https://www.booking.com/searchresults.html?${bookingParams.toString()}`,
         };
       });
 
