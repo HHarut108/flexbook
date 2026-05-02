@@ -3,6 +3,27 @@ import axios, { AxiosError } from 'axios';
 import { config } from '../config';
 import { KiwiSearchOptions } from './KiwiFlightProvider';
 
+export class RapidApiRateLimitError extends Error {
+  constructor() {
+    super('RapidAPI Kiwi rate limit reached');
+    this.name = 'RapidApiRateLimitError';
+  }
+}
+
+export class RapidApiAuthError extends Error {
+  constructor() {
+    super('RapidAPI Kiwi: invalid or missing API key');
+    this.name = 'RapidApiAuthError';
+  }
+}
+
+export class RapidApiUnavailableError extends Error {
+  constructor(status: number) {
+    super(`RapidAPI Kiwi unavailable (HTTP ${status})`);
+    this.name = 'RapidApiUnavailableError';
+  }
+}
+
 const RAPIDAPI_HOST = 'kiwi-com-cheap-flights.p.rapidapi.com';
 const KIWI_BASE = 'https://www.kiwi.com';
 
@@ -104,9 +125,9 @@ export async function fetchRapidApiKiwiFlights(
     if (axios.isAxiosError(err)) {
       const axiosErr = err as AxiosError;
       const status = axiosErr.response?.status;
-      if (status === 429) throw new Error('RapidAPI Kiwi rate limit reached');
-      if (status === 401 || status === 403) throw new Error('RapidAPI Kiwi: invalid or missing API key');
-      if (status && [502, 503, 504].includes(status)) throw new Error(`RapidAPI Kiwi unavailable (HTTP ${status})`);
+      if (status === 429) throw new RapidApiRateLimitError();
+      if (status === 401 || status === 403) throw new RapidApiAuthError();
+      if (status && [502, 503, 504].includes(status)) throw new RapidApiUnavailableError(status);
     }
     throw err;
   }

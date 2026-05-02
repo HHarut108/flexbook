@@ -4,7 +4,8 @@ import { flightService } from '../services/FlightService';
 import { airportService } from '../services/AirportService';
 import { ok, fail } from '../utils/response';
 import { KiwiRateLimitError, KiwiUnavailableError } from '../providers/KiwiFlightProvider';
-import { SerpApiRateLimitError, SerpApiUnavailableError } from '../providers/SerpApiFlightProvider';
+import { SerpApiRateLimitError, SerpApiUnavailableError, SerpApiResponseError } from '../providers/SerpApiFlightProvider';
+import { RapidApiRateLimitError, RapidApiAuthError, RapidApiUnavailableError } from '../providers/RapidApiKiwiFlightProvider';
 
 const searchQuerySchema = z.object({
   originIata: z.string().length(3).toUpperCase(),
@@ -57,6 +58,23 @@ export async function flightRoutes(app: FastifyInstance) {
       }
       if (err instanceof SerpApiUnavailableError) {
         app.log.warn(err, 'SerpAPI temporarily unavailable');
+        return reply.status(503).send(fail('FLIGHT_API_UNAVAILABLE', 'Flight search is temporarily unavailable. Please try again shortly.', true));
+      }
+      if (err instanceof SerpApiResponseError) {
+        app.log.error(err, 'SerpAPI returned an error in response body');
+        return reply.status(503).send(fail('FLIGHT_API_ERROR', `SerpAPI error — check API key or quota. Detail: ${err.message}`, true));
+      }
+      if (err instanceof RapidApiRateLimitError) {
+        return reply.status(429).headers({ 'Retry-After': '60' }).send(
+          fail('RATE_LIMITED', 'RapidAPI rate limit reached. Please wait a moment and try again.', true),
+        );
+      }
+      if (err instanceof RapidApiAuthError) {
+        app.log.error(err, 'RapidAPI auth failure — invalid or missing API key');
+        return reply.status(503).send(fail('FLIGHT_API_AUTH_ERROR', 'RapidAPI key is invalid or missing. Check RAPIDAPI_KEY env var on Render.', true));
+      }
+      if (err instanceof RapidApiUnavailableError) {
+        app.log.warn(err, 'RapidAPI temporarily unavailable');
         return reply.status(503).send(fail('FLIGHT_API_UNAVAILABLE', 'Flight search is temporarily unavailable. Please try again shortly.', true));
       }
       app.log.error(err, 'Flight search failed');

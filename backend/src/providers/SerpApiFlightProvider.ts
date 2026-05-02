@@ -16,6 +16,13 @@ export class SerpApiUnavailableError extends Error {
   }
 }
 
+export class SerpApiResponseError extends Error {
+  constructor(message: string) {
+    super(`SerpAPI response error: ${message}`);
+    this.name = 'SerpApiResponseError';
+  }
+}
+
 interface SerpApiAirport {
   name: string;
   id: string;
@@ -125,7 +132,7 @@ export async function fetchSerpApiFlights(
   }
 
   if (response.error) {
-    throw new Error(`SerpAPI error: ${response.error}`);
+    throw new SerpApiResponseError(response.error);
   }
 
   const allResults = [...(response.best_flights ?? []), ...(response.other_flights ?? [])];
