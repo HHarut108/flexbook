@@ -4,9 +4,10 @@ export interface Coords {
 }
 
 const COORDS_CACHE_KEY = 'fta_coords_v1';
+const NEARBY_CACHE_KEY = 'fta_nearby_v1';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-function readCachedCoords(): Coords | null {
+export function readCachedCoords(): Coords | null {
   try {
     const raw = localStorage.getItem(COORDS_CACHE_KEY);
     if (!raw) return null;
@@ -48,6 +49,30 @@ export async function getIpCoords(): Promise<Coords> {
     throw new Error('IP geolocation returned no coordinates');
   }
   return { lat: data.latitude, lng: data.longitude };
+}
+
+export function readCachedNearby<T>(lat: number, lng: number): T[] | null {
+  try {
+    const raw = localStorage.getItem(NEARBY_CACHE_KEY);
+    if (!raw) return null;
+    const { lat: cachedLat, lng: cachedLng, airports, ts } = JSON.parse(raw) as {
+      lat: number; lng: number; airports: T[]; ts: number;
+    };
+    if (Date.now() - ts > CACHE_TTL_MS) return null;
+    // Treat as same location if within ~1 km (≈0.01°)
+    if (Math.abs(cachedLat - lat) > 0.01 || Math.abs(cachedLng - lng) > 0.01) return null;
+    return airports;
+  } catch {
+    return null;
+  }
+}
+
+export function cacheNearby<T>(lat: number, lng: number, airports: T[]): void {
+  try {
+    localStorage.setItem(NEARBY_CACHE_KEY, JSON.stringify({ lat, lng, airports, ts: Date.now() }));
+  } catch {
+    // localStorage unavailable
+  }
 }
 
 export async function resolveUserCoords(): Promise<Coords> {
