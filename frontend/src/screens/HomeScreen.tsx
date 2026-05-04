@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Airport } from '@fast-travel/shared';
 import { useAirportSearch } from '../hooks/useAirportSearch';
 import { nearbyAirportsByCoords } from '../api/airports.api';
-import { resolveUserCoords } from '../utils/geolocation.utils';
+import { resolveUserCoords, readCachedCoords, readCachedNearby, cacheNearby } from '../utils/geolocation.utils';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
 import { formatYMD } from '../utils/date.utils';
@@ -226,9 +226,21 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
 
   const minDate = formatYMD(addDays(new Date(), 1));
 
-  /* Geolocation: browser first, IP fallback */
+  /* Geolocation: serve cached nearby airports instantly, then refresh in background */
   useEffect(() => {
     let cancelled = false;
+
+    // If we have both cached coords and cached nearby airports, show them immediately
+    // with no loading state — the list appears before any network call.
+    const cachedCoords = readCachedCoords();
+    if (cachedCoords) {
+      const cachedAirports = readCachedNearby<Airport>(cachedCoords.lat, cachedCoords.lng);
+      if (cachedAirports) {
+        setNearby(cachedAirports.slice(0, 3));
+        return; // skip network entirely until cache expires
+      }
+    }
+
     setGeoLoading(true);
     (async () => {
       try {
@@ -236,6 +248,7 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
         if (cancelled) return;
         const airports = await nearbyAirportsByCoords(coords.lat, coords.lng);
         if (cancelled) return;
+        cacheNearby(coords.lat, coords.lng, airports);
         setNearby(airports.slice(0, 3));
       } catch {
         /* both browser and IP geolocation failed — fall back to POPULAR_AIRPORTS */
