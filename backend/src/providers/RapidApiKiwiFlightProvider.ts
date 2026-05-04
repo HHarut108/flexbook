@@ -150,9 +150,17 @@ export async function fetchRapidApiKiwiFlights(
         : undefined;
 
       const rawBookingUrl = it.bookingOptions?.edges?.[0]?.node?.bookingUrl ?? '';
-      const bookingUrl = rawBookingUrl.startsWith('http')
+      const absoluteUrl = rawBookingUrl.startsWith('http')
         ? rawBookingUrl
         : rawBookingUrl ? `${KIWI_BASE}${rawBookingUrl}` : '';
+      let bookingUrl = absoluteUrl;
+      if (absoluteUrl && passengers > 1) {
+        try {
+          const u = new URL(absoluteUrl);
+          u.searchParams.set('adults', String(passengers));
+          bookingUrl = u.toString();
+        } catch { /* leave bookingUrl as-is */ }
+      }
 
       return {
         flightId: it.id,
