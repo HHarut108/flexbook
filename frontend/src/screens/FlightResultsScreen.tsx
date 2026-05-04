@@ -169,25 +169,27 @@ export function FlightResultsScreen() {
         </div>
 
         {/* Traveler count stepper */}
-        <div className="mt-2 flex items-center gap-2 text-xs text-text-muted">
-          <Users size={12} className="shrink-0" />
-          <button
-            onClick={() => setPassengers(passengers - 1)}
-            disabled={passengers <= 1}
-            className="w-6 h-6 flex items-center justify-center rounded-full bg-white border border-border hover:border-indigo-border disabled:opacity-30 transition-all text-text-primary font-bold leading-none"
-          >
-            −
-          </button>
-          <span className="text-text-primary font-medium tabular-nums">
-            {passengers} {passengers === 1 ? 'traveler' : 'travelers'}
-          </span>
-          <button
-            onClick={() => setPassengers(passengers + 1)}
-            disabled={passengers >= 9}
-            className="w-6 h-6 flex items-center justify-center rounded-full bg-white border border-border hover:border-indigo-border disabled:opacity-30 transition-all text-text-primary font-bold leading-none"
-          >
-            +
-          </button>
+        <div className="mt-3 flex items-center gap-2">
+          <Users size={13} className="shrink-0 text-text-muted" />
+          <div className="flex items-center rounded-2xl border border-border bg-white/75 shadow-[0_4px_12px_rgba(23,50,77,0.06)] overflow-hidden">
+            <button
+              onClick={() => setPassengers(passengers - 1)}
+              disabled={passengers <= 1}
+              className="w-11 h-10 flex items-center justify-center text-text-muted hover:text-indigo hover:bg-indigo-soft disabled:opacity-25 transition-colors active:scale-95 text-lg font-light"
+            >
+              −
+            </button>
+            <span className="px-3 text-sm font-medium text-text-primary tabular-nums select-none border-x border-border">
+              {passengers} {passengers === 1 ? 'traveler' : 'travelers'}
+            </span>
+            <button
+              onClick={() => setPassengers(passengers + 1)}
+              disabled={passengers >= 9}
+              className="w-11 h-10 flex items-center justify-center text-text-muted hover:text-indigo hover:bg-indigo-soft disabled:opacity-25 transition-colors active:scale-95 text-lg font-light"
+            >
+              +
+            </button>
+          </div>
         </div>
         </div>
       </div>
