@@ -23,11 +23,11 @@ import {
 interface Hotel {
   name: string;
   neighborhood: string;
-  pricePerNight: number | null;
-  rating?: number | null;
-  reviewCount?: number | null;
+  priceLevel: string | null;
   why: string;
   bookingUrl?: string;
+  rating: number | null;
+  reviewCount: number | null;
 }
 
 interface Activity {
@@ -295,7 +295,151 @@ export function PlanStayScreen() {
         </div>
       </div>
 
-      {/* ── Day-by-day sketch (prioritized) ── */}
+      {/* ── Stay / Do / Eat tabs ── */}
+      <div className="mb-6">
+        <div className="section-shell overflow-hidden">
+          {/* Tab bar */}
+          <div className="flex border-b border-border/60" role="tablist">
+            {([
+              { label: 'Stay', icon: <BedDouble size={13} /> },
+              { label: 'Do', icon: <Compass size={13} /> },
+              { label: 'Eat', icon: <UtensilsCrossed size={13} /> },
+            ] as const).map(({ label, icon }, i) => (
+              <button
+                key={label}
+                role="tab"
+                aria-selected={activeContentTab === i}
+                onClick={() => setActiveContentTab(i)}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-semibold transition-colors ${
+                  activeContentTab === i
+                    ? 'text-indigo border-b-2 border-indigo bg-indigo-soft/40'
+                    : 'text-text-muted hover:text-text-secondary'
+                }`}
+              >
+                {icon}
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab content */}
+          <div key={activeContentTab} className="p-4 space-y-3 animate-fade-in">
+
+            {/* Stay */}
+            {activeContentTab === 0 && content.hotels.map((hotel) => (
+              <div key={hotel.name} className="card">
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <h3 className="text-[15px] font-bold text-text-primary leading-tight flex-1 min-w-0">
+                    {hotel.name}
+                  </h3>
+                  {hotel.priceLevel && (
+                    <div className="relative group shrink-0">
+                      <span className="text-sm font-semibold text-indigo cursor-default select-none">
+                        {hotel.priceLevel}
+                      </span>
+                      <div className="pointer-events-none absolute right-0 top-6 z-10 w-44 rounded-xl bg-gray-900 px-3 py-2 text-[11px] text-white leading-snug opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg">
+                        Relative price level based on Google Places — not an actual quote.
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="pill-default text-[10px]">{hotel.neighborhood}</span>
+                  {hotel.rating != null && (
+                    <span className="text-[11px] text-text-muted">
+                      ⭐ {hotel.rating.toFixed(1)}
+                      {hotel.reviewCount != null && (
+                        <span className="text-text-xmuted"> ({hotel.reviewCount.toLocaleString()})</span>
+                      )}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-text-secondary leading-relaxed mb-4">{hotel.why}</p>
+                {hotel.bookingUrl && (
+                  <a
+                    href={hotel.bookingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-border bg-indigo-soft px-4 py-2 text-sm font-semibold text-indigo hover:bg-indigo hover:text-white hover:border-indigo transition-all duration-150 active:scale-[0.98]"
+                    style={{ minHeight: '36px' }}
+                    aria-label={`Book ${hotel.name}`}
+                  >
+                    Book <ExternalLink size={13} />
+                  </a>
+                )}
+              </div>
+            ))}
+
+            {/* Do */}
+            {activeContentTab === 1 && content.activities.map((act) => {
+              const Icon = ACTIVITY_ICONS[act.icon] ?? Compass;
+              return (
+                <div
+                  key={act.name}
+                  className="rounded-[20px] border border-border bg-surface px-4 py-4"
+                  style={{ boxShadow: '0 4px 12px rgba(15,23,42,0.04)' }}
+                >
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-10 h-10 rounded-2xl bg-indigo-soft border border-indigo-border flex items-center justify-center shrink-0 mt-0.5">
+                      <Icon size={16} className="text-indigo" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <h4 className="text-[15px] font-semibold text-text-primary leading-tight flex-1">
+                          {act.name}
+                        </h4>
+                        <CostPill cost={act.cost} />
+                      </div>
+                      <p className="text-xs text-text-muted mb-2">
+                        {act.duration}{act.note && ` · ${act.note}`}
+                      </p>
+                      {act.dontSkip && <span className="pill-warning text-[10px]">Top pick</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Eat */}
+            {activeContentTab === 2 && (
+              restaurantsLoading ? (
+                <div className="space-y-3 animate-pulse">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="rounded-[20px] bg-surface-2 h-20" />
+                  ))}
+                </div>
+              ) : (liveRestaurants ?? content.restaurants).map((r) => (
+                <div
+                  key={r.name}
+                  className="rounded-[20px] border border-border bg-surface px-4 py-3.5"
+                  style={{ boxShadow: '0 4px 12px rgba(15,23,42,0.04)' }}
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`${MEAL_COLORS[r.mealType] ?? 'pill-default'} text-[10px] shrink-0`}>
+                        {r.mealType}
+                      </span>
+                      <h4 className="text-sm font-semibold text-text-primary truncate">{r.name}</h4>
+                    </div>
+                    {(r.rating || r.priceLevel) && (
+                      <div className="flex items-center gap-1.5 shrink-0 text-[11px] text-text-muted">
+                        {r.rating && <span>⭐ {r.rating.toFixed(1)}</span>}
+                        {r.priceLevel && <span className="text-text-xmuted">{r.priceLevel}</span>}
+                      </div>
+                    )}
+                  </div>
+                  {r.description && !r.description.startsWith('Rated') && r.description !== 'Local favourite' && (
+                    <p className="text-xs text-text-muted leading-relaxed">{r.description}</p>
+                  )}
+                </div>
+              ))
+            )}
+
+          </div>
+        </div>
+      </div>
+
+      {/* ── Day-by-day sketch ── */}
       {dayCount > 0 && (
         <div className="mb-6">
           <div className="section-shell overflow-hidden">

@@ -140,31 +140,44 @@ export async function cityGuideRoutes(app: FastifyInstance) {
         ),
       ]);
 
-      const hotels = hotelPlaces.slice(0, 3).map((p) => {
-        const addressParts = (p.formattedAddress ?? '').split(',');
-        const neighborhood = addressParts[1]?.trim() ?? city;
+      const PRICE_LEVEL_ORDER: Record<string, number> = {
+        PRICE_LEVEL_INEXPENSIVE: 1,
+        PRICE_LEVEL_MODERATE: 2,
+        PRICE_LEVEL_EXPENSIVE: 3,
+        PRICE_LEVEL_VERY_EXPENSIVE: 4,
+      };
 
-        const bookingParams = new URLSearchParams({
-          ss: p.displayName?.text ?? city,
-          group_adults: String(passengers),
-          no_rooms: '1',
-          lang: 'en-gb',
-        });
-        if (checkin) bookingParams.set('checkin', checkin);
-        if (checkout) bookingParams.set('checkout', checkout);
+      const hotels = hotelPlaces
+        .slice(0, 6)
+        .map((p) => {
+          const addressParts = (p.formattedAddress ?? '').split(',');
+          const neighborhood = addressParts[1]?.trim() ?? city;
 
-        return {
-          name: p.displayName?.text ?? 'Hotel',
-          neighborhood,
-          pricePerNight: null as number | null,
-          rating: p.rating ?? null,
-          reviewCount: p.userRatingCount ?? null,
-          why:
-            p.editorialSummary?.text ??
-            (p.rating ? `Rated ${p.rating.toFixed(1)}/5 by guests.` : 'Well-reviewed hotel in the city.'),
-          bookingUrl: `https://www.booking.com/searchresults.html?${bookingParams.toString()}`,
-        };
-      });
+          const bookingParams = new URLSearchParams({
+            ss: p.displayName?.text ?? city,
+            group_adults: String(passengers),
+            no_rooms: '1',
+            lang: 'en-gb',
+          });
+          if (checkin) bookingParams.set('checkin', checkin);
+          if (checkout) bookingParams.set('checkout', checkout);
+
+          return {
+            name: p.displayName?.text ?? 'Hotel',
+            neighborhood,
+            priceLevel: p.priceLevel ? (PRICE_MAP[p.priceLevel] ?? null) : null,
+            priceLevelOrder: p.priceLevel ? (PRICE_LEVEL_ORDER[p.priceLevel] ?? 99) : 99,
+            why:
+              p.editorialSummary?.text ??
+              (p.rating ? `Rated ${p.rating.toFixed(1)}/5 by guests.` : 'Well-reviewed hotel in the city.'),
+            bookingUrl: `https://www.booking.com/searchresults.html?${bookingParams.toString()}`,
+            rating: p.rating ?? null,
+            reviewCount: p.userRatingCount ?? null,
+          };
+        })
+        .sort((a, b) => a.priceLevelOrder - b.priceLevelOrder)
+        .slice(0, 3)
+        .map(({ priceLevelOrder: _o, ...rest }) => rest);
 
       const activities = attractionPlaces.map((p, i) => ({
         name: p.displayName?.text ?? 'Attraction',
