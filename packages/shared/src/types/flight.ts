@@ -1,5 +1,16 @@
 import { WeatherSummary } from './weather';
 
+export type PriceStatus = 'cached' | 'live' | 'stale';
+
+export interface PriceInfo {
+  amount: number;
+  currency: string;
+  provider: string;
+  deeplink: string;
+  priceUpdatedAt: string; // ISO 8601
+  priceStatus: PriceStatus;
+}
+
 export interface FlightOption {
   flightId: string;
   originIata: string;
@@ -18,5 +29,6 @@ export interface FlightOption {
   viaIatas?: string[];       // intermediate airport codes, e.g. ['BUD'] for BCN→BUD→EVN
   priceUsd: number;
   bookingUrl: string;
+  priceInfo?: PriceInfo;     // enriched price metadata populated by the cache layer
   weather?: WeatherSummary;
 }
