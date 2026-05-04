@@ -1,6 +1,7 @@
 import { FlightOption, WeatherSummary } from '@fast-travel/shared';
 import { formatTime, durationLabel } from '../utils/date.utils';
 import { formatPrice } from '../utils/price.utils';
+import { useTripStore } from '../store/trip.store';
 import { Plane } from 'lucide-react';
 
 const WEATHER_ICONS: Record<string, string> = {
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function FlightCard({ flight, weather, onSelect }: Props) {
+  const passengers = useTripStore((s) => s.passengers);
   return (
     <button
       className="card w-full text-left transition-all duration-150 animate-fade-in active:scale-[0.98] hover:-translate-y-0.5 hover:border-indigo-border hover:shadow-[0_16px_40px_rgba(15,23,42,0.12)]"
@@ -59,7 +61,9 @@ export function FlightCard({ flight, weather, onSelect }: Props) {
           <div className="text-2xl font-mono font-bold text-orange">
             {formatPrice(flight.priceUsd)}
           </div>
-          <div className="text-text-xmuted text-xs mt-0.5">one way</div>
+          <div className="text-text-xmuted text-xs mt-0.5">
+            {passengers > 1 ? `for ${passengers} travelers` : 'one way'}
+          </div>
         </div>
       </div>
 
