@@ -126,6 +126,56 @@ GOOGLE_PLACES_API_KEY=your_google_places_api_key_here
 
 `GOOGLE_PLACES_API_KEY` powers the Plan Stay screen — hotels, tourist attractions, and restaurants for any destination via the Google Places API (Text Search). Without it, the `/city-guide` and `/restaurants` endpoints return 503.
 
+## Backend Caching
+
+The backend uses a two-tier in-memory cache (`node-cache`) that separates stable flight schedule data from volatile price data. The cache is shared across all users for the same search key — a popular origin+date pair is only fetched from the external API once per TTL window regardless of how many users search it simultaneously.
+
+### Cache layers
+
+| Layer | Cache key | TTL |
+|-------|-----------|-----|
+| Schedule | `flights:schedule:{IATA}:{YYYY-MM-DD}:{dest\|any}` | 45 min (same day) · 8 h (future) · skip (past) |
+| Price | `flights:price:{flightId}` | 15 min soft / 30 min hard (< 72 h away) · 30 min soft / 60 min hard (> 72 h) |
+
+**Schedule cache** stores everything stable: airline, flight number, departure/arrival times, route metadata. It is never invalidated early.
+
+**Price cache** uses stale-while-revalidate: when a price entry exceeds its soft TTL it is returned immediately with `priceStatus: "stale"` while a background refresh updates the cache for the next request. The hard TTL (2× soft) keeps stale entries available during the refresh window.
+
+### Flight search response format
+
+```json
+{
+  "success": true,
+  "data": {
+    "origin": "EVN",
+    "date": "2026-05-05",
+    "cacheStatus": "schedule_cached",
+    "results": [
+      {
+        "flightId": "EVN-BUD-W6-2026-05-05",
+        "airline": "Wizz Air",
+        "departureTime": "2026-05-05T10:30:00+04:00",
+        "priceInfo": {
+          "amount": 129,
+          "currency": "USD",
+          "provider": "kiwi",
+          "deeplink": "https://...",
+          "priceUpdatedAt": "2026-05-04T14:20:00Z",
+          "priceStatus": "cached"
+        }
+      }
+    ]
+  }
+}
+```
+
+`cacheStatus` is `"live"` (provider was called) or `"schedule_cached"` (served from cache).  
+`priceStatus` per flight is `"live"` (just fetched), `"cached"` (within soft TTL), or `"stale"` (soft TTL passed, refresh in progress).
+
+### Configurable TTL values
+
+All TTL constants are exported from `backend/src/utils/flightCache.ts` as the `CACHE_TTL` object and can be adjusted in one place without touching business logic.
+
 ## Current Focus
 
 The current focus of the project is:

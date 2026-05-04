@@ -33,12 +33,12 @@ export async function flightRoutes(app: FastifyInstance) {
     const originCity = origin?.city.name ?? originIata;
 
     try {
-      const flights = await flightService.search(
+      const result = await flightService.search(
         originIata, originCity, date, destination, deduplicate, limit,
         { sort, maxStopovers, currency, cabinClass, passengers },
         apiMode,
       );
-      return ok(flights);
+      return ok({ origin: originIata, date, cacheStatus: result.cacheStatus, results: result.flights });
     } catch (err) {
       if (err instanceof SerpApiRateLimitError) {
         return reply.status(429).headers({ 'Retry-After': '60' }).send(
