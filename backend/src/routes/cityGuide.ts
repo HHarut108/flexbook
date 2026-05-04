@@ -9,6 +9,7 @@ const querySchema = z.object({
   checkin: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   checkout: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   passengers: z.coerce.number().int().min(1).max(9).default(1),
+  nights: z.coerce.number().int().min(1).max(14).optional(),
 });
 
 const PRICE_MAP: Record<string, string> = {
@@ -100,13 +101,25 @@ export async function cityGuideRoutes(app: FastifyInstance) {
       return reply.status(503).send(fail('NO_API_KEY', 'Google Places not configured'));
     }
 
-    const { city, country, checkin, checkout, passengers } = parsed.data;
+    const { city, country, checkin, checkout, passengers, nights: nightsParam } = parsed.data;
     const location = country ? `${city}, ${country}` : city;
+
+    // Determine trip length so we can generate enough days
+    let targetNights = nightsParam ?? 2;
+    if (checkin && checkout && !nightsParam) {
+      const diff = Math.round(
+        (new Date(checkout).getTime() - new Date(checkin).getTime()) / (1000 * 60 * 60 * 24),
+      );
+      if (diff > 0) targetNights = Math.min(diff, 14);
+    }
 
     const detailFields =
       'places.displayName,places.rating,places.priceLevel,places.primaryType,places.editorialSummary,places.formattedAddress,places.userRatingCount';
     const restaurantFields =
       'places.displayName,places.rating,places.priceLevel,places.primaryTypeDisplayName,places.editorialSummary';
+
+    // Need 2 activities per day + a few extras for variety
+    const activityFetchCount = Math.min(targetNights * 2 + 4, 20);
 
     try {
       const [hotelPlaces, attractionPlaces, restaurantPlaces] = await Promise.all([
@@ -116,14 +129,14 @@ export async function cityGuideRoutes(app: FastifyInstance) {
           'tourist_attraction',
           detailFields,
           config.GOOGLE_PLACES_API_KEY,
-          6,
+          activityFetchCount,
         ),
         searchPlaces(
           `restaurants in ${location}`,
           'restaurant',
           restaurantFields,
           config.GOOGLE_PLACES_API_KEY,
-          8,
+          Math.min(targetNights + 4, 12),
         ),
       ]);
 
@@ -144,6 +157,8 @@ export async function cityGuideRoutes(app: FastifyInstance) {
           name: p.displayName?.text ?? 'Hotel',
           neighborhood,
           pricePerNight: null as number | null,
+          rating: p.rating ?? null,
+          reviewCount: p.userRatingCount ?? null,
           why:
             p.editorialSummary?.text ??
             (p.rating ? `Rated ${p.rating.toFixed(1)}/5 by guests.` : 'Well-reviewed hotel in the city.'),
@@ -151,16 +166,19 @@ export async function cityGuideRoutes(app: FastifyInstance) {
         };
       });
 
-      const activities = attractionPlaces.slice(0, 5).map((p, i) => ({
+      const activities = attractionPlaces.map((p, i) => ({
         name: p.displayName?.text ?? 'Attraction',
         duration: '1–2 hours',
         cost: (p.priceLevel ? PRICE_MAP[p.priceLevel] : 'free') as 'free' | '€' | '€€' | '€€€',
         note: p.editorialSummary?.text ?? undefined,
+        rating: p.rating ?? null,
+        reviewCount: p.userRatingCount ?? null,
+        address: p.formattedAddress ?? null,
         dontSkip: i < 2,
         icon: pickIcon(p.primaryType),
       }));
 
-      const restaurants = restaurantPlaces.slice(0, 6).map((p, i) => ({
+      const restaurants = restaurantPlaces.map((p, i) => ({
         name: p.displayName?.text ?? 'Restaurant',
         mealType: MEAL_TYPES[i] ?? 'Dinner',
         description:
@@ -175,30 +193,20 @@ export async function cityGuideRoutes(app: FastifyInstance) {
         priceLevel: p.priceLevel ? PRICE_MAP[p.priceLevel] : undefined,
       }));
 
-      const topActs = activities.slice(0, 6);
+      const dayTitles = [`${city} Highlights`, 'More to Explore'];
       const days = [];
-      if (topActs.length > 0) {
+      for (let i = 0; i < targetNights; i++) {
+        const morning = activities[i * 2];
+        const afternoon = activities[i * 2 + 1];
+        if (!morning) break; // Not enough attractions to fill this day
         days.push({
-          title: `${city} Highlights`,
+          title: dayTitles[i] ?? `Day ${i + 1}`,
           slots: [
-            { time: 'Morning', activity: topActs[0]?.name ?? 'Explore the city centre' },
-            { time: 'Afternoon', activity: topActs[1]?.name ?? 'Visit a local landmark' },
+            { time: 'Morning', activity: morning.name },
+            { time: 'Afternoon', activity: afternoon?.name ?? 'Explore the neighbourhood' },
             {
               time: 'Evening',
-              activity: `Dinner at ${restaurants[1]?.name ?? 'a local restaurant'}`,
-            },
-          ],
-        });
-      }
-      if (topActs.length > 2) {
-        days.push({
-          title: 'More to Explore',
-          slots: [
-            { time: 'Morning', activity: topActs[2]?.name ?? 'Morning walk' },
-            { time: 'Afternoon', activity: topActs[3]?.name ?? 'Afternoon exploration' },
-            {
-              time: 'Evening',
-              activity: `Dinner at ${restaurants[3]?.name ?? 'a local restaurant'}`,
+              activity: `Dinner at ${restaurants[i]?.name ?? restaurants[0]?.name ?? 'a local restaurant'}`,
             },
           ],
         });
