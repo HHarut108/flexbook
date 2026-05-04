@@ -362,9 +362,9 @@ export function PlanStayScreen() {
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-border bg-indigo-soft px-4 py-2 text-sm font-semibold text-indigo hover:bg-indigo hover:text-white hover:border-indigo transition-all duration-150 active:scale-[0.98]"
                     style={{ minHeight: '36px' }}
-                    aria-label={`Book ${hotel.name}`}
+                    aria-label={`Check availability for ${hotel.name}`}
                   >
-                    Book <ExternalLink size={13} />
+                    Check availability <ExternalLink size={13} />
                   </a>
                 )}
               </div>
@@ -552,9 +552,9 @@ export function PlanStayScreen() {
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-border bg-indigo-soft px-4 py-2 text-sm font-semibold text-indigo hover:bg-indigo hover:text-white hover:border-indigo transition-all duration-150 active:scale-[0.98]"
                     style={{ minHeight: '36px' }}
-                    aria-label={`Book ${hotel.name}`}
+                    aria-label={`Check availability for ${hotel.name}`}
                   >
-                    Book <ExternalLink size={13} />
+                    Check availability <ExternalLink size={13} />
                   </a>
                 )}
               </div>
