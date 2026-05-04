@@ -16,6 +16,7 @@ export function FlightResultsScreen() {
   const origin = useTripStore((s) => s.origin);
   const legs = useTripStore((s) => s.legs);
   const passengers = useTripStore((s) => s.passengers);
+  const setPassengers = useTripStore((s) => s.setPassengers);
   const {
     selectedDate,
     pendingFlights,
@@ -167,10 +168,26 @@ export function FlightResultsScreen() {
           </button>
         </div>
 
-        {/* Traveler count pill */}
-        <div className="mt-2 flex items-center gap-1.5 text-xs text-text-muted">
+        {/* Traveler count stepper */}
+        <div className="mt-2 flex items-center gap-2 text-xs text-text-muted">
           <Users size={12} className="shrink-0" />
-          <span>{passengers} {passengers === 1 ? 'traveler' : 'travelers'}</span>
+          <button
+            onClick={() => setPassengers(passengers - 1)}
+            disabled={passengers <= 1}
+            className="w-6 h-6 flex items-center justify-center rounded-full bg-white border border-border hover:border-indigo-border disabled:opacity-30 transition-all text-text-primary font-bold leading-none"
+          >
+            −
+          </button>
+          <span className="text-text-primary font-medium tabular-nums">
+            {passengers} {passengers === 1 ? 'traveler' : 'travelers'}
+          </span>
+          <button
+            onClick={() => setPassengers(passengers + 1)}
+            disabled={passengers >= 9}
+            className="w-6 h-6 flex items-center justify-center rounded-full bg-white border border-border hover:border-indigo-border disabled:opacity-30 transition-all text-text-primary font-bold leading-none"
+          >
+            +
+          </button>
         </div>
         </div>
       </div>
