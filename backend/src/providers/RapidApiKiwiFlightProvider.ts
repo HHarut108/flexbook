@@ -85,7 +85,7 @@ export async function fetchRapidApiKiwiFlights(
     source: `Airport:${originIata}`,
     currency: currency.toLowerCase(),
     locale: 'en',
-    adults: passengers,
+    adults: 1,
     children: 0,
     infants: 0,
     handbags: 0,
@@ -94,7 +94,7 @@ export async function fetchRapidApiKiwiFlights(
     sortBy: sortByMap[sort] ?? 'PRICE',
     sortOrder: 'ASCENDING',
     transportTypes: 'FLIGHT',
-    contentProviders: passengers > 1 ? 'KAYAK,FRESH' : 'KIWI,KAYAK,FRESH',
+    contentProviders: 'KIWI,KAYAK,FRESH',
     limit: 50,
     outboundDepartureDateStart: `${date}T00:00:00`,
     outboundDepartureDateEnd: `${date}T23:59:59`,
@@ -170,7 +170,7 @@ export async function fetchRapidApiKiwiFlights(
         airlineCode: first.carrier.code,
         stops: segments.length - 1,
         viaIatas,
-        priceUsd: parseFloat(it.price.amount),
+        priceUsd: parseFloat(it.price.amount) * passengers,
         bookingUrl,
       };
     });
