@@ -170,7 +170,7 @@ export function FlightResultsScreen() {
         {/* Traveler count pill */}
         <div className="mt-2 flex items-center gap-1.5 text-xs text-text-muted">
           <Users size={12} className="shrink-0" />
-          <span>{passengers} {passengers === 1 ? 'traveler' : 'travelers'} · prices shown per total</span>
+          <span>{passengers} {passengers === 1 ? 'traveler' : 'travelers'}</span>
         </div>
         </div>
       </div>
