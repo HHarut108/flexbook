@@ -1,7 +1,7 @@
 import { FlightOption } from '@fast-travel/shared';
 import { config } from '../config';
 import { getCache, setCache } from '../utils/cache';
-import { fetchKiwiFlights, KiwiSearchOptions } from '../providers/KiwiFlightProvider';
+import { KiwiSearchOptions } from '../providers/KiwiFlightProvider';
 import { fetchRapidApiKiwiFlights } from '../providers/RapidApiKiwiFlightProvider';
 import { fetchSerpApiFlights, fetchSerpApiOpenFlights } from '../providers/SerpApiFlightProvider';
 import { fetchMockFlights } from '../providers/MockFlightProvider';
@@ -63,8 +63,6 @@ export class FlightService {
         ? await fetchSerpApiFlights(originIata, destinationIata, date, currency, passengers)
         : await fetchSerpApiOpenFlights(originIata, date, currency, passengers);
       raw = enrichWithAirportData(partial);
-    } else if (provider === 'kiwi') {
-      raw = await fetchKiwiFlights(originIata, date, destinationIata, options);
     } else {
       raw = await fetchMockFlights(originIata, originCity, date, destinationIata);
     }
@@ -78,9 +76,8 @@ export class FlightService {
     return top10.slice(0, limit);
   }
 
-  private selectProvider(): 'rapidapi-kiwi' | 'serpapi' | 'kiwi' | 'mock' {
+  private selectProvider(): 'rapidapi-kiwi' | 'serpapi' | 'mock' {
     if (config.RAPIDAPI_KEY) return 'rapidapi-kiwi';
-    if (config.KIWI_API_KEY) return 'kiwi';
     if (config.SERPAPI_API_KEY) return 'serpapi';
     return 'mock';
   }

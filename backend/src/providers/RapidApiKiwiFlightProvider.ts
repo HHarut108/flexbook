@@ -94,7 +94,7 @@ export async function fetchRapidApiKiwiFlights(
     sortBy: sortByMap[sort] ?? 'PRICE',
     sortOrder: 'ASCENDING',
     transportTypes: 'FLIGHT',
-    contentProviders: 'KIWI,KAYAK,FRESH',
+    contentProviders: passengers > 1 ? 'KAYAK,FRESH' : 'KIWI,KAYAK,FRESH',
     limit: 50,
     outboundDepartureDateStart: `${date}T00:00:00`,
     outboundDepartureDateEnd: `${date}T23:59:59`,

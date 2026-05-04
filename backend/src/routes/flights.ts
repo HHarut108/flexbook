@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { flightService } from '../services/FlightService';
 import { airportService } from '../services/AirportService';
 import { ok, fail } from '../utils/response';
-import { KiwiRateLimitError, KiwiUnavailableError } from '../providers/KiwiFlightProvider';
 import { SerpApiRateLimitError, SerpApiUnavailableError, SerpApiResponseError } from '../providers/SerpApiFlightProvider';
 import { RapidApiRateLimitError, RapidApiAuthError, RapidApiUnavailableError } from '../providers/RapidApiKiwiFlightProvider';
 
@@ -41,16 +40,6 @@ export async function flightRoutes(app: FastifyInstance) {
       );
       return ok(flights);
     } catch (err) {
-      if (err instanceof KiwiRateLimitError) {
-        const headers: Record<string, string> = { 'Retry-After': String(err.retryAfter ?? 60) };
-        return reply.status(429).headers(headers).send(
-          fail('RATE_LIMITED', 'Too many requests to the flight API. Please wait a moment and try again.', true),
-        );
-      }
-      if (err instanceof KiwiUnavailableError) {
-        app.log.warn(err, 'Kiwi API temporarily unavailable');
-        return reply.status(503).send(fail('FLIGHT_API_UNAVAILABLE', 'Flight search is temporarily unavailable. Please try again shortly.', true));
-      }
       if (err instanceof SerpApiRateLimitError) {
         return reply.status(429).headers({ 'Retry-After': '60' }).send(
           fail('RATE_LIMITED', 'Too many requests to the flight API. Please wait a moment and try again.', true),
