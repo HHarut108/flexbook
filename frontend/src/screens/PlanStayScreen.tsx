@@ -449,43 +449,52 @@ export function PlanStayScreen() {
                   <Info size={14} />
                 </span>
                 <p className="text-[0.7rem] font-bold tracking-[0.22em] uppercase text-text-muted">
-                  Your {dayCount} {dayCount === 1 ? 'day' : 'days'}, sketched out
+                  Your {dayCount} {dayCount === 1 ? 'day' : 'days'} in{' '}
+                  <span className="text-indigo normal-case">{destinationCity}</span>
+                  , sketched out
                 </p>
               </div>
             </div>
 
-            {/* Day tabs */}
-            <div className="flex border-b border-border/60" role="tablist">
-              {Array.from({ length: dayCount }).map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setActiveDay(i)}
-                  role="tab"
-                  aria-selected={clampedDay === i}
-                  className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                    clampedDay === i
-                      ? 'text-indigo border-b-2 border-indigo bg-indigo-soft/40'
-                      : 'text-text-muted hover:text-text-secondary'
-                  }`}
-                >
-                  Day {i + 1}
-                </button>
-              ))}
-            </div>
-
-            {/* Day content */}
-            <div key={clampedDay} className="px-5 py-4 space-y-3 animate-fade-in">
-              <p className="text-xs font-bold text-text-muted uppercase tracking-wider mb-2">
-                {content.days[clampedDay]?.title}
-              </p>
-              {content.days[clampedDay]?.slots.map((slot, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <span className="text-[10px] font-semibold text-text-xmuted uppercase tracking-wide w-16 shrink-0 pt-0.5">
-                    {slot.time}
-                  </span>
-                  <p className="text-sm text-text-secondary flex-1">{slot.activity}</p>
-                </div>
-              ))}
+            {/* Day accordion */}
+            <div className="divide-y divide-border/60">
+              {Array.from({ length: dayCount }).map((_, i) => {
+                const isOpen = activeDay === i;
+                const dayData = content.days[i];
+                return (
+                  <div key={i}>
+                    <button
+                      onClick={() => setActiveDay(isOpen ? -1 : i)}
+                      className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-surface-2/40 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className={`text-sm font-semibold shrink-0 ${isOpen ? 'text-indigo' : 'text-text-secondary'}`}>
+                          Day {i + 1}
+                        </span>
+                        {dayData?.title && (
+                          <span className="text-xs text-text-muted truncate">{dayData.title}</span>
+                        )}
+                      </div>
+                      <ChevronDown
+                        size={16}
+                        className={`shrink-0 ml-2 text-text-muted transition-transform duration-200 ${isOpen ? 'rotate-180 text-indigo' : ''}`}
+                      />
+                    </button>
+                    {isOpen && (
+                      <div key={i} className="px-5 pb-4 pt-1 space-y-3 animate-fade-in">
+                        {dayData?.slots.map((slot, j) => (
+                          <div key={j} className="flex items-start gap-3">
+                            <span className="text-[10px] font-semibold text-text-xmuted uppercase tracking-wide w-16 shrink-0 pt-0.5">
+                              {slot.time}
+                            </span>
+                            <p className="text-sm text-text-secondary flex-1">{slot.activity}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
