@@ -27,20 +27,26 @@ export async function searchFlights(
 
   // Real API call - pass mode to backend
   const { destination, deduplicate = true, limit = 10, sort, maxStopovers, currency, cabinClass, passengers } = options;
-  const { data } = await apiClient.get<FlightOption[]>('/flights/search', {
-    params: {
-      originIata,
-      date,
-      deduplicate,
-      limit,
-      ...(destination && { destination }),
-      ...(sort && { sort }),
-      ...(maxStopovers !== undefined && { maxStopovers }),
-      ...(currency && { currency }),
-      ...(cabinClass && { cabinClass }),
-      ...(passengers !== undefined && { passengers }),
-      apiMode: mode,
+  // Backend wraps the flight array in { origin, date, cacheStatus, results } since the
+  // schedule+price cache layer landed (PR #30). Extract `results` to keep this function's
+  // contract — returning a plain FlightOption[] — unchanged for callers.
+  const { data } = await apiClient.get<{ origin: string; date: string; cacheStatus: 'live' | 'schedule_cached'; results: FlightOption[] }>(
+    '/flights/search',
+    {
+      params: {
+        originIata,
+        date,
+        deduplicate,
+        limit,
+        ...(destination && { destination }),
+        ...(sort && { sort }),
+        ...(maxStopovers !== undefined && { maxStopovers }),
+        ...(currency && { currency }),
+        ...(cabinClass && { cabinClass }),
+        ...(passengers !== undefined && { passengers }),
+        apiMode: mode,
+      },
     },
-  });
-  return data;
+  );
+  return data.results;
 }
