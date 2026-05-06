@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
 import { config } from '../config';
-import { getMetrics, getMetricsHistory } from '../utils/apiMetrics';
+import { getMetrics, getMetricsHistory, getAllTimeMetrics } from '../utils/apiMetrics';
 
 const SERVICE_LABELS: Record<string, string> = {
   'kiwi': 'Kiwi (Direct)',
@@ -74,15 +74,23 @@ export async function sendDailyReport(date?: string): Promise<{ sent: boolean; e
   if (!config.RESEND_API_KEY) return { sent: false, error: 'RESEND_API_KEY not configured' };
 
   const d = date ?? new Date().toISOString().slice(0, 10);
-  const { calls } = await getMetrics(d);
+  const [{ calls }, alltime] = await Promise.all([getMetrics(d), getAllTimeMetrics()]);
   const total = Object.values(calls).reduce((s, n) => s + n, 0);
+  const alltimeTotal = Object.values(alltime).reduce((s, n) => s + n, 0);
 
   const resend = new Resend(config.RESEND_API_KEY);
 
+  const body = `
+    <h3 style="margin:0 0 12px;font-size:15px;color:#1a1a2e;">Today — ${formatDate(d)}</h3>
+    ${buildTable(calls)}
+    <h3 style="margin:24px 0 12px;font-size:15px;color:#1a1a2e;">All-Time Total</h3>
+    ${buildTable(alltime)}
+  `;
+
   const html = buildHtml(
-    `Daily Report — ${formatDate(d)}`,
-    `${total} total API call${total !== 1 ? 's' : ''} across ${Object.keys(calls).length} service${Object.keys(calls).length !== 1 ? 's' : ''}`,
-    buildTable(calls),
+    `Daily API Report — ${d}`,
+    `${total} call${total !== 1 ? 's' : ''} today · ${alltimeTotal.toLocaleString()} all-time`,
+    body,
   );
 
   const { error } = await resend.emails.send({

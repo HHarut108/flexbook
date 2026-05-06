@@ -40,7 +40,7 @@ async function start() {
   await app.register(cityGuideRoutes);
   await app.register(metricsRoutes);
 
-  // Daily API usage report — every day at 08:00 UTC
+  // Daily API usage report — every day at 08:00 Yerevan time
   cron.schedule('0 8 * * *', async () => {
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
     const result = await sendDailyReport(yesterday);
@@ -49,7 +49,7 @@ async function start() {
     } else {
       app.log.warn(`Daily API report failed: ${result.error}`);
     }
-  }, { timezone: 'UTC' });
+  }, { timezone: 'Asia/Yerevan' });
 
   try {
     await app.listen({ port: config.PORT, host: '0.0.0.0' });

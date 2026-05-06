@@ -236,7 +236,7 @@ curl -X POST http://localhost:3000/metrics/report \
 
 ### Daily digest
 
-An email is sent automatically every day at **08:00 UTC** with the previous day's call counts.
+An email is sent automatically every day at **08:00 Yerevan time** with two sections: the previous day's counts and all-time totals across all dates.
 
 ### Required environment variables
 

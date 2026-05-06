@@ -209,7 +209,7 @@ S1 Origin Search  ──►  S2 Flight Results  ◄──► [DatePickerOverlay]
 | 4.13 | Environment variable validation at startup | `[x]` | Zod schema in `config.ts`; `SERPAPI_API_KEY`, `KIWI_API_KEY`, `OPENWEATHER_API_KEY`, and `AIRHEX_API_KEY` are optional and default to empty string |
 | 4.14b | In-memory API call counter + `GET /metrics` endpoint | `[x]` | `apiMetrics.ts` module; increments per outbound HTTP call (cache hits excluded); counts reset on restart; all 6 providers instrumented |
 | 4.14c | Persistent API call counters via Upstash Redis + `GET /metrics/history` | `[x]` | Date-keyed Redis hashes (`api:calls:YYYY-MM-DD`); fire-and-forget writes; in-memory fallback when Redis not configured; history endpoint accepts `from`/`to` range |
-| 4.14d | Email reports via Resend — daily digest + on-demand `POST /metrics/report` | `[x]` | Daily cron at 08:00 UTC sends previous day; on-demand supports single day or date range; HTML email to harutproduct@gmail.com |
+| 4.14d | Email reports via Resend — daily digest + on-demand `POST /metrics/report` | `[x]` | Daily cron at 08:00 Yerevan time; on-demand supports single day or date range; email includes today + all-time sections; all-time computed by scanning daily keys (always accurate); HTML email to harutproduct@gmail.com |
 
 ### 4C — Deployment
 

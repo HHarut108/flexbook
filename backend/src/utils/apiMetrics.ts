@@ -20,12 +20,34 @@ function todayKey(): string {
 export function increment(service: string): void {
   if (redis) {
     redis.hincrby(todayKey(), service, 1).catch(() => {
-      // fall back to memory if Redis write fails
       memCounts.set(service, (memCounts.get(service) ?? 0) + 1);
     });
   } else {
     memCounts.set(service, (memCounts.get(service) ?? 0) + 1);
   }
+}
+
+/** Returns all-time cumulative counts by scanning all daily keys. */
+export async function getAllTimeMetrics(): Promise<Record<string, number>> {
+  if (!redis) return Object.fromEntries(memCounts);
+
+  const totals: Record<string, number> = {};
+  let cursor = 0;
+  do {
+    const [next, keys] = await redis.scan(cursor, { match: 'api:calls:????-??-??', count: 100 });
+    cursor = Number(next);
+    if (keys.length > 0) {
+      const hashes = await Promise.all(keys.map((k) => redis!.hgetall<Record<string, number>>(k)));
+      for (const hash of hashes) {
+        if (!hash) continue;
+        for (const [service, count] of Object.entries(hash)) {
+          totals[service] = (totals[service] ?? 0) + Number(count);
+        }
+      }
+    }
+  } while (cursor !== 0);
+
+  return totals;
 }
 
 /** Returns counts for a single date (defaults to today). */
