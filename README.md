@@ -178,11 +178,17 @@ All TTL constants are exported from `backend/src/utils/flightCache.ts` as the `C
 
 ## Backend Monitoring
 
-The backend exposes a lightweight `GET /metrics` endpoint that returns in-memory API call counts since the last server start.
+The backend tracks outbound API calls per service per day, stored in Upstash Redis. Counts survive server restarts and deploys. When Redis credentials are not configured the counter falls back to an in-memory map (resets on restart).
+
+### Endpoints
+
+**`GET /metrics?date=YYYY-MM-DD`** — call counts for one day (defaults to today)
 
 ```json
 {
   "startedAt": "2026-05-06T10:00:00.000Z",
+  "date": "2026-05-06",
+  "persistent": true,
   "calls": {
     "serpapi": 42,
     "google-places": 17,
@@ -194,10 +200,58 @@ The backend exposes a lightweight `GET /metrics` endpoint that returns in-memory
 }
 ```
 
-Each outbound HTTP call to an external API increments its counter the moment the request is dispatched. Cache hits (Airhex logos, OpenWeatherMap) do not count — only real network calls. Counts reset on server restart.
+**`GET /metrics/history?from=YYYY-MM-DD&to=YYYY-MM-DD`** — day-by-day breakdown across a date range (requires Redis)
 
-| Service key | Provider |
-|-------------|----------|
+```json
+{
+  "from": "2026-05-01",
+  "to": "2026-05-06",
+  "history": [
+    { "date": "2026-05-01", "calls": { "serpapi": 30, "kiwi": 2 } },
+    { "date": "2026-05-02", "calls": { "serpapi": 38, "google-places": 11 } }
+  ]
+}
+```
+
+Each outbound HTTP call increments its counter at dispatch time. Cache hits (Airhex logos, OpenWeatherMap) are excluded — only real network calls count. Writes are fire-and-forget so Redis latency never affects API response times.
+
+### On-demand report
+
+`POST /metrics/report` sends an email immediately.
+
+```bash
+# Today's report
+curl -X POST http://localhost:3000/metrics/report
+
+# Specific day
+curl -X POST http://localhost:3000/metrics/report \
+  -H "Content-Type: application/json" \
+  -d '{"date":"2026-05-06"}'
+
+# Date range
+curl -X POST http://localhost:3000/metrics/report \
+  -H "Content-Type: application/json" \
+  -d '{"from":"2026-05-01","to":"2026-05-06"}'
+```
+
+### Daily digest
+
+An email is sent automatically every day at **08:00 Yerevan time** with two sections: the previous day's counts and all-time totals across all dates.
+
+### Required environment variables
+
+```bash
+UPSTASH_REDIS_REST_URL=https://your-db.upstash.io
+UPSTASH_REDIS_REST_TOKEN=your_token_here
+RESEND_API_KEY=re_your_key_here
+```
+
+Create a free Redis database at [upstash.com](https://upstash.com) and a free account at [resend.com](https://resend.com).
+
+### Service keys
+
+| Key | Provider |
+|-----|----------|
 | `kiwi` | Kiwi/Tequila direct flight search |
 | `rapidapi-kiwi` | RapidAPI Kiwi flight search |
 | `serpapi` | SerpAPI (Google Flights) — open-search counts up to 20 |

@@ -1,8 +1,62 @@
 import { FastifyInstance } from 'fastify';
-import { getMetrics } from '../utils/apiMetrics';
+import { z } from 'zod';
+import { getMetrics, getMetricsHistory, startedAt } from '../utils/apiMetrics';
+import { sendDailyReport, sendHistoryReport } from '../services/EmailReportService';
+
+const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+
+const singleSchema = z.object({
+  date: z.string().regex(dateRe).optional(),
+});
+
+const historySchema = z.object({
+  from: z.string().regex(dateRe),
+  to: z.string().regex(dateRe),
+});
 
 export async function metricsRoutes(app: FastifyInstance) {
-  app.get('/metrics', async () => {
-    return getMetrics();
+  // GET /metrics?date=YYYY-MM-DD  (defaults to today)
+  app.get('/metrics', async (request, reply) => {
+    const parsed = singleSchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'date must be YYYY-MM-DD' });
+    }
+    const result = await getMetrics(parsed.data.date);
+    return { startedAt, ...result };
+  });
+
+  // GET /metrics/history?from=YYYY-MM-DD&to=YYYY-MM-DD
+  app.get('/metrics/history', async (request, reply) => {
+    const parsed = historySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'from and to must be YYYY-MM-DD' });
+    }
+    const { from, to } = parsed.data;
+    if (from > to) {
+      return reply.status(400).send({ error: 'from must be before or equal to to' });
+    }
+    const history = await getMetricsHistory(from, to);
+    return { from, to, history };
+  });
+
+  // POST /metrics/report  — send on-demand email report
+  // Body (optional): { date: "YYYY-MM-DD" } for daily, or { from: "YYYY-MM-DD", to: "YYYY-MM-DD" } for history
+  app.post('/metrics/report', async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, string>;
+
+    if (body.from && body.to) {
+      if (body.from > body.to) {
+        return reply.status(400).send({ error: 'from must be before or equal to to' });
+      }
+      const result = await sendHistoryReport(body.from, body.to);
+      return result.sent
+        ? { sent: true, type: 'history', from: body.from, to: body.to }
+        : reply.status(500).send({ sent: false, error: result.error });
+    }
+
+    const result = await sendDailyReport(body.date);
+    return result.sent
+      ? { sent: true, type: 'daily', date: body.date ?? new Date().toISOString().slice(0, 10) }
+      : reply.status(500).send({ sent: false, error: result.error });
   });
 }
