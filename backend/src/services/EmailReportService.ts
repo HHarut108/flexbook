@@ -86,7 +86,7 @@ export async function sendDailyReport(date?: string): Promise<{ sent: boolean; e
   );
 
   const { error } = await resend.emails.send({
-    from: 'FlexBook <reports@updates.flexbook.app>',
+    from: 'FlexBook <onboarding@resend.dev>',
     to: 'harutproduct@gmail.com',
     subject: `FlexBook API Report — ${d}`,
     html,
@@ -150,7 +150,7 @@ export async function sendHistoryReport(from: string, to: string): Promise<{ sen
   );
 
   const { error } = await resend.emails.send({
-    from: 'FlexBook <reports@updates.flexbook.app>',
+    from: 'FlexBook <onboarding@resend.dev>',
     to: 'harutproduct@gmail.com',
     subject: `FlexBook API History — ${from} to ${to}`,
     html,
