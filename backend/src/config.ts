@@ -11,6 +11,8 @@ const envSchema = z.object({
   AIRHEX_API_KEY: z.string().default(''),
   GOOGLE_PLACES_API_KEY: z.string().default(''),
   FRONTEND_URL: z.string().default('https://flexbook-frontend.vercel.app'),
+  UPSTASH_REDIS_REST_URL: z.string().default(''),
+  UPSTASH_REDIS_REST_TOKEN: z.string().default(''),
 });
 
 const parsed = envSchema.safeParse(process.env);

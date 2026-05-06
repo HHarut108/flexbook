@@ -13,6 +13,7 @@
     "@fast-travel/shared": "*",
     "@fastify/cors": "^9.0.1",
     "@types/node": "^25.5.0",
+    "@upstash/redis": "^1.38.0",
     "axios": "^1.14.0",
     "dotenv": "^16.4.5",
     "fastify": "^4.27.0",
