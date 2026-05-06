@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { config } from '../config';
 import { getCache, setCache } from '../utils/cache';
+import { increment } from '../utils/apiMetrics';
 
 interface AirhexLogoVariant {
   url: string;
@@ -77,6 +78,7 @@ export class AirlineLogoService {
           return;
         }
 
+        increment('airhex');
         const { data } = await axios.get<AirhexLogoResponse>('https://api.airhex.com/v1/logos', {
           params: { codes: code, height },
           headers: { Authorization: `Bearer ${config.AIRHEX_API_KEY}` },

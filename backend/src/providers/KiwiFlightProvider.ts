@@ -1,6 +1,7 @@
 import { FlightOption } from '@fast-travel/shared';
 import axios, { AxiosError } from 'axios';
 import { config } from '../config';
+import { increment } from '../utils/apiMetrics';
 
 export class KiwiRateLimitError extends Error {
   readonly retryAfter?: number;
@@ -87,6 +88,7 @@ export async function fetchKiwiFlights(
 
   let response: KiwiResponse;
   try {
+    increment('kiwi');
     const { data } = await axios.get<KiwiResponse>(
       'https://api.tequila.kiwi.com/v2/search',
       { params: searchParams, headers: { apikey: config.KIWI_API_KEY } },

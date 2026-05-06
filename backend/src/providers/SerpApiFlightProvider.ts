@@ -1,6 +1,7 @@
 import { FlightOption } from '@fast-travel/shared';
 import axios, { AxiosError } from 'axios';
 import { config } from '../config';
+import { increment } from '../utils/apiMetrics';
 
 export class SerpApiRateLimitError extends Error {
   constructor() {
@@ -105,6 +106,7 @@ export async function fetchSerpApiFlights(
   let response: SerpApiResponse;
 
   try {
+    increment('serpapi');
     const { data } = await axios.get<SerpApiResponse>('https://serpapi.com/search', {
       params: {
         engine: 'google_flights',

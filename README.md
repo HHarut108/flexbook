@@ -176,6 +176,35 @@ The backend uses a two-tier in-memory cache (`node-cache`) that separates stable
 
 All TTL constants are exported from `backend/src/utils/flightCache.ts` as the `CACHE_TTL` object and can be adjusted in one place without touching business logic.
 
+## Backend Monitoring
+
+The backend exposes a lightweight `GET /metrics` endpoint that returns in-memory API call counts since the last server start.
+
+```json
+{
+  "startedAt": "2026-05-06T10:00:00.000Z",
+  "calls": {
+    "serpapi": 42,
+    "google-places": 17,
+    "openweathermap": 9,
+    "kiwi": 3,
+    "airhex": 11,
+    "rapidapi-kiwi": 1
+  }
+}
+```
+
+Each outbound HTTP call to an external API increments its counter the moment the request is dispatched. Cache hits (Airhex logos, OpenWeatherMap) do not count — only real network calls. Counts reset on server restart.
+
+| Service key | Provider |
+|-------------|----------|
+| `kiwi` | Kiwi/Tequila direct flight search |
+| `rapidapi-kiwi` | RapidAPI Kiwi flight search |
+| `serpapi` | SerpAPI (Google Flights) — open-search counts up to 20 |
+| `openweathermap` | OpenWeatherMap forecast + current weather |
+| `google-places` | Google Places Text Search (restaurants, hotels, attractions) |
+| `airhex` | Airhex airline logo lookup (per airline code) |
+
 ## Current Focus
 
 The current focus of the project is:
