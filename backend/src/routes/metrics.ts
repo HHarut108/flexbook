@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getMetrics, getMetricsHistory, startedAt } from '../utils/apiMetrics';
+import { sendDailyReport, sendHistoryReport } from '../services/EmailReportService';
 
 const dateRe = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -36,5 +37,26 @@ export async function metricsRoutes(app: FastifyInstance) {
     }
     const history = await getMetricsHistory(from, to);
     return { from, to, history };
+  });
+
+  // POST /metrics/report  — send on-demand email report
+  // Body (optional): { date: "YYYY-MM-DD" } for daily, or { from: "YYYY-MM-DD", to: "YYYY-MM-DD" } for history
+  app.post('/metrics/report', async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, string>;
+
+    if (body.from && body.to) {
+      if (body.from > body.to) {
+        return reply.status(400).send({ error: 'from must be before or equal to to' });
+      }
+      const result = await sendHistoryReport(body.from, body.to);
+      return result.sent
+        ? { sent: true, type: 'history', from: body.from, to: body.to }
+        : reply.status(500).send({ sent: false, error: result.error });
+    }
+
+    const result = await sendDailyReport(body.date);
+    return result.sent
+      ? { sent: true, type: 'daily', date: body.date ?? new Date().toISOString().slice(0, 10) }
+      : reply.status(500).send({ sent: false, error: result.error });
   });
 }

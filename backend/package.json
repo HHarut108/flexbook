@@ -18,10 +18,13 @@
     "dotenv": "^16.4.5",
     "fastify": "^4.27.0",
     "node-cache": "^5.1.2",
+    "node-cron": "^4.2.1",
     "pino-pretty": "^11.2.1",
+    "resend": "^6.12.3",
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/node-cron": "^3.0.11",
     "@typescript-eslint/eslint-plugin": "^7.13.0",
     "@typescript-eslint/parser": "^7.13.0",
     "@vitest/coverage-v8": "^1.6.0",

@@ -1,6 +1,8 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import cron from 'node-cron';
 import { config } from './config';
+import { sendDailyReport } from './services/EmailReportService';
 import { healthRoutes } from './routes/health';
 import { airportRoutes } from './routes/airports';
 import { flightRoutes } from './routes/flights';
@@ -37,6 +39,17 @@ async function start() {
   await app.register(placesRoutes);
   await app.register(cityGuideRoutes);
   await app.register(metricsRoutes);
+
+  // Daily API usage report — every day at 08:00 UTC
+  cron.schedule('0 8 * * *', async () => {
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const result = await sendDailyReport(yesterday);
+    if (result.sent) {
+      app.log.info(`Daily API report sent for ${yesterday}`);
+    } else {
+      app.log.warn(`Daily API report failed: ${result.error}`);
+    }
+  }, { timezone: 'UTC' });
 
   try {
     await app.listen({ port: config.PORT, host: '0.0.0.0' });

@@ -215,14 +215,38 @@ The backend tracks outbound API calls per service per day, stored in Upstash Red
 
 Each outbound HTTP call increments its counter at dispatch time. Cache hits (Airhex logos, OpenWeatherMap) are excluded — only real network calls count. Writes are fire-and-forget so Redis latency never affects API response times.
 
+### On-demand report
+
+`POST /metrics/report` sends an email immediately.
+
+```bash
+# Today's report
+curl -X POST http://localhost:3000/metrics/report
+
+# Specific day
+curl -X POST http://localhost:3000/metrics/report \
+  -H "Content-Type: application/json" \
+  -d '{"date":"2026-05-06"}'
+
+# Date range
+curl -X POST http://localhost:3000/metrics/report \
+  -H "Content-Type: application/json" \
+  -d '{"from":"2026-05-01","to":"2026-05-06"}'
+```
+
+### Daily digest
+
+An email is sent automatically every day at **08:00 UTC** with the previous day's call counts.
+
 ### Required environment variables
 
 ```bash
 UPSTASH_REDIS_REST_URL=https://your-db.upstash.io
 UPSTASH_REDIS_REST_TOKEN=your_token_here
+RESEND_API_KEY=re_your_key_here
 ```
 
-Create a free Redis database at [upstash.com](https://upstash.com) and copy the REST URL and token from the dashboard.
+Create a free Redis database at [upstash.com](https://upstash.com) and a free account at [resend.com](https://resend.com).
 
 ### Service keys
 
