@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { config } from '../config';
 import { ok, fail } from '../utils/response';
+import { increment } from '../utils/apiMetrics';
 
 const querySchema = z.object({
   city: z.string().min(1).max(100),
@@ -69,6 +70,7 @@ async function searchPlaces(
   apiKey: string,
   maxResultCount: number,
 ): Promise<GooglePlace[]> {
+  increment('google-places');
   const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
     method: 'POST',
     headers: {

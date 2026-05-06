@@ -207,6 +207,7 @@ S1 Origin Search  ──►  S2 Flight Results  ◄──► [DatePickerOverlay]
 | 4.11 | Mobile viewport testing — 375px–428px | `[ ]` | |
 | 4.12 | Rate-limit / error handling on flight APIs (429, 503) | `[x]` | `SerpApiRateLimitError`/`SerpApiUnavailableError` and `KiwiRateLimitError`/`KiwiUnavailableError` classes; route returns 429 with `Retry-After` header, 503 for unavailable |
 | 4.13 | Environment variable validation at startup | `[x]` | Zod schema in `config.ts`; `SERPAPI_API_KEY`, `KIWI_API_KEY`, `OPENWEATHER_API_KEY`, and `AIRHEX_API_KEY` are optional and default to empty string |
+| 4.14b | In-memory API call counter + `GET /metrics` endpoint | `[x]` | `apiMetrics.ts` module; increments per outbound HTTP call (cache hits excluded); counts reset on restart; all 6 providers instrumented |
 
 ### 4C — Deployment
 

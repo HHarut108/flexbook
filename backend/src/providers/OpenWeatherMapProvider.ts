@@ -1,6 +1,7 @@
 import { WeatherCondition, WeatherSummary } from '@fast-travel/shared';
 import axios from 'axios';
 import { config } from '../config';
+import { increment } from '../utils/apiMetrics';
 
 interface OWMForecastItem {
   dt: number;
@@ -32,6 +33,7 @@ export async function fetchWeather(
 
   // 5-day / 3-hour forecast — only useful within 5 days
   if (daysDiff <= 5) {
+    increment('openweathermap');
     const { data: response } = await axios.get<OWMForecastResponse>(
       'https://api.openweathermap.org/data/2.5/forecast',
       { params: { lat, lon: lng, appid: config.OPENWEATHER_API_KEY, units: 'metric', cnt: 40 } },
@@ -53,6 +55,7 @@ export async function fetchWeather(
   }
 
   // For dates beyond 5 days, use current weather as a rough proxy
+  increment('openweathermap');
   const { data: response } = await axios.get<{ main: { temp: number }; weather: Array<{ id: number }> }>(
     'https://api.openweathermap.org/data/2.5/weather',
     { params: { lat, lon: lng, appid: config.OPENWEATHER_API_KEY, units: 'metric' } },
