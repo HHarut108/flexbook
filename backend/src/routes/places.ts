@@ -15,7 +15,8 @@ interface GooglePlace {
   priceLevel?: string;
   primaryTypeDisplayName?: { text: string };
   formattedAddress?: string;
-  editorialSummary?: { text: string };
+  userRatingCount?: number;
+  location?: { latitude: number; longitude: number };
 }
 
 const PRICE_MAP: Record<string, string> = {
@@ -49,7 +50,7 @@ export async function placesRoutes(app: FastifyInstance) {
           'Content-Type': 'application/json',
           'X-Goog-Api-Key': config.GOOGLE_PLACES_API_KEY,
           'X-Goog-FieldMask':
-            'places.displayName,places.rating,places.priceLevel,places.primaryTypeDisplayName,places.editorialSummary',
+            'places.displayName,places.rating,places.priceLevel,places.primaryTypeDisplayName,places.userRatingCount,places.location',
         },
         body: JSON.stringify({
           textQuery: query,
@@ -72,16 +73,17 @@ export async function placesRoutes(app: FastifyInstance) {
         name: p.displayName?.text ?? 'Unknown',
         mealType: p.primaryTypeDisplayName?.text ?? 'Restaurant',
         description:
-          (p.editorialSummary?.text ??
           [
             p.rating ? `Rated ${p.rating}/5` : null,
             p.priceLevel ? PRICE_MAP[p.priceLevel] : null,
           ]
             .filter(Boolean)
-            .join(' · ')) ||
-          'Local favourite',
+            .join(' · ') || 'Local favourite',
         rating: p.rating,
+        reviewCount: p.userRatingCount ?? null,
         priceLevel: p.priceLevel ? PRICE_MAP[p.priceLevel] : undefined,
+        lat: p.location?.latitude ?? null,
+        lng: p.location?.longitude ?? null,
       }));
 
       return ok(restaurants);
