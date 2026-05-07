@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { BarChart2, LogOut, Zap } from 'lucide-react';
+import { BarChart2, LogOut, Zap, Sun, Moon } from 'lucide-react';
 import { logout } from '../auth';
 
 interface NavItem {
@@ -19,9 +19,11 @@ const NAV_ITEMS: NavItem[] = [
 
 interface SidebarProps {
   onLogout: () => void;
+  theme: 'dark' | 'light';
+  onToggleTheme: () => void;
 }
 
-export function Sidebar({ onLogout }: SidebarProps) {
+export function Sidebar({ onLogout, theme, onToggleTheme }: SidebarProps) {
   function handleLogout() {
     logout();
     onLogout();
@@ -50,10 +52,16 @@ export function Sidebar({ onLogout }: SidebarProps) {
         ))}
       </nav>
 
-      <button className="admin-sidebar__logout" onClick={handleLogout}>
-        <LogOut size={16} />
-        <span>Sign out</span>
-      </button>
+      <div className="admin-sidebar__bottom">
+        <button className="admin-sidebar__theme-toggle" onClick={onToggleTheme}>
+          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+        </button>
+        <button className="admin-sidebar__logout" onClick={handleLogout}>
+          <LogOut size={16} />
+          <span>Sign out</span>
+        </button>
+      </div>
     </aside>
   );
 }
