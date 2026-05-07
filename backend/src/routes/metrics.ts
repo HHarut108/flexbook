@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getMetrics, getMetricsHistory, startedAt } from '../utils/apiMetrics';
 import { sendDailyReport, sendHistoryReport } from '../services/EmailReportService';
+import { requireAdminAuth } from '../middleware/requireAdminAuth';
 
 const dateRe = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -16,7 +17,7 @@ const historySchema = z.object({
 
 export async function metricsRoutes(app: FastifyInstance) {
   // GET /metrics?date=YYYY-MM-DD  (defaults to today)
-  app.get('/metrics', async (request, reply) => {
+  app.get('/metrics', { preHandler: requireAdminAuth }, async (request, reply) => {
     const parsed = singleSchema.safeParse(request.query);
     if (!parsed.success) {
       return reply.status(400).send({ error: 'date must be YYYY-MM-DD' });
@@ -26,7 +27,7 @@ export async function metricsRoutes(app: FastifyInstance) {
   });
 
   // GET /metrics/history?from=YYYY-MM-DD&to=YYYY-MM-DD
-  app.get('/metrics/history', async (request, reply) => {
+  app.get('/metrics/history', { preHandler: requireAdminAuth }, async (request, reply) => {
     const parsed = historySchema.safeParse(request.query);
     if (!parsed.success) {
       return reply.status(400).send({ error: 'from and to must be YYYY-MM-DD' });
@@ -41,7 +42,7 @@ export async function metricsRoutes(app: FastifyInstance) {
 
   // POST /metrics/report  — send on-demand email report
   // Body (optional): { date: "YYYY-MM-DD" } for daily, or { from: "YYYY-MM-DD", to: "YYYY-MM-DD" } for history
-  app.post('/metrics/report', async (request, reply) => {
+  app.post('/metrics/report', { preHandler: requireAdminAuth }, async (request, reply) => {
     const body = (request.body ?? {}) as Record<string, string>;
 
     if (body.from && body.to) {

@@ -12,6 +12,7 @@ import { tripRoutes } from './routes/trips';
 import { placesRoutes } from './routes/places';
 import { cityGuideRoutes } from './routes/cityGuide';
 import { metricsRoutes } from './routes/metrics';
+import { adminAuthRoutes } from './routes/adminAuth';
 
 const app = Fastify({
   logger: {
@@ -26,7 +27,7 @@ async function start() {
   const wwwVariant = config.FRONTEND_URL.replace('https://', 'https://www.').replace('https://www.www.', 'https://www.');
   const noWwwVariant = config.FRONTEND_URL.replace('https://www.', 'https://');
   await app.register(cors, {
-    origin: [wwwVariant, noWwwVariant, 'http://localhost:5173'],
+    origin: [wwwVariant, noWwwVariant, 'http://localhost:5173', 'http://localhost:5176'],
     methods: ['GET', 'POST', 'PATCH', 'DELETE'],
   });
 
@@ -39,6 +40,7 @@ async function start() {
   await app.register(placesRoutes);
   await app.register(cityGuideRoutes);
   await app.register(metricsRoutes);
+  await app.register(adminAuthRoutes);
 
   // Daily API usage report — every day at 08:00 Yerevan time
   cron.schedule('0 8 * * *', async () => {

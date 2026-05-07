@@ -18,6 +18,24 @@
         "cd /Users/harut/Desktop/Fast-Travel-Assistant/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5174"
       ],
       "port": 5174
+    },
+    {
+      "name": "Frontend-worktree (Vite :5175)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/romantic-visvesvaraya-2c8614/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5175"
+      ],
+      "port": 5175
+    },
+    {
+      "name": "Admin (Vite :5176)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/romantic-visvesvaraya-2c8614/admin && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5176"
+      ],
+      "port": 5176
     }
   ]
 }

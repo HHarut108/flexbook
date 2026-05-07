@@ -14,6 +14,8 @@ const envSchema = z.object({
   UPSTASH_REDIS_REST_URL: z.string().default(''),
   UPSTASH_REDIS_REST_TOKEN: z.string().default(''),
   RESEND_API_KEY: z.string().default(''),
+  ADMIN_PASSWORD: z.string().default(''),
+  ADMIN_SESSION_SECRET: z.string().default(''),
 });
 
 const parsed = envSchema.safeParse(process.env);
