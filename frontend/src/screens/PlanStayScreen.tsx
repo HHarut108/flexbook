@@ -8,14 +8,15 @@ import {
   ArrowLeft,
   BedDouble,
   Building2,
-  Camera,
   ChevronDown,
   Compass,
   ExternalLink,
   Info,
+  Leaf,
   Mountain,
+  Music,
+  Navigation,
   UtensilsCrossed,
-  Waves,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -50,6 +51,26 @@ interface Restaurant {
   priceLevel?: string;
 }
 
+interface PlaceItem {
+  name: string;
+  type: string;
+  rating: number | null;
+  reviewCount: number | null;
+  priceLevel: string | null;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
+}
+
+interface DoCategories {
+  culture: PlaceItem[];
+  natureOutdoors: PlaceItem[];
+  cuisineRestaurants: PlaceItem[];
+  nightlife: PlaceItem[];
+  wellness: PlaceItem[];
+  budgetLodging: PlaceItem[];
+}
+
 interface DaySlot {
   time: string;
   activity: string;
@@ -72,25 +93,23 @@ interface DestinationGuide {
   restaurants: Restaurant[];
   days: Day[];
   practical: Practical;
+  doCategories?: DoCategories;
 }
 
-// ── Icon map ───────────────────────────────────────────────────────────────────
+// ── Do-tab category definitions ────────────────────────────────────────────────
 
-const ACTIVITY_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
-  Mountain,
-  Waves,
-  Building2,
-  Camera,
-  Compass,
-};
-
-// ── Cost pill helper ───────────────────────────────────────────────────────────
-
-function CostPill({ cost }: { cost: Activity['cost'] }) {
-  if (cost === 'free') return <span className="pill-success text-[10px]">Free</span>;
-  if (cost === '€') return <span className="pill-default text-[10px]">{cost}</span>;
-  return <span className="pill-warning text-[10px]">{cost}</span>;
-}
+const DO_CATEGORIES: {
+  key: keyof DoCategories;
+  label: string;
+  icon: React.ComponentType<{ size?: number | string; className?: string }>;
+}[] = [
+  { key: 'culture',           label: 'Culture',                 icon: Building2       },
+  { key: 'natureOutdoors',    label: 'Nature & Outdoors',       icon: Mountain        },
+  { key: 'cuisineRestaurants',label: 'Cuisine & Dining',        icon: UtensilsCrossed },
+  { key: 'nightlife',         label: 'Nightlife',               icon: Music           },
+  { key: 'wellness',          label: 'Wellness',                icon: Leaf            },
+  { key: 'budgetLodging',     label: 'Budget Lodging',          icon: BedDouble       },
+];
 
 // ── Meal type pill ─────────────────────────────────────────────────────────────
 
@@ -160,8 +179,6 @@ export function PlanStayScreen() {
   const [practicalOpen, setPracticalOpen] = useState(false);
   const [liveRestaurants, setLiveRestaurants] = useState<Restaurant[] | null>(null);
   const [restaurantsLoading, setRestaurantsLoading] = useState(false);
-  const [expandedActivity, setExpandedActivity] = useState<string | null>(null);
-
   const handleBack = () => setScreen('decision');
 
   const checkin = arrivalDatetime ? arrivalDatetime.slice(0, 10) : undefined;
@@ -253,9 +270,7 @@ export function PlanStayScreen() {
     );
   }
 
-  // Clamp activeDay to actual days available
   const dayCount = Math.min(nights, content.days.length);
-  const clampedDay = Math.min(activeDay, dayCount - 1);
 
   return (
     <div className="px-4 pb-32 pt-4 animate-fade-in">
@@ -370,35 +385,90 @@ export function PlanStayScreen() {
               </div>
             ))}
 
-            {/* Do */}
-            {activeContentTab === 1 && content.activities.map((act) => {
-              const Icon = ACTIVITY_ICONS[act.icon] ?? Compass;
-              return (
-                <div
-                  key={act.name}
-                  className="rounded-[20px] border border-border bg-surface px-4 py-4"
-                  style={{ boxShadow: '0 4px 12px rgba(15,23,42,0.04)' }}
-                >
-                  <div className="flex items-start gap-3.5">
-                    <div className="w-10 h-10 rounded-2xl bg-indigo-soft border border-indigo-border flex items-center justify-center shrink-0 mt-0.5">
-                      <Icon size={16} className="text-indigo" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <h4 className="text-[15px] font-semibold text-text-primary leading-tight flex-1">
-                          {act.name}
-                        </h4>
-                        <CostPill cost={act.cost} />
+            {/* Do — categorised view */}
+            {activeContentTab === 1 && (
+              <div className="space-y-5">
+                {DO_CATEGORIES.map(({ key, label, icon: Icon }) => {
+                  const places = content.doCategories?.[key] ?? [];
+                  if (places.length === 0) return null;
+                  return (
+                    <div key={key}>
+                      {/* Category header */}
+                      <div className="flex items-center gap-2 mb-2.5 px-1">
+                        <div className="w-6 h-6 rounded-lg bg-indigo-soft border border-indigo-border flex items-center justify-center shrink-0">
+                          <Icon size={12} className="text-indigo" />
+                        </div>
+                        <span className="text-[11px] font-bold tracking-[0.18em] uppercase text-text-muted">
+                          {label}
+                        </span>
                       </div>
-                      <p className="text-xs text-text-muted mb-2">
-                        {act.duration}{act.note && ` · ${act.note}`}
-                      </p>
-                      {act.dontSkip && <span className="pill-warning text-[10px]">Top pick</span>}
+
+                      {/* Places under this category */}
+                      <div className="space-y-2">
+                        {places.map((place) => (
+                          <div
+                            key={place.name}
+                            className="rounded-[18px] border border-border bg-surface px-4 py-3"
+                            style={{ boxShadow: '0 4px 12px rgba(15,23,42,0.04)' }}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <h4 className="text-[14px] font-semibold text-text-primary leading-tight">
+                                  {place.name}
+                                </h4>
+                                {place.type && (
+                                  <p className="text-[11px] text-text-muted mt-0.5">{place.type}</p>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0 mt-0.5">
+                                {place.priceLevel && (
+                                  <span className="text-sm font-semibold text-indigo">
+                                    {place.priceLevel}
+                                  </span>
+                                )}
+                                {place.lat != null && place.lng != null && (
+                                  <a
+                                    href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 rounded-lg bg-indigo-soft border border-indigo-border px-2 py-1 text-[11px] font-semibold text-indigo hover:bg-indigo hover:text-white hover:border-indigo transition-all duration-150 active:scale-[0.97]"
+                                    aria-label={`Get directions to ${place.name}`}
+                                  >
+                                    <Navigation size={11} />
+                                    Go
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+
+                            {(place.rating != null || place.address) && (
+                              <div className="flex items-center gap-2 mt-1.5 text-[11px] text-text-muted">
+                                {place.rating != null && (
+                                  <span>
+                                    ⭐ {place.rating.toFixed(1)}
+                                    {place.reviewCount != null && (
+                                      <span className="text-text-xmuted">
+                                        {' '}({place.reviewCount.toLocaleString()})
+                                      </span>
+                                    )}
+                                  </span>
+                                )}
+                                {place.address && (
+                                  <span className="truncate text-text-xmuted">
+                                    {place.address.split(',')[0]}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            )}
 
             {/* Eat */}
             {activeContentTab === 2 && (

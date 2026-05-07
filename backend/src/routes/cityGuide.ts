@@ -58,9 +58,45 @@ interface GooglePlace {
   priceLevel?: string;
   primaryType?: string;
   primaryTypeDisplayName?: { text: string };
-  editorialSummary?: { text: string };
   formattedAddress?: string;
   userRatingCount?: number;
+  location?: { latitude: number; longitude: number };
+}
+
+interface PlaceItem {
+  name: string;
+  type: string;
+  rating: number | null;
+  reviewCount: number | null;
+  priceLevel: string | null;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
+}
+
+interface LocationBias {
+  circle: {
+    center: { latitude: number; longitude: number };
+    radius: number;
+  };
+}
+
+async function geocodeCity(
+  city: string,
+  country: string | undefined,
+  apiKey: string,
+): Promise<{ lat: number; lon: number } | null> {
+  try {
+    const q = country ? `${city},${country}` : city;
+    const res = await fetch(
+      `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(q)}&limit=1&appid=${apiKey}`,
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as Array<{ lat: number; lon: number }>;
+    return data[0] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 async function searchPlaces(
@@ -69,8 +105,17 @@ async function searchPlaces(
   fieldMask: string,
   apiKey: string,
   maxResultCount: number,
+  locationBias?: LocationBias,
 ): Promise<GooglePlace[]> {
   increment('google-places');
+  const body: Record<string, unknown> = {
+    textQuery,
+    includedType,
+    maxResultCount,
+    languageCode: 'en',
+  };
+  if (locationBias) body.locationBias = locationBias;
+
   const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
     method: 'POST',
     headers: {
@@ -78,7 +123,7 @@ async function searchPlaces(
       'X-Goog-Api-Key': apiKey,
       'X-Goog-FieldMask': fieldMask,
     },
-    body: JSON.stringify({ textQuery, includedType, maxResultCount, languageCode: 'en' }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const err = await res.text();
@@ -86,6 +131,19 @@ async function searchPlaces(
   }
   const json = (await res.json()) as { places?: GooglePlace[] };
   return json.places ?? [];
+}
+
+function toPlaceItem(p: GooglePlace): PlaceItem {
+  return {
+    name: p.displayName?.text ?? 'Place',
+    type: p.primaryTypeDisplayName?.text ?? '',
+    rating: p.rating ?? null,
+    reviewCount: p.userRatingCount ?? null,
+    priceLevel: p.priceLevel ? (PRICE_MAP[p.priceLevel] ?? null) : null,
+    address: p.formattedAddress ?? null,
+    lat: p.location?.latitude ?? null,
+    lng: p.location?.longitude ?? null,
+  };
 }
 
 const MEAL_TYPES = ['Lunch', 'Dinner', 'Breakfast', 'Lunch', 'Dinner', 'Snack', 'Coffee', 'Dinner'];
@@ -106,7 +164,6 @@ export async function cityGuideRoutes(app: FastifyInstance) {
     const { city, country, checkin, checkout, passengers, nights: nightsParam } = parsed.data;
     const location = country ? `${city}, ${country}` : city;
 
-    // Determine trip length so we can generate enough days
     let targetNights = nightsParam ?? 2;
     if (checkin && checkout && !nightsParam) {
       const diff = Math.round(
@@ -115,30 +172,94 @@ export async function cityGuideRoutes(app: FastifyInstance) {
       if (diff > 0) targetNights = Math.min(diff, 14);
     }
 
+    // Field masks — editorialSummary removed (drops from Atmosphere to Enterprise tier)
     const detailFields =
-      'places.displayName,places.rating,places.priceLevel,places.primaryType,places.editorialSummary,places.formattedAddress,places.userRatingCount';
+      'places.displayName,places.rating,places.priceLevel,places.primaryType,places.formattedAddress,places.userRatingCount,places.location';
     const restaurantFields =
-      'places.displayName,places.rating,places.priceLevel,places.primaryTypeDisplayName,places.editorialSummary';
+      'places.displayName,places.rating,places.priceLevel,places.primaryTypeDisplayName,places.userRatingCount,places.location';
+    const categoryFields =
+      'places.displayName,places.rating,places.priceLevel,places.primaryTypeDisplayName,places.formattedAddress,places.userRatingCount,places.location';
 
-    // Need 2 activities per day + a few extras for variety
     const activityFetchCount = Math.min(targetNights * 2 + 4, 20);
 
     try {
-      const [hotelPlaces, attractionPlaces, restaurantPlaces] = await Promise.all([
-        searchPlaces(`hotels in ${location}`, 'lodging', detailFields, config.GOOGLE_PLACES_API_KEY, 4),
+      // Geocode the city to get coordinates for locationBias (uses OWM free geocoding API)
+      const coords = config.OPENWEATHER_API_KEY
+        ? await geocodeCity(city, country, config.OPENWEATHER_API_KEY)
+        : null;
+
+      const locationBias: LocationBias | undefined = coords
+        ? { circle: { center: { latitude: coords.lat, longitude: coords.lon }, radius: 20000 } }
+        : undefined;
+
+      const key = config.GOOGLE_PLACES_API_KEY;
+
+      const [
+        hotelPlaces,
+        attractionPlaces,
+        restaurantPlaces,
+        culturePlaces,
+        naturePlaces,
+        nightlifePlaces,
+        wellnessPlaces,
+        budgetLodgingPlaces,
+      ] = await Promise.all([
+        searchPlaces(`hotels in ${location}`, 'lodging', detailFields, key, 4, locationBias),
         searchPlaces(
           `tourist attractions sightseeing in ${location}`,
           'tourist_attraction',
           detailFields,
-          config.GOOGLE_PLACES_API_KEY,
+          key,
           activityFetchCount,
+          locationBias,
         ),
         searchPlaces(
           `restaurants in ${location}`,
           'restaurant',
           restaurantFields,
-          config.GOOGLE_PLACES_API_KEY,
+          key,
           Math.min(targetNights + 4, 12),
+          locationBias,
+        ),
+        searchPlaces(
+          `museums art galleries cultural sites in ${location}`,
+          'museum',
+          categoryFields,
+          key,
+          6,
+          locationBias,
+        ),
+        searchPlaces(
+          `parks nature outdoor activities in ${location}`,
+          'park',
+          categoryFields,
+          key,
+          6,
+          locationBias,
+        ),
+        searchPlaces(
+          `bars nightlife clubs entertainment in ${location}`,
+          'bar',
+          categoryFields,
+          key,
+          6,
+          locationBias,
+        ),
+        searchPlaces(
+          `spas wellness centers massage in ${location}`,
+          'spa',
+          categoryFields,
+          key,
+          5,
+          locationBias,
+        ),
+        searchPlaces(
+          `hostels budget accommodation guesthouses in ${location}`,
+          'hostel',
+          categoryFields,
+          key,
+          5,
+          locationBias,
         ),
       ]);
 
@@ -169,9 +290,7 @@ export async function cityGuideRoutes(app: FastifyInstance) {
             neighborhood,
             priceLevel: p.priceLevel ? (PRICE_MAP[p.priceLevel] ?? null) : null,
             priceLevelOrder: p.priceLevel ? (PRICE_LEVEL_ORDER[p.priceLevel] ?? 99) : 99,
-            why:
-              p.editorialSummary?.text ??
-              (p.rating ? `Rated ${p.rating.toFixed(1)}/5 by guests.` : 'Well-reviewed hotel in the city.'),
+            why: p.rating ? `Rated ${p.rating.toFixed(1)}/5 by guests.` : 'Well-reviewed hotel in the city.',
             bookingUrl: `https://www.booking.com/searchresults.html?${bookingParams.toString()}`,
             rating: p.rating ?? null,
             reviewCount: p.userRatingCount ?? null,
@@ -185,7 +304,7 @@ export async function cityGuideRoutes(app: FastifyInstance) {
         name: p.displayName?.text ?? 'Attraction',
         duration: '1–2 hours',
         cost: (p.priceLevel ? PRICE_MAP[p.priceLevel] : 'free') as 'free' | '€' | '€€' | '€€€',
-        note: p.editorialSummary?.text ?? undefined,
+        note: undefined,
         rating: p.rating ?? null,
         reviewCount: p.userRatingCount ?? null,
         address: p.formattedAddress ?? null,
@@ -197,23 +316,31 @@ export async function cityGuideRoutes(app: FastifyInstance) {
         name: p.displayName?.text ?? 'Restaurant',
         mealType: MEAL_TYPES[i] ?? 'Dinner',
         description:
-          (p.editorialSummary?.text ??
-            [
-              p.rating ? `Rated ${p.rating.toFixed(1)}/5` : null,
-              p.priceLevel ? PRICE_MAP[p.priceLevel] : null,
-            ]
-              .filter(Boolean)
-              .join(' · ')) || 'Local favourite',
+          [
+            p.rating ? `Rated ${p.rating.toFixed(1)}/5` : null,
+            p.priceLevel ? PRICE_MAP[p.priceLevel] : null,
+          ]
+            .filter(Boolean)
+            .join(' · ') || 'Local favourite',
         rating: p.rating,
         priceLevel: p.priceLevel ? PRICE_MAP[p.priceLevel] : undefined,
       }));
+
+      const doCategories = {
+        culture: culturePlaces.map(toPlaceItem),
+        natureOutdoors: naturePlaces.map(toPlaceItem),
+        cuisineRestaurants: restaurantPlaces.map(toPlaceItem),
+        nightlife: nightlifePlaces.map(toPlaceItem),
+        wellness: wellnessPlaces.map(toPlaceItem),
+        budgetLodging: budgetLodgingPlaces.map(toPlaceItem),
+      };
 
       const dayTitles = [`${city} Highlights`, 'More to Explore'];
       const days = [];
       for (let i = 0; i < targetNights; i++) {
         const morning = activities[i * 2];
         const afternoon = activities[i * 2 + 1];
-        if (!morning) break; // Not enough attractions to fill this day
+        if (!morning) break;
         days.push({
           title: dayTitles[i] ?? `Day ${i + 1}`,
           slots: [
@@ -233,7 +360,7 @@ export async function cityGuideRoutes(app: FastifyInstance) {
         transport: 'Use Bolt or Uber for taxis. Check Google Maps for public transit routes and schedules.',
       };
 
-      return ok({ hotels, activities, restaurants, days, practical });
+      return ok({ hotels, activities, restaurants, days, practical, doCategories });
     } catch (err) {
       app.log.error(err, 'City guide fetch failed');
       return reply.status(502).send(fail('CITY_GUIDE_FAILED', 'Could not load city guide', true));
