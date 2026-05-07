@@ -27,7 +27,7 @@ async function start() {
   const wwwVariant = config.FRONTEND_URL.replace('https://', 'https://www.').replace('https://www.www.', 'https://www.');
   const noWwwVariant = config.FRONTEND_URL.replace('https://www.', 'https://');
   await app.register(cors, {
-    origin: [wwwVariant, noWwwVariant, 'http://localhost:5173', 'http://localhost:5176'],
+    origin: [wwwVariant, noWwwVariant, 'http://localhost:5173', 'http://localhost:5176', 'https://flexbook-admin.vercel.app'],
     methods: ['GET', 'POST', 'PATCH', 'DELETE'],
   });
 
