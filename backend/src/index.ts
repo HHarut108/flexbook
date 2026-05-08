@@ -13,6 +13,7 @@ import { placesRoutes } from './routes/places';
 import { cityGuideRoutes } from './routes/cityGuide';
 import { metricsRoutes } from './routes/metrics';
 import { adminAuthRoutes } from './routes/adminAuth';
+import { assistanceRequestRoutes } from './routes/assistanceRequests';
 
 const app = Fastify({
   logger: {
@@ -41,6 +42,7 @@ async function start() {
   await app.register(cityGuideRoutes);
   await app.register(metricsRoutes);
   await app.register(adminAuthRoutes);
+  await app.register(assistanceRequestRoutes);
 
   // Daily API usage report — every day at 08:00 Yerevan time
   cron.schedule('0 8 * * *', async () => {

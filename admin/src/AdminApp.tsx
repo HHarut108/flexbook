@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { isAuthenticated } from './auth';
 import { LoginPage } from './pages/LoginPage';
 import { ApiUsagePage } from './pages/ApiUsagePage';
+import { AssistanceRequestsPage } from './pages/AssistanceRequestsPage';
 import { Sidebar } from './components/Sidebar';
 import './admin.css';
 
@@ -36,6 +37,7 @@ export default function AdminApp() {
           <main className="admin-main">
             <Routes>
               <Route path="api-usage" element={<ApiUsagePage />} />
+              <Route path="assistance-requests" element={<AssistanceRequestsPage />} />
               <Route path="*" element={<Navigate to="api-usage" replace />} />
             </Routes>
           </main>

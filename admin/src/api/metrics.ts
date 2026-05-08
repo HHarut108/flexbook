@@ -98,3 +98,22 @@ export async function sendReport(payload: { date?: string; from?: string; to?: s
   const { data } = await adminClient.post<ReportResponse>('/metrics/report', payload);
   return data;
 }
+
+export interface AssistanceRequest {
+  id: string;
+  createdAt: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  tripData: {
+    origin?: string;
+    cities: string[];
+    totalPrice: number;
+    legs: unknown[];
+  };
+}
+
+export async function fetchAssistanceRequests(): Promise<AssistanceRequest[]> {
+  const { data } = await adminClient.get<{ requests: AssistanceRequest[] }>('/assistance-requests');
+  return data.requests;
+}
