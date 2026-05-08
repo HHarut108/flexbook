@@ -1,15 +1,13 @@
 import { FastifyPluginAsync } from 'fastify';
-import NodeCache from 'node-cache';
+import crypto from 'crypto';
+import { TripLeg } from '@fast-travel/shared';
 import { requireAdminAuth } from '../middleware/requireAdminAuth';
-
-const cache = new NodeCache({ stdTTL: 0 }); // no expiry — requests persist until server restart
-let counter = 0;
+import { tripCache } from '../utils/tripCache';
 
 interface TripData {
   origin?: string;
   cities: string[];
-  totalPrice: number;
-  legs: unknown[];
+  legs: TripLeg[];
 }
 
 interface AssistanceRequest {
@@ -19,6 +17,28 @@ interface AssistanceRequest {
   email: string;
   phone: string;
   tripData: TripData;
+  tripSlug: string;
+  totalPrice: number; // computed server-side from legs
+}
+
+const requests: AssistanceRequest[] = [];
+
+function makeSlug(origin: string | undefined, legs: TripLeg[]): string {
+  const o = (origin ?? 'x').toLowerCase().replace(/\s+/g, '').slice(0, 6);
+  const dests = legs
+    .filter((l) => !l.isReturn)
+    .map((l) => l.destinationIata?.toLowerCase() ?? '')
+    .filter(Boolean)
+    .join('-');
+  const firstLeg = legs[0];
+  const date = firstLeg
+    ? new Date(firstLeg.departureDatetime)
+        .toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+        .toLowerCase()
+        .replace(/[\s,]/g, '')
+    : '';
+  const suffix = crypto.randomBytes(3).toString('base64url').slice(0, 4);
+  return [o, dests, date, suffix].filter(Boolean).join('-');
 }
 
 export const assistanceRequestRoutes: FastifyPluginAsync = async (app) => {
@@ -34,33 +54,49 @@ export const assistanceRequestRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({ error: 'fullName, email, and phone are required.' });
     }
 
-    const id = `req_${Date.now()}_${++counter}`;
+    const rawTripData = (body.tripData ?? {}) as Record<string, unknown>;
+    const legs = Array.isArray(rawTripData.legs) ? (rawTripData.legs as TripLeg[]) : [];
+    const origin = typeof rawTripData.origin === 'string' ? rawTripData.origin : undefined;
+    const cities = Array.isArray(rawTripData.cities) ? (rawTripData.cities as string[]) : [];
+
+    // Compute total server-side from actual leg prices — ignores any client-sent totalPrice
+    const totalPrice = legs.reduce((sum, l) => sum + (l.priceUsd ?? 0), 0);
+
+    // Generate a share slug so the admin can open the trip as the user would see it.
+    // We store a minimal Itinerary so GET /trips/:slug resolves the link.
+    const tripSlug = makeSlug(origin, legs);
+    tripCache.set(tripSlug, {
+      origin: {
+        iata: legs[0]?.originIata ?? '',
+        name: origin ?? '',
+        city: { id: '', name: origin ?? '', countryCode: '', countryName: '', lat: 0, lng: 0 },
+        timezone: '',
+      },
+      legs,
+      status: 'planning',
+      createdAt: new Date().toISOString(),
+      passengers: 1,
+    });
+
     const request: AssistanceRequest = {
-      id,
+      id: `req_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
       createdAt: new Date().toISOString(),
       fullName,
       email,
       phone,
-      tripData: (body.tripData ?? { origin: undefined, cities: [], totalPrice: 0, legs: [] }) as TripData,
+      tripData: { origin, cities, legs },
+      tripSlug,
+      totalPrice,
     };
 
-    cache.set(id, request);
-    app.log.info(`Assistance request received: ${id} from ${email}`);
+    requests.push(request);
+    app.log.info(`Assistance request: ${request.id} from ${email}`);
 
-    return reply.status(201).send({ id });
+    return reply.status(201).send({ id: request.id, tripSlug });
   });
 
-  // Admin-only — retrieve all submitted requests
+  // Admin-only — retrieve all submitted requests, newest first
   app.get('/assistance-requests', { preHandler: requireAdminAuth }, async (_req, reply) => {
-    const keys = cache.keys();
-    const requests = keys
-      .map((k) => cache.get<AssistanceRequest>(k))
-      .filter((r): r is AssistanceRequest => r !== undefined);
-
-    requests.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
-
-    return reply.send({ requests });
+    return reply.send({ requests: [...requests].reverse() });
   });
 };

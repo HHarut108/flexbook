@@ -13,7 +13,7 @@ export interface AssistanceRequestPayload {
   };
 }
 
-export async function submitAssistanceRequest(payload: AssistanceRequestPayload): Promise<{ id: string }> {
-  const { data } = await apiClient.post<{ id: string }>('/assistance-requests', payload);
+export async function submitAssistanceRequest(payload: AssistanceRequestPayload): Promise<{ id: string; tripSlug?: string }> {
+  const { data } = await apiClient.post<{ id: string; tripSlug?: string }>('/assistance-requests', payload);
   return data;
 }
