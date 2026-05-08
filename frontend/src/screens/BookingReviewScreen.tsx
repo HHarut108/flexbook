@@ -22,7 +22,9 @@ import {
   Luggage,
   CheckCircle2,
   Menu,
+  Headphones as HeadphonesIcon,
 } from 'lucide-react';
+import { AssistanceRequestModal } from '../components/AssistanceRequestModal';
 
 const TripMap = lazy(() => import('../components/TripMap').then((m) => ({ default: m.TripMap })));
 
@@ -47,9 +49,6 @@ function formatTravelWindow(legs: TripLeg[]) {
   return `${formatDate(legs[0].departureDatetime)} – ${formatDate(legs[legs.length - 1].arrivalDatetime)}`;
 }
 
-function uniqueBookingUrls(legs: TripLeg[]) {
-  return Array.from(new Set(legs.map((l) => l.bookingUrl).filter(Boolean)));
-}
 
 function totalDurationMinutes(legs: TripLeg[]) {
   return legs.reduce((sum, l) => sum + l.durationMinutes, 0);
@@ -365,6 +364,7 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
   const setScreen = useSessionStore((s) => s.setScreen);
   const [bulkStarted, setBulkStarted] = useState(false);
   const [bookingConfirm, setBookingConfirm] = useState(false);
+  const [assistModalOpen, setAssistModalOpen] = useState(false);
   const [airlineLogos, setAirlineLogos] = useState<Record<string, string>>({});
 
   const relevantLegs = partial ? allLegs.filter((l) => !l.isReturn) : allLegs;
@@ -374,7 +374,6 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
     [relevantLegs],
   );
   const total = totalPrice(orderedLegs);
-  const uniqueUrls = useMemo(() => uniqueBookingUrls(orderedLegs), [orderedLegs]);
   const tripCities = [origin?.city.name, ...orderedLegs.map((l) => l.destinationCity)].filter(Boolean);
   const travelWindow = formatTravelWindow(orderedLegs);
   const totalFlightTime = totalDurationMinutes(orderedLegs);
@@ -398,10 +397,15 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
       return;
     }
     setBulkStarted(true);
-    uniqueUrls.forEach((url) => {
-      window.open(url, '_blank', 'noopener,noreferrer');
+    let firstTab: Window | null = null;
+    orderedLegs.forEach((leg) => {
+      if (leg.bookingUrl) {
+        const tab = window.open(leg.bookingUrl, '_blank', 'noopener,noreferrer');
+        if (!firstTab && tab) firstTab = tab;
+      }
     });
-  }, [bookingConfirm, uniqueUrls]);
+    if (firstTab) (firstTab as Window).focus();
+  }, [bookingConfirm, orderedLegs]);
 
   return (
     <div className="pb-8">
@@ -519,7 +523,7 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
                 Book this itinerary · {formatPrice(total)}
               </button>
               <p className="text-[11px] text-text-muted text-center mt-2 leading-relaxed">
-                Opens {uniqueUrls.length} booking page{uniqueUrls.length > 1 ? 's' : ''} in new tabs.
+                This will open each booking in a new tab — one per flight.
                 Check final prices before completing each purchase.
               </p>
             </>
@@ -531,7 +535,7 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
                 <div>
                   <p className="text-sm font-semibold text-text-primary mb-0.5">Ready to open booking pages?</p>
                   <p className="text-xs text-text-muted leading-relaxed">
-                    This will open {uniqueUrls.length} tab{uniqueUrls.length > 1 ? 's' : ''} with the airlines' booking pages.
+                    This will open {orderedLegs.length} tab{orderedLegs.length > 1 ? 's' : ''} — one for each flight leg.
                     Check final prices, baggage rules, and layover details on each page.
                   </p>
                 </div>
@@ -562,12 +566,25 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
               {bulkStarted && (
                 <p className="text-xs text-text-muted text-center flex items-center justify-center gap-1.5">
                   <CheckCircle2 size={12} className="text-emerald-500" />
-                  Opened {uniqueUrls.length} booking page{uniqueUrls.length > 1 ? 's' : ''} in new tabs
+                  Opened {orderedLegs.length} tab{orderedLegs.length > 1 ? 's' : ''} — your first flight is shown
                 </p>
               )}
             </div>
           )}
         </div>
+      </div>
+
+      {/* ── Request assistant help ── */}
+      <div className="px-4 mb-4">
+        <button
+          className="w-full flex items-center justify-center gap-2 rounded-2xl border border-indigo-border bg-indigo-soft/40 text-indigo px-4 py-3 text-sm font-semibold hover:bg-indigo-soft transition-colors active:scale-[0.98]"
+          style={{ minHeight: '48px' }}
+          onClick={() => setAssistModalOpen(true)}
+          aria-label="Request assistant help with booking"
+        >
+          <HeadphonesIcon size={16} />
+          Request assistant help
+        </button>
       </div>
 
       {/* ── Flight legs (expandable) ── */}
@@ -606,6 +623,15 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
           {partial ? 'Back to trip planning' : 'Back to trip overview'}
         </button>
       </div>
+
+      {assistModalOpen && (
+        <AssistanceRequestModal
+          onClose={() => setAssistModalOpen(false)}
+          origin={origin?.city.name}
+          legs={orderedLegs}
+          total={total}
+        />
+      )}
     </div>
   );
 }
