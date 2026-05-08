@@ -74,9 +74,11 @@ export async function sendDailyReport(date?: string): Promise<{ sent: boolean; e
   if (!config.RESEND_API_KEY) return { sent: false, error: 'RESEND_API_KEY not configured' };
 
   const d = date ?? new Date().toISOString().slice(0, 10);
-  const [{ calls }, alltime] = await Promise.all([getMetrics(d), getAllTimeMetrics()]);
+  const [{ calls }, alltimeBreakdown] = await Promise.all([getMetrics(d), getAllTimeMetrics()]);
   const total = Object.values(calls).reduce((s, n) => s + n, 0);
-  const alltimeTotal = Object.values(alltime).reduce((s, n) => s + n, 0);
+  const alltimeTotals: Record<string, number> = {};
+  for (const [svc, b] of Object.entries(alltimeBreakdown)) alltimeTotals[svc] = b.primary + b.fallback;
+  const alltimeTotal = Object.values(alltimeTotals).reduce((s, n) => s + n, 0);
 
   const resend = new Resend(config.RESEND_API_KEY);
 
@@ -84,7 +86,7 @@ export async function sendDailyReport(date?: string): Promise<{ sent: boolean; e
     <h3 style="margin:0 0 12px;font-size:15px;color:#1a1a2e;">Today — ${formatDate(d)}</h3>
     ${buildTable(calls)}
     <h3 style="margin:24px 0 12px;font-size:15px;color:#1a1a2e;">All-Time Total</h3>
-    ${buildTable(alltime)}
+    ${buildTable(alltimeTotals)}
   `;
 
   const html = buildHtml(
