@@ -30,7 +30,6 @@ export interface TripLegSummary {
   destinationIata: string;
   destinationCity: string;
   departureDatetime: string;
-  arrivalDatetime: string;
   airlineName: string;
   stops: number;
   priceUsd: number;
@@ -39,20 +38,22 @@ export interface TripLegSummary {
   stopIndex: number;
 }
 
-export interface ItinerarySummary {
-  origin: { iata: string; city: { name: string } };
-  legs: TripLegSummary[];
-  passengers: number;
-}
-
 export interface AssistanceRequestSummary {
   id: string;
-  itinerary: ItinerarySummary;
+  createdAt: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  tripData: {
+    origin?: string;
+    cities: string[];
+    legs: TripLegSummary[];
+  };
   tripSlug: string;
-  requestedAt: string;
+  totalPrice: number;
 }
 
 export async function fetchAssistanceRequests(): Promise<AssistanceRequestSummary[]> {
-  const { data } = await adminClient.get<AssistanceRequestSummary[]>('/assistance-requests');
-  return data;
+  const { data } = await adminClient.get<{ requests: AssistanceRequestSummary[] }>('/assistance-requests');
+  return data.requests;
 }

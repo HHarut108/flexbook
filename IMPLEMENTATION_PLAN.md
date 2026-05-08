@@ -235,6 +235,43 @@ S1 Origin Search  ──►  S2 Flight Results  ◄──► [DatePickerOverlay]
 
 ---
 
+---
+
+## Phase 5 — Booking UX & Assistant Help
+
+**Goal:** Improve the booking experience and provide a human-assisted fallback for users who need help completing their bookings.
+
+### 5A — Booking UX Fixes
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 5.1 | Home screen: block past dates from date picker | `[x]` | `min` attribute set to today (`formatYMD(new Date())`); previously blocked only tomorrow+ |
+| 5.2 | Booking review: open one tab per flight leg (not per unique URL) | `[x]` | `handleBookAll` iterates `orderedLegs`, opens `leg.bookingUrl` per leg; removed `uniqueBookingUrls` dedup |
+| 5.3 | Booking review: focus first flight tab after opening | `[x]` | `window.open()` ref stored; `.focus()` called on first non-null tab reference |
+| 5.4 | Booking review: update CTA helper text | `[x]` | "This will open each booking in a new tab — one per flight"; success state shows "Opened N tabs — your first flight is shown" |
+
+### 5B — Assistant Help Request
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 5.5 | `AssistanceRequestModal` component — form with full name, email, phone | `[x]` | `frontend/src/components/AssistanceRequestModal.tsx`; submits trip data with contact details; success/error state |
+| 5.6 | "Request assistant help" CTA on booking review screen | `[x]` | Secondary button below the main booking CTA; opens `AssistanceRequestModal` |
+| 5.7 | `assistanceRequests.api.ts` frontend API client | `[x]` | `POST /assistance-requests` via `apiClient`; typed payload with `TripLeg[]` |
+| 5.8 | Backend: `POST /assistance-requests` — public endpoint | `[x]` | `backend/src/routes/assistanceRequests.ts`; validates name/email/phone; stores in `NodeCache` (no TTL); logs each submission |
+| 5.9 | Backend: `GET /assistance-requests` — admin-only endpoint | `[x]` | Protected by `requireAdminAuth`; returns all requests sorted newest-first |
+| 5.10 | Register `assistanceRequestRoutes` in `backend/src/index.ts` | `[x]` | |
+
+### 5C — Admin: Assistance Requests Page
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 5.11 | `AssistanceRequestsPage` admin page | `[x]` | `admin/src/pages/AssistanceRequestsPage.tsx`; table of requests with name, email, phone, route, est. total; expandable rows show full trip details + clickable email/phone links |
+| 5.12 | Add `fetchAssistanceRequests()` to `admin/src/api/metrics.ts` | `[x]` | Uses shared `adminClient` with Bearer token auth |
+| 5.13 | Add "Assistance Requests" nav item to admin Sidebar | `[x]` | `Headphones` icon; route `/assistance-requests` |
+| 5.14 | Add route for `AssistanceRequestsPage` in `AdminApp.tsx` | `[x]` | Path `assistance-requests` |
+
+---
+
 ## Progress Summary
 
 | Phase | Tasks | Done | In Progress | Not Started |
@@ -243,4 +280,5 @@ S1 Origin Search  ──►  S2 Flight Results  ◄──► [DatePickerOverlay]
 | Phase 2 — Search & Flights | 23 | 23 | 0 | 0 |
 | Phase 3 — Trip Chaining | 28 | 28 | 0 | 0 |
 | Phase 4 — Polish & Deploy | 17 | 4 | 0 | 13 |
-| **Total** | **77** | **64** | **0** | **13** |
+| Phase 5 — Booking UX & Assistant Help | 14 | 14 | 0 | 0 |
+| **Total** | **91** | **78** | **0** | **13** |

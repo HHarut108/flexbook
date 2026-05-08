@@ -224,7 +224,7 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const { setScreen, setSelectedDate } = useSessionStore();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const minDate = formatYMD(addDays(new Date(), 1));
+  const minDate = formatYMD(new Date());
 
   /* Geolocation: serve cached nearby airports instantly, then refresh in background */
   useEffect(() => {

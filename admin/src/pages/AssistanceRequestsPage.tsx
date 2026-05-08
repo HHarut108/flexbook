@@ -7,6 +7,9 @@ import {
   Link2,
   AlertCircle,
   Inbox,
+  User,
+  Mail,
+  Phone,
 } from 'lucide-react';
 import {
   fetchAssistanceRequests,
@@ -24,7 +27,7 @@ function formatPrice(usd: number): string {
   return `$${usd.toFixed(0)}`;
 }
 
-function totalPrice(legs: TripLegSummary[]): number {
+function totalFromLegs(legs: TripLegSummary[]): number {
   return legs.reduce((sum, l) => sum + (l.priceUsd ?? 0), 0);
 }
 
@@ -40,34 +43,45 @@ function formatTimestamp(iso: string): string {
 }
 
 function RequestCard({ req }: { req: AssistanceRequestSummary }) {
-  const { itinerary, tripSlug, requestedAt } = req;
-  const allLegs = [...itinerary.legs].sort((a, b) => a.stopIndex - b.stopIndex);
-  const outboundLegs = allLegs.filter((l) => !l.isReturn);
-  const returnLeg = allLegs.find((l) => l.isReturn);
-  const total = totalPrice(allLegs);
+  const { tripData, tripSlug, totalPrice, createdAt, fullName, email, phone } = req;
+  const allLegs = [...(tripData.legs ?? [])].sort((a, b) => (a.stopIndex ?? 0) - (b.stopIndex ?? 0));
+  // Use server-computed total; fall back to summing legs in case of old records
+  const total = totalPrice > 0 ? totalPrice : totalFromLegs(allLegs);
   const shareUrl = tripShareUrl(tripSlug);
 
-  const originName = itinerary.origin?.city?.name ?? itinerary.origin?.iata ?? '—';
-  const destinations = outboundLegs.map((l) => l.destinationCity).join(' → ');
-  const route = `${originName} → ${destinations}${returnLeg ? ` → ${returnLeg.destinationCity}` : ''}`;
+  const route = tripData.cities?.length > 0 ? tripData.cities.join(' → ') : (tripData.origin ?? '—');
 
   return (
     <div className="admin-card mb-5">
-      {/* Header row */}
+      {/* Header: route + timestamp */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
         <div className="min-w-0">
           <p className="text-xs uppercase tracking-widest text-[var(--text-muted)] mb-1">Route</p>
           <p className="font-semibold text-[var(--text-primary)] text-sm leading-snug truncate">{route}</p>
         </div>
-
-        {/* Timestamp */}
-        <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] shrink-0 mt-1">
+        <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] shrink-0 mt-0.5">
           <Clock size={13} />
-          <span>{formatTimestamp(requestedAt)}</span>
+          <span>{formatTimestamp(createdAt)}</span>
         </div>
       </div>
 
-      {/* Trip link */}
+      {/* Contact info */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
+        <div className="flex items-center gap-2 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] px-3 py-2">
+          <User size={13} className="text-[var(--text-muted)] shrink-0" />
+          <span className="text-xs text-[var(--text-primary)] truncate">{fullName}</span>
+        </div>
+        <div className="flex items-center gap-2 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] px-3 py-2">
+          <Mail size={13} className="text-[var(--text-muted)] shrink-0" />
+          <span className="text-xs text-[var(--text-primary)] truncate">{email}</span>
+        </div>
+        <div className="flex items-center gap-2 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] px-3 py-2">
+          <Phone size={13} className="text-[var(--text-muted)] shrink-0" />
+          <span className="text-xs text-[var(--text-primary)] truncate">{phone}</span>
+        </div>
+      </div>
+
+      {/* Trip share link */}
       <div className="flex items-center gap-2 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] px-3 py-2.5 mb-4">
         <Link2 size={14} className="text-[var(--accent)] shrink-0" />
         <span className="text-xs font-mono text-[var(--accent)] truncate flex-1">{shareUrl}</span>
@@ -76,65 +90,64 @@ function RequestCard({ req }: { req: AssistanceRequestSummary }) {
           target="_blank"
           rel="noopener noreferrer"
           className="shrink-0 flex items-center gap-1 text-xs font-semibold text-[var(--accent)] hover:opacity-80 transition-opacity"
-          title="Open trip"
         >
           Open <ExternalLink size={12} />
         </a>
       </div>
 
       {/* Flight list */}
-      <p className="text-xs uppercase tracking-widest text-[var(--text-muted)] mb-2">Flights</p>
-      <div className="space-y-2 mb-4">
-        {allLegs.map((leg, i) => (
-          <div
-            key={leg.flightId}
-            className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5"
-          >
-            {/* Index badge */}
-            <span
-              className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold text-white shrink-0 ${
-                leg.isReturn ? 'bg-orange-500' : 'bg-[var(--accent)]'
-              }`}
-            >
-              {leg.isReturn ? 'R' : i + 1}
-            </span>
+      {allLegs.length > 0 && (
+        <>
+          <p className="text-xs uppercase tracking-widest text-[var(--text-muted)] mb-2">Flights</p>
+          <div className="space-y-2 mb-4">
+            {allLegs.map((leg, i) => (
+              <div
+                key={leg.flightId ?? i}
+                className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5"
+              >
+                <span
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold text-white shrink-0 ${
+                    leg.isReturn ? 'bg-orange-500' : 'bg-[var(--accent)]'
+                  }`}
+                >
+                  {leg.isReturn ? 'R' : i + 1}
+                </span>
 
-            {/* Route */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="font-mono text-sm font-bold text-[var(--text-primary)]">{leg.originIata}</span>
-                <Plane size={11} className="text-[var(--text-muted)]" />
-                <span className="font-mono text-sm font-bold text-[var(--text-primary)]">{leg.destinationIata}</span>
-                {leg.stops === 0 && (
-                  <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
-                    Direct
-                  </span>
-                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-sm font-bold text-[var(--text-primary)]">{leg.originIata}</span>
+                    <Plane size={11} className="text-[var(--text-muted)]" />
+                    <span className="font-mono text-sm font-bold text-[var(--text-primary)]">{leg.destinationIata}</span>
+                    {leg.stops === 0 && (
+                      <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
+                        Direct
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-[var(--text-muted)] mt-0.5 truncate">
+                    {leg.airlineName} · {leg.originCity} → {leg.destinationCity}
+                  </p>
+                </div>
+
+                <span className="font-mono text-sm font-bold text-[var(--text-primary)] shrink-0">
+                  {formatPrice(leg.priceUsd)}
+                </span>
+
+                <a
+                  href={leg.bookingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 flex items-center gap-1 text-xs font-semibold text-[var(--accent)] border border-[var(--border)] hover:border-[var(--accent)] px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                >
+                  Buy <ExternalLink size={12} />
+                </a>
               </div>
-              <p className="text-[11px] text-[var(--text-muted)] mt-0.5 truncate">
-                {leg.airlineName} · {leg.originCity} → {leg.destinationCity}
-              </p>
-            </div>
-
-            {/* Price */}
-            <span className="font-mono text-sm font-bold text-[var(--text-primary)] shrink-0">
-              {formatPrice(leg.priceUsd)}
-            </span>
-
-            {/* Buy link */}
-            <a
-              href={leg.bookingUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="shrink-0 flex items-center gap-1 text-xs font-semibold text-[var(--accent)] border border-[var(--border)] hover:border-[var(--accent)] px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap"
-            >
-              Buy <ExternalLink size={12} />
-            </a>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      )}
 
-      {/* Estimated total — sum of ALL legs */}
+      {/* Estimated total — always computed server-side from legs */}
       <div className="flex items-center justify-between rounded-xl bg-[var(--surface-2)] border border-[var(--border)] px-4 py-3">
         <span className="text-sm font-semibold text-[var(--text-primary)]">Estimated total</span>
         <span className="font-mono text-base font-bold text-orange-500">{formatPrice(total)}</span>
@@ -176,7 +189,6 @@ export function AssistanceRequestsPage() {
           className="admin-btn admin-btn--ghost"
           onClick={load}
           disabled={loading}
-          title="Refresh"
         >
           <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
           Refresh
@@ -193,7 +205,7 @@ export function AssistanceRequestsPage() {
       {loading && requests.length === 0 ? (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="admin-card animate-pulse" style={{ height: '200px' }} />
+            <div key={i} className="admin-card animate-pulse" style={{ height: '220px' }} />
           ))}
         </div>
       ) : requests.length === 0 ? (
