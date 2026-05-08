@@ -1,9 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, Send, AlertCircle, CheckCircle2, Calendar, Filter } from 'lucide-react';
-import { fetchMetricsHistory, sendReport } from '../api/metrics';
-import type { DayMetrics } from '../api/metrics';
+import {
+  fetchMetricsHistory,
+  fetchSessionMetrics,
+  fetchAllTimeMetrics,
+  sendReport,
+} from '../api/metrics';
+import type {
+  DayMetrics,
+  SessionMetricsResponse,
+  AllTimeMetricsResponse,
+} from '../api/metrics';
 import { UsageChart } from '../components/UsageChart';
 import { MetricsTable } from '../components/MetricsTable';
+import { ApiHealthTable } from '../components/ApiHealthTable';
 
 const SERVICE_COLORS: Record<string, string> = {
   'rapidapi-kiwi':  '#8B5CF6',
@@ -50,19 +60,28 @@ export function ApiUsagePage() {
   const [reportStatus, setReportStatus] = useState<ReportStatus>('idle');
   const [reportError, setReportError] = useState('');
 
+  const [session, setSession] = useState<SessionMetricsResponse | null>(null);
+  const [allTime, setAllTime] = useState<AllTimeMetricsResponse | null>(null);
+
   const load = useCallback(async () => {
     if (from > to) return;
     setLoading(true);
     setFetchError('');
     try {
-      const res = await fetchMetricsHistory(from, to);
-      setHistory(res.history);
-      const svcs = extractServices(res.history);
+      const [histRes, sessionRes, allTimeRes] = await Promise.all([
+        fetchMetricsHistory(from, to),
+        fetchSessionMetrics(),
+        fetchAllTimeMetrics(),
+      ]);
+
+      setHistory(histRes.history);
+      setSession(sessionRes);
+      setAllTime(allTimeRes);
+
+      const svcs = extractServices(histRes.history);
       setServices(svcs);
-      // Add any new service that isn't already known to the selection
       setSelected((prev) => {
         const next = new Set(prev);
-        // First load: select all. Subsequent: auto-include new ones.
         if (prev.size === 0) {
           svcs.forEach((s) => next.add(s));
         } else {
@@ -85,7 +104,7 @@ export function ApiUsagePage() {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(name)) {
-        if (next.size > 1) next.delete(name); // keep at least one
+        if (next.size > 1) next.delete(name);
       } else {
         next.add(name);
       }
@@ -95,7 +114,6 @@ export function ApiUsagePage() {
 
   function toggleAll() {
     if (selected.size === services.length) {
-      // deselect all but first
       setSelected(new Set(services.slice(0, 1)));
     } else {
       setSelected(new Set(services));
@@ -182,6 +200,29 @@ export function ApiUsagePage() {
         </div>
       )}
 
+      {fetchError && (
+        <div className="admin-alert admin-alert--error">
+          <AlertCircle size={15} />
+          {fetchError}
+        </div>
+      )}
+
+      {/* API Health breakdown — session + alltime with primary/fallback */}
+      <div className="admin-card">
+        <h2 className="admin-section-title">API Health</h2>
+        {loading ? (
+          <div className="admin-chart__loading">Loading…</div>
+        ) : (
+          <ApiHealthTable
+            session={session}
+            allTime={allTime}
+            history={history}
+            services={services}
+            serviceColor={serviceColor}
+          />
+        )}
+      </div>
+
       {/* Date range controls */}
       <div className="admin-card admin-card--controls">
         <Calendar size={16} className="admin-controls__icon" />
@@ -231,13 +272,6 @@ export function ApiUsagePage() {
               </button>
             ))}
           </div>
-        </div>
-      )}
-
-      {fetchError && (
-        <div className="admin-alert admin-alert--error">
-          <AlertCircle size={15} />
-          {fetchError}
         </div>
       )}
 

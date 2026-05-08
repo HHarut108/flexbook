@@ -2,7 +2,6 @@ import { FlightOption } from '@fast-travel/shared';
 import axios, { AxiosError } from 'axios';
 import { config } from '../config';
 import { KiwiSearchOptions } from './KiwiFlightProvider';
-import { increment } from '../utils/apiMetrics';
 
 export class RapidApiRateLimitError extends Error {
   constructor() {
@@ -110,7 +109,6 @@ export async function fetchRapidApiKiwiFlights(
 
   let response: RapidKiwiResponse;
   try {
-    increment('rapidapi-kiwi');
     const { data } = await axios.get<RapidKiwiResponse>(
       `https://${RAPIDAPI_HOST}/one-way`,
       {

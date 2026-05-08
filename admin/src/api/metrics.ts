@@ -55,6 +55,21 @@ export interface ReportResponse {
   error?: string;
 }
 
+/** Per-service primary vs fallback breakdown. */
+export interface ServiceBreakdown {
+  primary: number;
+  fallback: number;
+}
+
+export interface SessionMetricsResponse {
+  startedAt: string;
+  calls: Record<string, ServiceBreakdown>;
+}
+
+export interface AllTimeMetricsResponse {
+  calls: Record<string, ServiceBreakdown>;
+}
+
 export async function fetchMetricsHistory(from: string, to: string): Promise<MetricsHistoryResponse> {
   const { data } = await adminClient.get<MetricsHistoryResponse>('/metrics/history', {
     params: { from, to },
@@ -66,6 +81,16 @@ export async function fetchMetricsDay(date?: string): Promise<SingleDayResponse>
   const { data } = await adminClient.get<SingleDayResponse>('/metrics', {
     params: date ? { date } : undefined,
   });
+  return data;
+}
+
+export async function fetchSessionMetrics(): Promise<SessionMetricsResponse> {
+  const { data } = await adminClient.get<SessionMetricsResponse>('/metrics/session');
+  return data;
+}
+
+export async function fetchAllTimeMetrics(): Promise<AllTimeMetricsResponse> {
+  const { data } = await adminClient.get<AllTimeMetricsResponse>('/metrics/alltime');
   return data;
 }
 

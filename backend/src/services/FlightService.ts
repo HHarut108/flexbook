@@ -5,6 +5,7 @@ import { fetchRapidApiKiwiFlights } from '../providers/RapidApiKiwiFlightProvide
 import { fetchSerpApiFlights, fetchSerpApiOpenFlights } from '../providers/SerpApiFlightProvider';
 import { fetchMockFlights } from '../providers/MockFlightProvider';
 import { airportService } from './AirportService';
+import { increment, CallType } from '../utils/apiMetrics';
 import {
   ScheduleEntry,
   getScheduleCache,
@@ -130,25 +131,69 @@ export class FlightService {
     options: KiwiSearchOptions = {},
     apiMode?: 'real' | 'mock',
   ): Promise<FlightSearchResult> {
-    const provider: Provider = apiMode === 'mock' ? 'mock' : this.selectProvider();
+    const chain = this.providerChain(apiMode);
 
     const cachedSchedule = getScheduleCache(originIata, date, destinationIata);
     if (cachedSchedule) {
       const { flights, hasStale } = attachCachedPrices(cachedSchedule);
       if (hasStale) {
-        this.refreshInBackground({ originIata, originCity, date, destinationIata, provider, options, deduplicate });
+        this.refreshInBackground({ originIata, originCity, date, destinationIata, chain, options, deduplicate });
       }
       return { flights: flights.slice(0, limit), cacheStatus: 'schedule_cached' };
     }
 
-    const raw = await this.callProvider(provider, originIata, originCity, date, destinationIata, options);
+    const { raw, usedProvider } = await this.callWithFallback(
+      chain, originIata, originCity, date, destinationIata, options,
+    );
     const processed = this.processFlights(raw, originIata, deduplicate);
     const top10 = processed.slice(0, 10);
 
     setScheduleCache(originIata, date, top10.map(toScheduleEntry), destinationIata);
-    const withPrices = storePricesAndAttach(top10, provider, date);
+    const withPrices = storePricesAndAttach(top10, usedProvider, date);
 
     return { flights: withPrices.slice(0, limit), cacheStatus: 'live' };
+  }
+
+  /** Ordered list of providers to try, from primary to fallback. */
+  private providerChain(apiMode?: 'real' | 'mock'): Provider[] {
+    if (apiMode === 'mock') return ['mock'];
+    const chain: Provider[] = [];
+    if (config.RAPIDAPI_KEY) chain.push('rapidapi-kiwi');
+    if (config.SERPAPI_API_KEY) chain.push('serpapi');
+    if (chain.length === 0) chain.push('mock');
+    return chain;
+  }
+
+  /**
+   * Iterates through the provider chain until one succeeds.
+   * Increments the metric with 'primary' for the first provider and 'fallback' for any retry.
+   */
+  private async callWithFallback(
+    chain: Provider[],
+    originIata: string,
+    originCity: string,
+    date: string,
+    destinationIata: string | undefined,
+    options: KiwiSearchOptions,
+  ): Promise<{ raw: FlightOption[]; usedProvider: string }> {
+    let lastError: unknown;
+    for (let i = 0; i < chain.length; i++) {
+      const provider = chain[i];
+      const callType: CallType = i === 0 ? 'primary' : 'fallback';
+      increment(provider, callType);
+      try {
+        const raw = await this.callProvider(provider, originIata, originCity, date, destinationIata, options);
+        return { raw, usedProvider: provider };
+      } catch (err) {
+        lastError = err;
+        if (i < chain.length - 1) {
+          console.warn(
+            `[FlightService] Provider "${provider}" failed (${err instanceof Error ? err.message : err}), trying "${chain[i + 1]}"`,
+          );
+        }
+      }
+    }
+    throw lastError;
   }
 
   private async callProvider(
@@ -183,35 +228,29 @@ export class FlightService {
     originCity: string;
     date: string;
     destinationIata?: string;
-    provider: Provider;
+    chain: Provider[];
     options: KiwiSearchOptions;
     deduplicate: boolean;
   }): void {
-    const { originIata, originCity, date, destinationIata, provider, options, deduplicate } = params;
+    const { originIata, originCity, date, destinationIata, chain, options, deduplicate } = params;
     Promise.resolve()
       .then(async () => {
         try {
           console.log(`[flightCache] background refresh start ${originIata}:${date}`);
-          const raw = await this.callProvider(provider, originIata, originCity, date, destinationIata, options);
+          const { raw, usedProvider } = await this.callWithFallback(
+            chain, originIata, originCity, date, destinationIata, options,
+          );
           const top10 = this.processFlights(raw, originIata, deduplicate).slice(0, 10);
           setScheduleCache(originIata, date, top10.map(toScheduleEntry), destinationIata);
-          storePricesAndAttach(top10, provider, date);
+          storePricesAndAttach(top10, usedProvider, date);
           console.log(`[flightCache] background refresh done ${originIata}:${date}`);
         } catch (err) {
           console.warn(`[flightCache] background refresh failed ${originIata}:${date}`, err);
         }
       })
       .catch((err) => {
-        // Belt-and-suspenders: the inner try/catch should absorb all errors, but guard
-        // here too so a bug in the catch block itself never causes an unhandled rejection.
         console.warn(`[flightCache] background refresh uncaught ${originIata}:${date}`, err);
       });
-  }
-
-  private selectProvider(): Provider {
-    if (config.RAPIDAPI_KEY) return 'rapidapi-kiwi';
-    if (config.SERPAPI_API_KEY) return 'serpapi';
-    return 'mock';
   }
 }
 
