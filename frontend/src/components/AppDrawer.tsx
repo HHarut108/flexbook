@@ -4,9 +4,10 @@ import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
 import { buildSlugShareUrl } from '../utils/url.utils';
 import { createTripShare } from '../api/trips.api';
+import { submitAssistanceRequest } from '../api/assistanceRequests.api';
 import { formatPrice } from '../utils/price.utils';
 import { ApiModeSwitcher } from './ApiModeSwitcher';
-import { X, MapPin, Share2, Trash2, Plane, BookmarkCheck, Loader2 } from 'lucide-react';
+import { X, MapPin, Share2, Trash2, Plane, BookmarkCheck, Loader2, HeadphonesIcon, CheckCircle2 } from 'lucide-react';
 import { GoHomeLogo } from './GoHomeLogo';
 
 interface Props {
@@ -85,10 +86,13 @@ function SavedTripCard({
 export function AppDrawer({ open, onClose }: Props) {
   const { trips, deleteTrip } = useSavedTripsStore();
   const loadFromItinerary = useTripStore((s) => s.loadFromItinerary);
+  const toItinerary = useTripStore((s) => s.toItinerary);
   const setScreen = useSessionStore((s) => s.setScreen);
   const showToast = useSessionStore((s) => s.showToast);
   const showShareModal = useSessionStore((s) => s.showShareModal);
   const [sharingTripId, setSharingTripId] = useState<string | null>(null);
+  const [requestingAssistance, setRequestingAssistance] = useState(false);
+  const [assistanceSent, setAssistanceSent] = useState(false);
 
   // Lock body scroll when open
   useEffect(() => {
@@ -128,6 +132,25 @@ export function AppDrawer({ open, onClose }: Props) {
   function handleDelete(id: string) {
     deleteTrip(id);
     showToast('Trip removed.');
+  }
+
+  async function handleRequestAssistance() {
+    if (requestingAssistance || assistanceSent) return;
+    const itinerary = toItinerary();
+    if (!itinerary || itinerary.legs.length === 0) {
+      showToast('No active trip to request assistance for.');
+      return;
+    }
+    setRequestingAssistance(true);
+    try {
+      await submitAssistanceRequest(itinerary);
+      setAssistanceSent(true);
+      setTimeout(() => setAssistanceSent(false), 4000);
+    } catch {
+      showToast('Could not send assistance request. Please try again.');
+    } finally {
+      setRequestingAssistance(false);
+    }
   }
 
   return (
@@ -205,13 +228,42 @@ export function AppDrawer({ open, onClose }: Props) {
             {/* Settings section */}
             <div className="px-5 pb-5 pt-2 border-t border-border">
               <h3 className="text-sm font-bold uppercase tracking-wider text-text-muted mb-3 mt-3">Settings</h3>
-              <div className="flex items-center justify-between bg-surface-2 rounded-2xl px-4 py-3">
+              <div className="flex items-center justify-between bg-surface-2 rounded-2xl px-4 py-3 mb-3">
                 <div>
                   <p className="text-sm font-medium text-text-primary">Data source</p>
                   <p className="text-xs text-text-muted">Switch between mock and live API</p>
                 </div>
                 <ApiModeSwitcher />
               </div>
+
+              {/* Assistance request */}
+              <button
+                onClick={handleRequestAssistance}
+                disabled={requestingAssistance || assistanceSent}
+                className={`w-full flex items-center gap-3 rounded-2xl px-4 py-3 transition-all active:scale-[0.98] disabled:opacity-70 ${
+                  assistanceSent
+                    ? 'bg-emerald-50 border border-emerald-200'
+                    : 'bg-surface-2 border border-border hover:border-indigo-border'
+                }`}
+              >
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${assistanceSent ? 'bg-emerald-100' : 'bg-indigo-soft'}`}>
+                  {requestingAssistance ? (
+                    <Loader2 size={16} className="text-indigo animate-spin" />
+                  ) : assistanceSent ? (
+                    <CheckCircle2 size={16} className="text-emerald-500" />
+                  ) : (
+                    <HeadphonesIcon size={16} className="text-indigo" />
+                  )}
+                </div>
+                <div className="text-left min-w-0">
+                  <p className={`text-sm font-medium ${assistanceSent ? 'text-emerald-700' : 'text-text-primary'}`}>
+                    {assistanceSent ? 'Request sent!' : 'Request assistance'}
+                  </p>
+                  <p className="text-xs text-text-muted truncate">
+                    {assistanceSent ? 'Our team will get back to you shortly.' : 'Get help from our team with your trip'}
+                  </p>
+                </div>
+              </button>
             </div>
           </div>
         </div>
