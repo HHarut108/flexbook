@@ -96,9 +96,10 @@ export const assistanceRequestRoutes: FastifyPluginAsync = async (app) => {
     // Compute total server-side from actual leg prices
     const totalPrice = legs.reduce((sum, l) => sum + (l.priceUsd ?? 0), 0);
 
-    // Generate share slug and store minimal itinerary so /trips/:slug resolves
+    // Generate share slug and store minimal itinerary so /trips/:slug resolves.
+    // status: 'complete' so the share link opens the itinerary view (not the decision screen).
     const tripSlug = makeSlug(origin, legs);
-    tripCache.set(tripSlug, {
+    await tripCache.set(tripSlug, {
       origin: {
         iata: legs[0]?.originIata ?? '',
         name: origin ?? '',
@@ -106,7 +107,7 @@ export const assistanceRequestRoutes: FastifyPluginAsync = async (app) => {
         timezone: '',
       },
       legs,
-      status: 'planning',
+      status: 'complete',
       createdAt: new Date().toISOString(),
       passengers: 1,
     });

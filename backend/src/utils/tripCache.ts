@@ -21,11 +21,13 @@ function redisKey(slug: string): string {
 }
 
 export const tripCache = {
-  set(slug: string, itinerary: Itinerary): void {
+  async set(slug: string, itinerary: Itinerary): Promise<void> {
     if (redis) {
-      redis.set(redisKey(slug), JSON.stringify(itinerary), { ex: TTL_SECONDS }).catch(() => {
+      try {
+        await redis.set(redisKey(slug), JSON.stringify(itinerary), { ex: TTL_SECONDS });
+      } catch {
         localCache.set(slug, itinerary);
-      });
+      }
     } else {
       localCache.set(slug, itinerary);
     }
