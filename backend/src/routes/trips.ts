@@ -9,7 +9,7 @@ export const tripRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({ error: 'Invalid itinerary' });
     }
     const id = generateTripSlug(itinerary);
-    tripCache.set(id, itinerary);
+    await tripCache.set(id, itinerary);
     return reply.send({ id });
   });
 
