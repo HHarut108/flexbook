@@ -15,7 +15,7 @@ export const tripRoutes: FastifyPluginAsync = async (app) => {
 
   app.get<{ Params: { id: string } }>('/trips/:id', async (req, reply) => {
     const { id } = req.params;
-    const itinerary = tripCache.get<Itinerary>(id);
+    const itinerary = await tripCache.get(id);
     if (!itinerary) {
       return reply.status(404).send({ error: 'Trip link has expired or does not exist' });
     }
