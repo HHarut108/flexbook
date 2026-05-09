@@ -1,8 +1,10 @@
 import { FastifyPluginAsync } from 'fastify';
 import crypto from 'crypto';
+import { Redis } from '@upstash/redis';
 import { TripLeg } from '@fast-travel/shared';
 import { requireAdminAuth } from '../middleware/requireAdminAuth';
 import { tripCache } from '../utils/tripCache';
+import { config } from '../config';
 
 interface TripData {
   origin?: string;
@@ -18,10 +20,42 @@ interface AssistanceRequest {
   phone: string;
   tripData: TripData;
   tripSlug: string;
-  totalPrice: number; // computed server-side from legs
+  totalPrice: number;
 }
 
-const requests: AssistanceRequest[] = [];
+// Redis for persistence; falls back to in-memory when credentials are absent
+let redis: Redis | null = null;
+if (config.UPSTASH_REDIS_REST_URL && config.UPSTASH_REDIS_REST_TOKEN) {
+  redis = new Redis({
+    url: config.UPSTASH_REDIS_REST_URL,
+    token: config.UPSTASH_REDIS_REST_TOKEN,
+  });
+}
+
+const REDIS_LIST_KEY = 'assistance:requests';
+const memRequests: AssistanceRequest[] = [];
+
+async function saveRequest(req: AssistanceRequest): Promise<void> {
+  if (redis) {
+    await redis.lpush(REDIS_LIST_KEY, JSON.stringify(req));
+  } else {
+    memRequests.unshift(req); // newest first
+  }
+}
+
+async function loadRequests(): Promise<AssistanceRequest[]> {
+  if (redis) {
+    const raw = await redis.lrange<string>(REDIS_LIST_KEY, 0, -1);
+    return raw.map((item) => {
+      try {
+        return typeof item === 'string' ? JSON.parse(item) : item;
+      } catch {
+        return item as unknown as AssistanceRequest;
+      }
+    });
+  }
+  return [...memRequests];
+}
 
 function makeSlug(origin: string | undefined, legs: TripLeg[]): string {
   const o = (origin ?? 'x').toLowerCase().replace(/\s+/g, '').slice(0, 6);
@@ -59,11 +93,10 @@ export const assistanceRequestRoutes: FastifyPluginAsync = async (app) => {
     const origin = typeof rawTripData.origin === 'string' ? rawTripData.origin : undefined;
     const cities = Array.isArray(rawTripData.cities) ? (rawTripData.cities as string[]) : [];
 
-    // Compute total server-side from actual leg prices — ignores any client-sent totalPrice
+    // Compute total server-side from actual leg prices
     const totalPrice = legs.reduce((sum, l) => sum + (l.priceUsd ?? 0), 0);
 
-    // Generate a share slug so the admin can open the trip as the user would see it.
-    // We store a minimal Itinerary so GET /trips/:slug resolves the link.
+    // Generate share slug and store minimal itinerary so /trips/:slug resolves
     const tripSlug = makeSlug(origin, legs);
     tripCache.set(tripSlug, {
       origin: {
@@ -89,7 +122,7 @@ export const assistanceRequestRoutes: FastifyPluginAsync = async (app) => {
       totalPrice,
     };
 
-    requests.push(request);
+    await saveRequest(request);
     app.log.info(`Assistance request: ${request.id} from ${email}`);
 
     return reply.status(201).send({ id: request.id, tripSlug });
@@ -97,6 +130,7 @@ export const assistanceRequestRoutes: FastifyPluginAsync = async (app) => {
 
   // Admin-only — retrieve all submitted requests, newest first
   app.get('/assistance-requests', { preHandler: requireAdminAuth }, async (_req, reply) => {
-    return reply.send({ requests: [...requests].reverse() });
+    const requests = await loadRequests();
+    return reply.send({ requests });
   });
 };
