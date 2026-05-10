@@ -3,6 +3,8 @@ import { Airport } from '@fast-travel/shared';
 import { useAirportSearch } from '../hooks/useAirportSearch';
 import { nearbyAirportsByCoords } from '../api/airports.api';
 import { resolveUserCoords, readCachedCoords, readCachedNearby, cacheNearby } from '../utils/geolocation.utils';
+import { Helmet } from 'react-helmet-async';
+import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
 import { formatYMD } from '../utils/date.utils';
@@ -219,9 +221,10 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const [passengers, setPassengers] = useState(1);
   const [departureDate, setDepartureDate] = useState(formatYMD(addDays(new Date(), 1)));
   const { results, loading } = useAirportSearch(query);
+  const navigate = useNavigate();
   const setOrigin = useTripStore((s) => s.setOrigin);
   const setStorePassengers = useTripStore((s) => s.setPassengers);
-  const { setScreen, setSelectedDate } = useSessionStore();
+  const { setSelectedDate } = useSessionStore();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const minDate = formatYMD(new Date());
@@ -267,9 +270,9 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
       setStorePassengers(passengers);
       setSelectedDate(departureDate);
       setQuery('');
-      setScreen('flight-results');
+      navigate('/flights');
     },
-    [departureDate, passengers, setOrigin, setStorePassengers, setSelectedDate, setScreen],
+    [departureDate, passengers, setOrigin, setStorePassengers, setSelectedDate, navigate],
   );
 
   const showResults = query.trim().length > 0;
@@ -412,6 +415,10 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
+      <Helmet>
+        <title>FlexBook — Plan your multi-stop trip</title>
+        <meta name="description" content="Find the cheapest multi-stop flights. No sign-up required. Up to 15 stops per trip." />
+      </Helmet>
       {/* ── Ambient background ── */}
       <div
         className="absolute inset-0 pointer-events-none"

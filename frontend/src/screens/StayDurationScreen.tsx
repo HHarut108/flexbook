@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
+import { useNavigate } from 'react-router-dom';
 import { useSessionStore } from '../store/session.store';
 import { useTripStore } from '../store/trip.store';
 import { computeNextDeparture, formatDateLong } from '../utils/date.utils';
@@ -16,15 +18,17 @@ function formatRecommendation(text: string) {
 }
 
 export function StayDurationScreen() {
-  const { selectedFlight, setScreen, showToast } = useSessionStore();
+  const navigate = useNavigate();
+  const { selectedFlight, showToast } = useSessionStore();
   const legs = useTripStore((s) => s.legs);
   const addLeg = useTripStore((s) => s.addLeg);
   const [days, setDays] = useState(3);
 
-  if (!selectedFlight) {
-    setScreen('flight-results');
-    return null;
-  }
+  useEffect(() => {
+    if (!selectedFlight) navigate('/flights', { replace: true });
+  }, [selectedFlight, navigate]);
+
+  if (!selectedFlight) return null;
 
   const nextDeparture = computeNextDeparture(selectedFlight.arrivalDatetime, days);
   const recommendation = recommendations[selectedFlight.destinationIata];
@@ -40,17 +44,18 @@ export function StayDurationScreen() {
       isReturn: false,
     });
     showToast(`${selectedFlight.destinationCity} added! You're building something cool.`);
-    setScreen('decision');
+    navigate('/review');
   }
 
   return (
     <div className="px-4 pb-8 pt-4 md:flex md:gap-6 md:px-8 md:pt-8 md:pb-8 md:max-w-4xl lg:max-w-5xl xl:max-w-6xl md:mx-auto lg:gap-8 lg:px-10 lg:pt-10 lg:pb-10">
+      <Helmet><title>Stay in {selectedFlight.destinationCity} · FlexBook</title></Helmet>
       {/* Left: hero panel */}
       <div className="md:flex-1">
         <div className="hero-panel mb-5">
           <div className="flex items-center gap-3 mb-3">
             <button
-              onClick={() => setScreen('flight-results')}
+              onClick={() => navigate('/flights')}
               className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white border border-border hover:bg-indigo-soft hover:border-indigo-border transition-all text-text-muted shrink-0"
               aria-label="Back to flight options"
             >
@@ -147,7 +152,7 @@ export function StayDurationScreen() {
         <button className="btn-primary mb-3" onClick={handleConfirm}>
           Stay {days} {days === 1 ? 'day' : 'days'} and continue
         </button>
-        <button className="btn-outline" onClick={() => setScreen('flight-results')}>
+        <button className="btn-outline" onClick={() => navigate('/flights')}>
           Back to flight options
         </button>
       </div>

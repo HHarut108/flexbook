@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { FlightOption } from '@fast-travel/shared';
+import { Helmet } from 'react-helmet-async';
+import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
 import { useFlightSearch } from '../hooks/useFlightSearch';
@@ -27,7 +29,8 @@ export function ReturnFlightsScreen() {
   const originCityName = origin?.city.name ?? '';
   const tripTotal = totalPrice(outboundLegs);
 
-  const { pendingFlights, isSearchingFlights, flightError, setScreen } = useSessionStore();
+  const navigate = useNavigate();
+  const { pendingFlights, isSearchingFlights, flightError } = useSessionStore();
   const { search } = useFlightSearch();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const [localDate, setLocalDate] = useState(
@@ -60,17 +63,18 @@ export function ReturnFlightsScreen() {
       isReturn: true,
     });
     finalize();
-    setScreen('itinerary');
+    navigate('/itinerary');
   }
 
   return (
     <div className="flex flex-col min-h-screen md:flex-row md:min-h-0 md:flex-1">
+      <Helmet><title>Fly home from {currentCityName} · FlexBook</title></Helmet>
       {/* Left panel: controls */}
       <div className="px-4 pt-4 pb-3 md:w-[340px] lg:w-[380px] md:flex-shrink-0 md:border-r md:border-border/50 md:overflow-y-auto md:pb-8">
         <div className="hero-panel-return mb-4">
           <div className="flex items-center gap-3 mb-3">
             <button
-              onClick={() => setScreen('decision')}
+              onClick={() => navigate('/review')}
               className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white border border-border hover:bg-indigo-soft hover:border-indigo-border transition-all text-text-muted shrink-0"
               aria-label="Back to trip decisions"
             >
@@ -236,7 +240,7 @@ export function ReturnFlightsScreen() {
 
       {/* Back */}
       <div className="px-4 pb-6">
-        <button className="btn-outline" onClick={() => setScreen('decision')}>
+        <button className="btn-outline" onClick={() => navigate('/review')}>
           ← Back to trip
         </button>
       </div>

@@ -11,15 +11,18 @@ import {
   subMonths,
   parseISO,
 } from 'date-fns';
+import { Helmet } from 'react-helmet-async';
+import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
 import { minDepartureDate, maxDepartureDate } from '../utils/date.utils';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 export function DatePickerScreen() {
+  const navigate = useNavigate();
   const origin = useTripStore((s) => s.origin);
   const legs = useTripStore((s) => s.legs);
-  const { setSelectedDate, setScreen } = useSessionStore();
+  const { setSelectedDate } = useSessionStore();
 
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
   const stopIndex = nonReturnLegs.length + 1;
@@ -47,7 +50,7 @@ export function DatePickerScreen() {
   function handleConfirm() {
     if (!selected) return;
     setSelectedDate(format(selected, 'yyyy-MM-dd'));
-    setScreen('flight-results');
+    navigate('/flights');
   }
 
   const title = stopIndex === 1
@@ -56,6 +59,7 @@ export function DatePickerScreen() {
 
   return (
     <div className="px-4 pb-8 pt-4">
+      <Helmet><title>Pick a departure date · FlexBook</title></Helmet>
       <h2 className="text-xl font-bold text-text-primary mb-1">Pick a date</h2>
       <p className="text-text-muted text-sm mb-6">{title}</p>
 
@@ -121,7 +125,7 @@ export function DatePickerScreen() {
 
       <button
         className="btn-outline mt-3"
-        onClick={() => setScreen('home')}
+        onClick={() => navigate('/')}
       >
         Back
       </button>

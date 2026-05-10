@@ -1,23 +1,23 @@
+import { useLocation } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
-import { useSessionStore } from '../store/session.store';
 import { GoHomeLogo } from './GoHomeLogo';
 import { Menu } from 'lucide-react';
 
 const MAX_STOPS = 15;
 
-function stepLabel(screen: string, stopCount: number): string {
-  switch (screen) {
-    case 'flight-results':
+function stepLabel(pathname: string, stopCount: number): string {
+  switch (pathname) {
+    case '/flights':
       return stopCount === 0 ? 'Choosing your first destination' : `Adding stop ${stopCount + 1}`;
-    case 'stay-duration':
+    case '/stay':
       return 'Picking your stay duration';
-    case 'decision':
+    case '/review':
       return "What's next for your trip?";
-    case 'return-flights':
+    case '/return':
       return 'Finding your way home';
-    case 'itinerary':
+    case '/itinerary':
       return 'Your trip is ready!';
-    case 'plan-stay':
+    case '/plan':
       return 'Planning your stay';
     default:
       return '';
@@ -27,9 +27,9 @@ function stepLabel(screen: string, stopCount: number): string {
 export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const legs = useTripStore((s) => s.legs);
   const origin = useTripStore((s) => s.origin);
-  const screen = useSessionStore((s) => s.screen);
+  const { pathname } = useLocation();
 
-  if (screen === 'home' || screen === 'booking-review' || screen === 'partial-booking') return null;
+  if (pathname === '/' || pathname === '/book' || pathname === '/book/partial') return null;
 
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
   const stopCount = nonReturnLegs.length;
@@ -40,7 +40,7 @@ export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
     ...nonReturnLegs.map((l) => l.destinationIata),
   ];
 
-  const label = stepLabel(screen, stopCount);
+  const label = stepLabel(pathname, stopCount);
 
   return (
     <div className="sticky top-0 z-50">
@@ -78,18 +78,24 @@ export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
         </div>
 
         {/* Stops remaining pill */}
-        {screen !== 'itinerary' && screen !== 'return-flights' && screen !== 'plan-stay' && (
+        {pathname !== '/itinerary' && pathname !== '/return' && pathname !== '/plan' && (
           <div className="shrink-0 flex items-center gap-1.5">
             <div className="flex flex-col items-end">
-              <span className="text-white/40 text-[9px] leading-none mb-0.5">stops left</span>
-              <span className="text-white font-mono font-bold text-xs leading-none">{slotsRemaining}</span>
+              <span className={`text-[9px] leading-none mb-0.5 ${slotsRemaining <= 3 ? 'text-amber-300' : 'text-white/40'}`}>
+                stops left
+              </span>
+              <span className={`font-mono font-bold text-xs leading-none ${slotsRemaining <= 3 ? 'text-amber-300' : 'text-white'}`}>
+                {slotsRemaining}
+              </span>
             </div>
             <div className="w-12 h-1.5 rounded-full bg-white/15 overflow-hidden">
               <div
                 className="h-full rounded-full transition-all duration-500"
                 style={{
                   width: `${Math.max(6, (stopCount / MAX_STOPS) * 100)}%`,
-                  background: 'linear-gradient(90deg, #F97316, #FBBF24)',
+                  background: slotsRemaining <= 3
+                    ? 'linear-gradient(90deg, #F59E0B, #FCD34D)'
+                    : 'linear-gradient(90deg, #F97316, #FBBF24)',
                 }}
               />
             </div>

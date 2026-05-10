@@ -1,19 +1,7 @@
 import { create } from 'zustand';
 import { FlightOption, WeatherSummary } from '@fast-travel/shared';
 
-export type Screen =
-  | 'home'
-  | 'flight-results'
-  | 'stay-duration'
-  | 'decision'
-  | 'return-flights'
-  | 'booking-review'
-  | 'partial-booking'
-  | 'itinerary'
-  | 'plan-stay';
-
 interface SessionState {
-  screen: Screen;
   selectedDate: string | null;
   pendingFlights: FlightOption[];
   selectedFlight: FlightOption | null;
@@ -24,7 +12,6 @@ interface SessionState {
   shareModal: { url: string } | null;
   expiredLinkModal: boolean;
 
-  setScreen: (screen: Screen) => void;
   setSelectedDate: (date: string) => void;
   setPendingFlights: (flights: FlightOption[]) => void;
   setSelectedFlight: (flight: FlightOption) => void;
@@ -41,7 +28,6 @@ interface SessionState {
 }
 
 const initialState = {
-  screen: 'home' as Screen,
   selectedDate: null,
   pendingFlights: [],
   selectedFlight: null,
@@ -56,7 +42,6 @@ const initialState = {
 export const useSessionStore = create<SessionState>((set) => ({
   ...initialState,
 
-  setScreen: (screen) => set({ screen }),
   setSelectedDate: (date) => set({ selectedDate: date }),
   setPendingFlights: (flights) => set({ pendingFlights: flights }),
   setSelectedFlight: (flight) => set({ selectedFlight: flight }),

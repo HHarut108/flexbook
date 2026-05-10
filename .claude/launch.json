@@ -54,6 +54,15 @@
         "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/compassionate-dijkstra-47c519/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5180"
       ],
       "port": 5180
+    },
+    {
+      "name": "Frontend-tender (Vite :5181)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/tender-torvalds-0e711e/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5181"
+      ],
+      "port": 5181
     }
   ]
 }
