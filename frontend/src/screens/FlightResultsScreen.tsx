@@ -147,20 +147,20 @@ export function FlightResultsScreen() {
         </div>
 
         {/* Date navigation row — arrows are primary actions, calendar tap for exact date */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
           {/* ← Previous day */}
           <button
             onClick={() => shiftDate(-1)}
-            className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/75 border border-white/80 hover:border-indigo-mid hover:text-indigo-mid text-text-muted transition-colors active:scale-95 shrink-0 shadow-[0_10px_20px_rgba(23,50,77,0.05)]"
+            className="w-10 h-11 flex items-center justify-center rounded-2xl bg-white/75 border border-white/80 hover:border-indigo-mid hover:text-indigo-mid text-text-muted transition-colors active:scale-95 shrink-0 shadow-[0_4px_12px_rgba(23,50,77,0.05)]"
             aria-label="Previous day"
           >
-            <ChevronLeft size={20} />
+            <ChevronLeft size={18} />
           </button>
 
           {/* Mobile: single date button */}
           <button
             onClick={() => setShowCalendar(true)}
-            className="flex-1 flex items-center gap-3 bg-white/75 border border-white/80 rounded-2xl px-4 py-3 hover:border-indigo-mid transition-colors group shadow-[0_10px_20px_rgba(23,50,77,0.05)] lg:hidden"
+            className="flex-1 min-w-0 flex items-center gap-3 bg-white/75 border border-white/80 rounded-2xl px-4 py-3 hover:border-indigo-mid transition-colors group shadow-[0_10px_20px_rgba(23,50,77,0.05)] lg:hidden"
           >
             <Calendar size={15} className="text-text-muted group-hover:text-indigo transition-colors shrink-0" />
             <div className="text-left min-w-0">
@@ -171,34 +171,49 @@ export function FlightResultsScreen() {
             </div>
           </button>
 
-          {/* Desktop: 4-day strip */}
-          <div className="hidden lg:flex flex-1 gap-2">
-            {[-1, 0, 1, 2].map((offset) => {
+          {/* Desktop: scrollable 5-day ribbon centred on the active date */}
+          <div className="hidden lg:flex flex-1 min-w-0 gap-1.5 overflow-x-auto scrollbar-none snap-x snap-mandatory scroll-smooth">
+            {[-2, -1, 0, 1, 2].map((offset) => {
               const d = format(addDays(parseISO(localDate), offset), 'yyyy-MM-dd');
               const isActive = d === localDate;
               return (
                 <button
                   key={offset}
                   onClick={() => { setLocalDate(d); setSelectedDate(d); }}
-                  className={`flex-1 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all shadow-[0_10px_20px_rgba(23,50,77,0.05)] ${
+                  className={`flex-1 min-w-[58px] snap-center rounded-2xl px-1.5 py-2 transition-all shadow-[0_4px_12px_rgba(23,50,77,0.05)] flex flex-col items-center justify-center leading-tight ${
                     isActive
                       ? 'bg-indigo text-white border border-indigo'
                       : 'bg-white/75 border border-white/80 text-text-muted hover:border-indigo-mid hover:text-indigo-mid'
                   }`}
+                  aria-label={format(addDays(parseISO(localDate), offset), 'EEEE, MMM d')}
                 >
-                  {format(addDays(parseISO(localDate), offset), 'EEE d')}
+                  <span className={`text-[10px] uppercase tracking-wide ${isActive ? 'text-white/80' : 'text-text-muted'}`}>
+                    {format(addDays(parseISO(localDate), offset), 'EEE')}
+                  </span>
+                  <span className="text-sm font-bold tabular-nums">
+                    {format(addDays(parseISO(localDate), offset), 'd')}
+                  </span>
                 </button>
               );
             })}
           </div>
 
+          {/* Calendar shortcut — desktop only, opens overlay */}
+          <button
+            onClick={() => setShowCalendar(true)}
+            className="hidden lg:flex w-10 h-11 items-center justify-center rounded-2xl bg-white/75 border border-white/80 hover:border-indigo-mid hover:text-indigo-mid text-text-muted transition-colors active:scale-95 shrink-0 shadow-[0_4px_12px_rgba(23,50,77,0.05)]"
+            aria-label="Pick a different date"
+          >
+            <Calendar size={16} />
+          </button>
+
           {/* → Next day */}
           <button
             onClick={() => shiftDate(1)}
-            className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/75 border border-white/80 hover:border-indigo-mid hover:text-indigo-mid text-text-muted transition-colors active:scale-95 shrink-0 shadow-[0_10px_20px_rgba(23,50,77,0.05)]"
+            className="w-10 h-11 flex items-center justify-center rounded-2xl bg-white/75 border border-white/80 hover:border-indigo-mid hover:text-indigo-mid text-text-muted transition-colors active:scale-95 shrink-0 shadow-[0_4px_12px_rgba(23,50,77,0.05)]"
             aria-label="Next day"
           >
-            <ChevronRight size={20} />
+            <ChevronRight size={18} />
           </button>
         </div>
 
