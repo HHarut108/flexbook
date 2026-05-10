@@ -95,10 +95,10 @@ function storePricesAndAttach(
   });
 }
 
-function attachCachedPrices(entries: ScheduleEntry[]): { flights: FlightOption[]; hasStale: boolean } {
+async function attachCachedPrices(entries: ScheduleEntry[]): Promise<{ flights: FlightOption[]; hasStale: boolean }> {
   let hasStale = false;
-  const flights: FlightOption[] = entries.map((entry) => {
-    const priceInfo = getPriceInfo(entry.flightId);
+  const flights: FlightOption[] = await Promise.all(entries.map(async (entry) => {
+    const priceInfo = await getPriceInfo(entry.flightId);
     if (!priceInfo || priceInfo.priceStatus === 'stale') hasStale = true;
 
     const resolvedPriceInfo = priceInfo ?? {
@@ -116,7 +116,7 @@ function attachCachedPrices(entries: ScheduleEntry[]): { flights: FlightOption[]
       bookingUrl: resolvedPriceInfo.deeplink,
       priceInfo: resolvedPriceInfo,
     };
-  });
+  }));
   return { flights, hasStale };
 }
 
@@ -132,9 +132,9 @@ export class FlightService {
   ): Promise<FlightSearchResult> {
     const chain = this.providerChain(apiMode);
 
-    const cachedSchedule = getScheduleCache(originIata, date, destinationIata);
+    const cachedSchedule = await getScheduleCache(originIata, date, destinationIata);
     if (cachedSchedule) {
-      const { flights, hasStale } = attachCachedPrices(cachedSchedule);
+      const { flights, hasStale } = await attachCachedPrices(cachedSchedule);
       if (hasStale) {
         this.refreshInBackground({ originIata, originCity, date, destinationIata, chain, options, deduplicate });
       }

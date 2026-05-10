@@ -1,6 +1,6 @@
 import { WeatherCondition, WeatherSummary } from '@fast-travel/shared';
 import { fetchWeather } from '../providers/OpenWeatherMapProvider';
-import { getCache, setCache } from '../utils/cache';
+import { getCacheAsync, setCache } from '../utils/cache';
 import { config } from '../config';
 
 interface WeatherRequest {
@@ -43,7 +43,7 @@ export class WeatherService {
     const results = await Promise.allSettled(
       requests.map(async (req) => {
         const cacheKey = `weather:${req.iata}:${req.date}`;
-        const cached = getCache<WeatherSummary>(cacheKey);
+        const cached = await getCacheAsync<WeatherSummary>(cacheKey);
         if (cached) return { ...req, weather: cached };
 
         const weather = await fetchWeather(req.lat, req.lng, req.date);

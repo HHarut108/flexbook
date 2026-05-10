@@ -16,6 +16,7 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string().default(''),
   ADMIN_PASSWORD: z.string().default(''),
   ADMIN_SESSION_SECRET: z.string().default(''),
+  CRON_SECRET: z.string().default(''),
 });
 
 const parsed = envSchema.safeParse(process.env);
