@@ -20,10 +20,13 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   useUrlSync();
 
+  const narrowOnly = ['stay-duration', 'decision', 'return-flights', 'itinerary', 'plan-stay'].includes(screen);
+  const widthClass = narrowOnly ? 'max-w-[448px]' : 'max-w-[448px] lg:max-w-none';
+
   const appClassName =
     screen === 'flight-results'
-      ? 'h-screen bg-bg max-w-[448px] mx-auto flex flex-col overflow-hidden'
-      : 'min-h-screen bg-bg max-w-[448px] mx-auto';
+      ? `h-screen bg-bg ${widthClass} mx-auto flex flex-col overflow-hidden`
+      : `min-h-screen bg-bg ${widthClass} mx-auto`;
 
   return (
     <div className={appClassName}>
