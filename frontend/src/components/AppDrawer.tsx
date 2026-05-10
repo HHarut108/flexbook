@@ -6,8 +6,8 @@ import { useSessionStore } from '../store/session.store';
 import { buildSlugShareUrl } from '../utils/url.utils';
 import { createTripShare } from '../api/trips.api';
 import { formatPrice } from '../utils/price.utils';
-import { ApiModeSwitcher } from './ApiModeSwitcher';
-import { X, MapPin, Share2, Trash2, Plane, BookmarkCheck, Loader2 } from 'lucide-react';
+import { useThemeStore } from '../store/theme.store';
+import { X, MapPin, Share2, Trash2, Plane, BookmarkCheck, Loader2, Sun, Moon } from 'lucide-react';
 import { GoHomeLogo } from './GoHomeLogo';
 
 interface Props {
@@ -89,6 +89,8 @@ export function AppDrawer({ open, onClose }: Props) {
   const loadFromItinerary = useTripStore((s) => s.loadFromItinerary);
   const showToast = useSessionStore((s) => s.showToast);
   const showShareModal = useSessionStore((s) => s.showShareModal);
+  const theme = useThemeStore((s) => s.theme);
+  const setTheme = useThemeStore((s) => s.setTheme);
   const [sharingTripId, setSharingTripId] = useState<string | null>(null);
 
   // Lock body scroll when open
@@ -218,10 +220,35 @@ export function AppDrawer({ open, onClose }: Props) {
               <h3 className="text-sm font-bold uppercase tracking-wider text-text-muted mb-3 mt-3">Settings</h3>
               <div className="flex items-center justify-between bg-surface-2 rounded-2xl px-4 py-3">
                 <div>
-                  <p className="text-sm font-medium text-text-primary">Data source</p>
-                  <p className="text-xs text-text-muted">Switch between mock and live API</p>
+                  <p className="text-sm font-medium text-text-primary">Appearance</p>
+                  <p className="text-xs text-text-muted">Switch between light and dark</p>
                 </div>
-                <ApiModeSwitcher />
+                <div
+                  role="group"
+                  aria-label="Theme"
+                  className="inline-flex items-center rounded-full bg-white border border-border p-0.5"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setTheme('light')}
+                    aria-pressed={theme === 'light'}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                      theme === 'light' ? 'bg-indigo text-white' : 'text-text-muted hover:text-text-primary'
+                    }`}
+                  >
+                    <Sun size={13} /> Light
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTheme('dark')}
+                    aria-pressed={theme === 'dark'}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                      theme === 'dark' ? 'bg-indigo text-white' : 'text-text-muted hover:text-text-primary'
+                    }`}
+                  >
+                    <Moon size={13} /> Dark
+                  </button>
+                </div>
               </div>
             </div>
           </div>

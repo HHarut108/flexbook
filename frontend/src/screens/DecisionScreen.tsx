@@ -7,12 +7,14 @@ import { formatPrice, totalPrice } from '../utils/price.utils';
 import { formatDate } from '../utils/date.utils';
 import { TripTimeline } from '../components/TripTimeline';
 import { PlanStayNudge } from '../components/PlanStayNudge';
+import { DestinationGuideCard } from '../components/DestinationGuideCard';
 import { ArrowLeft, Ticket } from 'lucide-react';
 import { getDecisionHeadline } from '../utils/copy.utils';
 
 export function DecisionScreen() {
   const navigate = useNavigate();
   const legs = useTripStore((s) => s.legs);
+  const passengers = useTripStore((s) => s.passengers);
   const canContinue = useTripStore((s) => s.canContinue());
   const { setSelectedDate } = useSessionStore();
   const [planVisited, setPlanVisited] = useState(false);
@@ -20,6 +22,9 @@ export function DecisionScreen() {
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
   const lastLeg = nonReturnLegs.at(-1)!;
   const tripTotal = totalPrice(nonReturnLegs);
+  const stayNights = lastLeg.stayDurationDays ?? 1;
+  const checkin = lastLeg.arrivalDatetime ? lastLeg.arrivalDatetime.slice(0, 10) : undefined;
+  const checkout = lastLeg.nextDepartureDate ?? undefined;
 
   function handleContinue() {
     if (lastLeg.nextDepartureDate) {
@@ -33,7 +38,7 @@ export function DecisionScreen() {
   }
 
   return (
-    <div className="px-4 pb-8 pt-4 md:flex md:gap-6 md:px-8 md:pt-8 md:pb-8 md:max-w-4xl lg:max-w-5xl xl:max-w-6xl md:mx-auto lg:gap-8 lg:px-10 lg:pt-10 lg:pb-10">
+    <div className="px-4 pb-8 pt-4 md:flex md:gap-6 md:px-8 md:pt-8 md:pb-8 md:max-w-5xl lg:max-w-6xl xl:max-w-7xl md:mx-auto lg:gap-8 lg:px-10 lg:pt-10 lg:pb-10 md:items-start">
       <Helmet><title>What's next from {lastLeg.destinationCity}? · FlexBook</title></Helmet>
       {/* Left: hero panel */}
       <div className="md:flex-1">
@@ -75,16 +80,34 @@ export function DecisionScreen() {
         </div>
       </div>
 
-      {/* Right: nudge + action buttons */}
-      <div className="md:w-[300px] lg:w-[340px] md:flex-shrink-0">
-        {/* Plan stay nudge — only shown for stays of 1+ days */}
+      {/* Right: nudge / inline guide + action buttons */}
+      <div className="md:w-[300px] lg:w-[420px] xl:w-[460px] md:flex-shrink-0">
+        {/* Plan stay nudge — mobile only; desktop shows the inline guide card below */}
         {(lastLeg.stayDurationDays ?? 0) >= 1 && (
-          <div className="mb-5">
+          <div className="mb-5 md:hidden">
             <PlanStayNudge
               city={lastLeg.destinationCity}
               nights={lastLeg.stayDurationDays ?? 1}
               visited={planVisited}
               onTap={() => {
+                setPlanVisited(true);
+                navigate('/plan');
+              }}
+            />
+          </div>
+        )}
+
+        {/* Desktop-only inline destination guide */}
+        {(lastLeg.stayDurationDays ?? 0) >= 1 && (
+          <div className="hidden md:block mb-5">
+            <DestinationGuideCard
+              city={lastLeg.destinationCity}
+              country={lastLeg.destinationCountry}
+              nights={stayNights}
+              checkin={checkin}
+              checkout={checkout}
+              passengers={passengers}
+              onOpenFullGuide={() => {
                 setPlanVisited(true);
                 navigate('/plan');
               }}

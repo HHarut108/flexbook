@@ -4,8 +4,10 @@
 
 @layer base {
   :root { color-scheme: light; }
+  html[data-theme="dark"] { color-scheme: dark; }
 
   html { background: #F0F4FF; }
+  html[data-theme="dark"] { background: #0B1020; }
 
   body {
     @apply bg-bg text-text-primary font-sans;
@@ -17,6 +19,72 @@
       linear-gradient(180deg, #F0F4FF 0%, #EEF1F8 100%);
     min-height: 100vh;
   }
+
+  /* ─── Dark theme overlay ─────────────────────────────────────────────────
+     The app's palette is baked into Tailwind utility classes (hex literals),
+     so a full theme swap is impractical without restyling every component.
+     This overlay restyles the most prominent surfaces — page background,
+     hero panels, cards, sections, drawer chrome — so the dark switcher feels
+     functional without rewriting every screen.
+     ────────────────────────────────────────────────────────────────────── */
+  html[data-theme="dark"] body {
+    color: #E5E7EB;
+    background-image:
+      radial-gradient(circle at top left,  rgba(99,102,241,0.18), transparent 30%),
+      radial-gradient(circle at top right, rgba(14,165,233,0.12), transparent 28%),
+      linear-gradient(180deg, #0B1020 0%, #0F172A 100%);
+  }
+
+  html[data-theme="dark"] .hero-panel {
+    background: linear-gradient(135deg, rgba(30,27,75,0.85) 0%, rgba(15,23,42,0.85) 100%);
+    border-color: rgba(99,102,241,0.35);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.05) inset;
+  }
+  html[data-theme="dark"] .hero-panel-return {
+    background: linear-gradient(135deg, rgba(67,20,7,0.6) 0%, rgba(15,23,42,0.85) 100%);
+    border-color: rgba(249,115,22,0.35);
+  }
+  html[data-theme="dark"] .card,
+  html[data-theme="dark"] .section-shell,
+  html[data-theme="dark"] .list-row {
+    background: #131A2D;
+    border-color: #1F2A44;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3), 0 1px 0 rgba(255,255,255,0.04) inset;
+    color: #E5E7EB;
+  }
+  html[data-theme="dark"] .btn-outline {
+    background: rgba(19,26,45,0.9);
+    color: #E5E7EB;
+    border-color: #1F2A44;
+  }
+  html[data-theme="dark"] .input-field {
+    background: #131A2D;
+    border-color: #1F2A44;
+    color: #E5E7EB;
+  }
+  /* Tailwind utility recolors — only the most-used surface/text utilities */
+  html[data-theme="dark"] .bg-white,
+  html[data-theme="dark"] .bg-white\/80,
+  html[data-theme="dark"] .bg-white\/85,
+  html[data-theme="dark"] .bg-white\/86,
+  html[data-theme="dark"] .bg-white\/75 {
+    background-color: rgba(19,26,45,0.9) !important;
+  }
+  html[data-theme="dark"] .bg-surface { background-color: #131A2D !important; }
+  html[data-theme="dark"] .bg-surface-2 { background-color: #0F172A !important; }
+  html[data-theme="dark"] .text-text-primary { color: #F3F4F6 !important; }
+  html[data-theme="dark"] .text-text-secondary { color: #D1D5DB !important; }
+  html[data-theme="dark"] .text-text-muted { color: #9CA3AF !important; }
+  html[data-theme="dark"] .text-text-xmuted { color: #6B7280 !important; }
+  html[data-theme="dark"] .border-border { border-color: #1F2A44 !important; }
+  html[data-theme="dark"] .border-border\/50,
+  html[data-theme="dark"] .border-border\/60 { border-color: rgba(31,42,68,0.6) !important; }
+  html[data-theme="dark"] .border-white\/80 { border-color: rgba(99,102,241,0.25) !important; }
+  html[data-theme="dark"] .bg-indigo-soft { background-color: rgba(67,56,202,0.18) !important; }
+  html[data-theme="dark"] .bg-indigo-soft\/40 { background-color: rgba(67,56,202,0.10) !important; }
+  html[data-theme="dark"] .border-indigo-border { border-color: rgba(99,102,241,0.4) !important; }
+  html[data-theme="dark"] .text-indigo { color: #A5B4FC !important; }
+  html[data-theme="dark"] .text-indigo-mid { color: #818CF8 !important; }
 
   * { @apply box-border; }
 

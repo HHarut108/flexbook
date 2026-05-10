@@ -5,6 +5,7 @@ import { HelmetProvider } from 'react-helmet-async';
 import App from './App';
 import { useTripStore } from './store/trip.store';
 import { decodeItinerary } from './utils/url.utils';
+import './store/theme.store';
 import './index.css';
 
 // Hydrate trip state from ?t= before React renders so that RequireOrigin
