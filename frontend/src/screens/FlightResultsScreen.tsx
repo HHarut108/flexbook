@@ -114,9 +114,9 @@ export function FlightResultsScreen() {
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-      {/* Hero header */}
-      <div className="px-4 pt-4 pb-3 shrink-0">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden lg:flex-row">
+      {/* Left panel: controls */}
+      <div className="px-4 pt-4 pb-3 shrink-0 lg:w-[380px] lg:flex-shrink-0 lg:border-r lg:border-border/50 lg:overflow-y-auto lg:pb-8">
         <div className="hero-panel mb-4">
         <div className="flex items-center gap-3 mb-4">
           <button
@@ -219,7 +219,6 @@ export function FlightResultsScreen() {
           </div>
         </div>
         </div>
-      </div>
 
       {/* Trip progress strip — visible once the user has at least 1 leg */}
       {stopCount > 0 && (
@@ -259,9 +258,10 @@ export function FlightResultsScreen() {
           </div>
         </div>
       )}
+      </div>{/* end left panel */}
 
-      {/* Results area */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-8">
+      {/* Right panel: results */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-8 lg:px-6">
         {/* Error */}
         {flightError && !isSearchingFlights && (
           <div className="card mb-4">

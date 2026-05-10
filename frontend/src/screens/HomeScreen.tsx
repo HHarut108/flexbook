@@ -443,7 +443,7 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
           <div className="mb-8 lg:mb-10">
             <h1
               className="leading-[0.92] font-black text-text-primary"
-              style={{ fontSize: 'clamp(2.8rem, 10vw, 3.6rem)', letterSpacing: '-0.06em' }}
+              style={{ fontSize: 'clamp(2.8rem, 5vw, 5.5rem)', letterSpacing: '-0.06em' }}
             >
               Plan your
               <br />
