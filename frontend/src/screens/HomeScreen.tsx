@@ -3,6 +3,7 @@ import { Airport } from '@fast-travel/shared';
 import { useAirportSearch } from '../hooks/useAirportSearch';
 import { nearbyAirportsByCoords } from '../api/airports.api';
 import { resolveUserCoords, readCachedCoords, readCachedNearby, cacheNearby } from '../utils/geolocation.utils';
+import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
@@ -414,6 +415,10 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
+      <Helmet>
+        <title>FlexBook — Plan your multi-stop trip</title>
+        <meta name="description" content="Find the cheapest multi-stop flights. No sign-up required. Up to 15 stops per trip." />
+      </Helmet>
       {/* ── Ambient background ── */}
       <div
         className="absolute inset-0 pointer-events-none"

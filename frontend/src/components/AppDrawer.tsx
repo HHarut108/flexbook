@@ -188,7 +188,14 @@ export function AppDrawer({ open, onClose }: Props) {
                     <MapPin size={20} className="text-indigo" />
                   </div>
                   <p className="text-sm text-text-muted mb-1">No saved trips yet</p>
-                  <p className="text-xs text-text-xmuted">Plan a trip and save it for later.</p>
+                  <p className="text-xs text-text-xmuted mb-4">Plan a trip and save it for later.</p>
+                  <button
+                    onClick={() => { navigate('/'); onClose(); }}
+                    className="inline-flex items-center gap-2 rounded-2xl bg-indigo text-white text-sm font-semibold px-5 py-2.5 hover:bg-indigo/90 transition-all active:scale-95"
+                    style={{ boxShadow: '0 8px 20px rgba(55,48,163,0.25)' }}
+                  >
+                    Plan a new trip
+                  </button>
                 </div>
               ) : (
                 <div className="space-y-3">

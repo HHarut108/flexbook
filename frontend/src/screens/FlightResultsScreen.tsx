@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { FlightOption } from '@fast-travel/shared';
+import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
@@ -114,8 +115,13 @@ export function FlightResultsScreen() {
     navigate(isFirstStop ? '/' : '/review');
   }
 
+  const title = isFirstStop
+    ? `Flights from ${currentCityName} · FlexBook`
+    : `Next hop from ${currentCityName} · FlexBook`;
+
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden lg:flex-row">
+      <Helmet><title>{title}</title></Helmet>
       {/* Left panel: controls */}
       <div className="px-4 pt-4 pb-3 shrink-0 lg:w-[380px] lg:flex-shrink-0 lg:border-r lg:border-border/50 lg:overflow-y-auto lg:pb-8">
         <div className="hero-panel mb-4">

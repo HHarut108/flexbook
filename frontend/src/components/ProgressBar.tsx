@@ -81,15 +81,21 @@ export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
         {pathname !== '/itinerary' && pathname !== '/return' && pathname !== '/plan' && (
           <div className="shrink-0 flex items-center gap-1.5">
             <div className="flex flex-col items-end">
-              <span className="text-white/40 text-[9px] leading-none mb-0.5">stops left</span>
-              <span className="text-white font-mono font-bold text-xs leading-none">{slotsRemaining}</span>
+              <span className={`text-[9px] leading-none mb-0.5 ${slotsRemaining <= 3 ? 'text-amber-300' : 'text-white/40'}`}>
+                stops left
+              </span>
+              <span className={`font-mono font-bold text-xs leading-none ${slotsRemaining <= 3 ? 'text-amber-300' : 'text-white'}`}>
+                {slotsRemaining}
+              </span>
             </div>
             <div className="w-12 h-1.5 rounded-full bg-white/15 overflow-hidden">
               <div
                 className="h-full rounded-full transition-all duration-500"
                 style={{
                   width: `${Math.max(6, (stopCount / MAX_STOPS) * 100)}%`,
-                  background: 'linear-gradient(90deg, #F97316, #FBBF24)',
+                  background: slotsRemaining <= 3
+                    ? 'linear-gradient(90deg, #F59E0B, #FCD34D)'
+                    : 'linear-gradient(90deg, #F97316, #FBBF24)',
                 }}
               />
             </div>

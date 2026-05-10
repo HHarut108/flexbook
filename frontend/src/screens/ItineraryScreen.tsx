@@ -1,4 +1,5 @@
 import { useState, lazy, Suspense } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
@@ -78,8 +79,22 @@ export function ItineraryScreen() {
     </div>
   );
 
+  const routeLabel = origin
+    ? [origin.city.name, ...legs.map((l) => l.destinationCity)].join(' → ')
+    : 'Your trip';
+
   return (
     <div className="pb-8 md:flex md:gap-0 md:items-start md:max-w-6xl md:mx-auto xl:max-w-7xl">
+      <Helmet>
+        <title>{routeLabel} · FlexBook</title>
+        <meta name="description" content={`${legs.length} flights · ${routeLabel}. View and book your full trip plan.`} />
+        <meta property="og:title" content={`My FlexBook trip: ${routeLabel}`} />
+        <meta property="og:description" content={`${legs.length} flights, estimated total $${Math.round(total)}. Plan yours at flexbook.travel`} />
+        <meta property="og:type" content="website" />
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content={`My FlexBook trip: ${routeLabel}`} />
+        <meta name="twitter:description" content={`${legs.length} flights · estimated $${Math.round(total)}`} />
+      </Helmet>
       {/* Left: header + tabs + timeline/map */}
       <div className="md:flex-1 md:min-w-0">
         {/* Header */}

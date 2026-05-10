@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
@@ -33,6 +34,7 @@ export function DecisionScreen() {
 
   return (
     <div className="px-4 pb-8 pt-4 md:flex md:gap-6 md:px-8 md:pt-8 md:pb-8 md:max-w-4xl lg:max-w-5xl xl:max-w-6xl md:mx-auto lg:gap-8 lg:px-10 lg:pt-10 lg:pb-10">
+      <Helmet><title>What's next from {lastLeg.destinationCity}? · FlexBook</title></Helmet>
       {/* Left: hero panel */}
       <div className="md:flex-1">
         <div className="hero-panel mb-5">

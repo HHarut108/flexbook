@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState, useCallback } from 'react';
 import { TripLeg } from '@fast-travel/shared';
+import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { fetchAirlineLogos } from '../api/airlines.api';
@@ -173,6 +174,7 @@ function FlightLegRow({
                 src={logoUrl}
                 alt={`${leg.airlineName} logo`}
                 className="h-6 w-8 object-contain"
+                loading="lazy"
                 onError={() => setImageFailed(true)}
               />
             ) : (
@@ -470,6 +472,7 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
 
   return (
     <div className="pb-8">
+      <Helmet><title>{partial ? 'Book flights so far' : 'Book your trip'} · FlexBook</title></Helmet>
       {/* ── Top brand header ── */}
       <div
         className="sticky top-0 z-50 px-4 py-2.5 flex items-center justify-between"

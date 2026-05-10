@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { FlightOption } from '@fast-travel/shared';
+import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
@@ -67,6 +68,7 @@ export function ReturnFlightsScreen() {
 
   return (
     <div className="flex flex-col min-h-screen md:flex-row md:min-h-0 md:flex-1">
+      <Helmet><title>Fly home from {currentCityName} · FlexBook</title></Helmet>
       {/* Left panel: controls */}
       <div className="px-4 pt-4 pb-3 md:w-[340px] lg:w-[380px] md:flex-shrink-0 md:border-r md:border-border/50 md:overflow-y-auto md:pb-8">
         <div className="hero-panel-return mb-4">
