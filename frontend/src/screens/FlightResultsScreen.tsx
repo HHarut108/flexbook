@@ -150,10 +150,10 @@ export function FlightResultsScreen() {
             <ChevronLeft size={20} />
           </button>
 
-          {/* Date display — tap to open calendar */}
+          {/* Mobile: single date button */}
           <button
             onClick={() => setShowCalendar(true)}
-            className="flex-1 flex items-center gap-3 bg-white/75 border border-white/80 rounded-2xl px-4 py-3 hover:border-indigo-mid transition-colors group shadow-[0_10px_20px_rgba(23,50,77,0.05)]"
+            className="flex-1 flex items-center gap-3 bg-white/75 border border-white/80 rounded-2xl px-4 py-3 hover:border-indigo-mid transition-colors group shadow-[0_10px_20px_rgba(23,50,77,0.05)] lg:hidden"
           >
             <Calendar size={15} className="text-text-muted group-hover:text-indigo transition-colors shrink-0" />
             <div className="text-left min-w-0">
@@ -163,6 +163,27 @@ export function FlightResultsScreen() {
               </div>
             </div>
           </button>
+
+          {/* Desktop: 4-day strip */}
+          <div className="hidden lg:flex flex-1 gap-2">
+            {[-1, 0, 1, 2].map((offset) => {
+              const d = format(addDays(parseISO(localDate), offset), 'yyyy-MM-dd');
+              const isActive = d === localDate;
+              return (
+                <button
+                  key={offset}
+                  onClick={() => { setLocalDate(d); setSelectedDate(d); }}
+                  className={`flex-1 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all shadow-[0_10px_20px_rgba(23,50,77,0.05)] ${
+                    isActive
+                      ? 'bg-indigo text-white border border-indigo'
+                      : 'bg-white/75 border border-white/80 text-text-muted hover:border-indigo-mid hover:text-indigo-mid'
+                  }`}
+                >
+                  {format(addDays(parseISO(localDate), offset), 'EEE d')}
+                </button>
+              );
+            })}
+          </div>
 
           {/* → Next day */}
           <button
@@ -307,8 +328,8 @@ export function FlightResultsScreen() {
           </p>
         )}
 
-        {/* Cards */}
-        <div className="space-y-3">
+        {/* Cards — 1 col on mobile, 2 cols on lg */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {isSearchingFlights
             ? Array.from({ length: PAGE_SIZE }).map((_, i) => <FlightCardSkeleton key={i} />)
             : pagedFlights.map((flight) => (

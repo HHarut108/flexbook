@@ -274,6 +274,142 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
 
   const showResults = query.trim().length > 0;
 
+  /* ── Shared sub-components rendered in the right panel ── */
+  const searchForm = (
+    <div className="section-shell p-4 mb-4">
+      <div className="mb-3">
+        {!showResults && (
+          <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold mb-1.5 ml-1">
+            Where from?
+          </p>
+        )}
+        <div className="relative">
+          <PlaneTakeoff
+            size={16}
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-text-xmuted pointer-events-none"
+          />
+          {query && (
+            <button
+              className="absolute right-14 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg bg-surface-2 flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
+              onClick={() => {
+                setQuery('');
+                inputRef.current?.focus();
+              }}
+              aria-label="Clear search"
+            >
+              <X size={13} />
+            </button>
+          )}
+          <button
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-11 h-11 rounded-xl text-white flex items-center justify-center transition-all active:scale-95"
+            style={{
+              background: 'linear-gradient(135deg, #F97316 0%, #EA6C0A 100%)',
+              boxShadow: '0 8px 24px rgba(249,115,22,0.28)',
+              minHeight: '44px',
+              minWidth: '44px',
+            }}
+            tabIndex={-1}
+            aria-hidden
+          >
+            {loading ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Search size={16} />
+            )}
+          </button>
+          <input
+            ref={inputRef}
+            type="text"
+            className="input-field pl-11 pr-28 rounded-2xl text-base"
+            style={{ minHeight: '48px' }}
+            placeholder="City or airport code..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            autoFocus
+            aria-label="Search origin airport"
+          />
+        </div>
+      </div>
+      {!showResults && (
+        <div className="grid grid-cols-2 gap-2.5">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold mb-1.5 ml-1">
+              Departure
+            </p>
+            <DateField value={departureDate} onChange={setDepartureDate} min={minDate} />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold mb-1.5 ml-1">
+              Travelers
+            </p>
+            <PassengerStepper value={passengers} onChange={setPassengers} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const searchResults = showResults && (
+    <div className="section-shell overflow-hidden mb-4 animate-fade-in">
+      {results.length === 0 && !loading && (
+        <p className="px-5 py-4 text-text-muted text-sm">
+          No airports found. Try a different city or code.
+        </p>
+      )}
+      {loading && results.length === 0 && (
+        <div className="flex items-center gap-2.5 px-5 py-4 text-text-muted text-sm">
+          <Loader2 size={14} className="animate-spin text-indigo-mid" />
+          Searching airports...
+        </div>
+      )}
+      {results.map((airport, i) => (
+        <AirportRow
+          key={airport.iata}
+          airport={airport}
+          onSelect={() => selectAirport(airport)}
+          delay={i * 20}
+        />
+      ))}
+    </div>
+  );
+
+  const airportList = !showResults && (
+    <>
+      <div className="flex items-center gap-2 mb-2.5 mt-2">
+        <MapPin size={13} className="text-indigo-mid" />
+        <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold">
+          Departing from
+        </p>
+      </div>
+      <div className="space-y-2">
+        {geoLoading && (
+          <div className="section-shell px-4 py-4 flex items-center gap-2.5 text-text-muted text-sm">
+            <Loader2 size={14} className="animate-spin text-indigo-mid" />
+            <span>Detecting nearby airports...</span>
+          </div>
+        )}
+        {!geoLoading &&
+          nearby.length > 0 &&
+          nearby.map((airport) => (
+            <AirportCard
+              key={airport.iata}
+              airport={airport}
+              onSelect={() => selectAirport(airport)}
+            />
+          ))}
+        {!geoLoading &&
+          nearby.length === 0 &&
+          POPULAR_AIRPORTS.map((airport) => (
+            <AirportCard
+              key={airport.iata}
+              airport={airport as Airport}
+              onSelect={() => selectAirport(airport as Airport)}
+            />
+          ))}
+      </div>
+    </>
+  );
+
   return (
     <div className="min-h-screen relative overflow-hidden">
       {/* ── Ambient background ── */}
@@ -285,201 +421,79 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
         }}
       />
 
-      <div className="relative px-5 pt-7 pb-10 max-w-screen-sm mx-auto">
-        {/* ── Header ── */}
-        <div className="flex items-center justify-between mb-10">
-          <GoHomeLogo size="lg" variant="light" />
-          <button
-            onClick={onMenuOpen}
-            className="w-11 h-11 rounded-2xl bg-surface border border-border flex items-center justify-center text-indigo-mid transition-all hover:bg-indigo-soft hover:border-indigo-border"
-            style={{ boxShadow: '0 4px 12px rgba(15,23,42,0.08)' }}
-            aria-label="Open menu"
-          >
-            <Menu size={20} />
-          </button>
-        </div>
+      {/* ── Nav — full width across all breakpoints ── */}
+      <div className="relative flex items-center justify-between px-5 pt-7 pb-4 lg:px-10 lg:py-5 lg:border-b lg:border-border/50">
+        <GoHomeLogo size="lg" variant="light" />
+        <button
+          onClick={onMenuOpen}
+          className="w-11 h-11 rounded-2xl bg-surface border border-border flex items-center justify-center text-indigo-mid transition-all hover:bg-indigo-soft hover:border-indigo-border"
+          style={{ boxShadow: '0 4px 12px rgba(15,23,42,0.08)' }}
+          aria-label="Open menu"
+        >
+          <Menu size={20} />
+        </button>
+      </div>
 
-        {/* ── Hero ── */}
-        <div className="mb-8">
-          <h1
-            className="leading-[0.92] font-black text-text-primary"
-            style={{ fontSize: 'clamp(2.8rem, 10vw, 3.6rem)', letterSpacing: '-0.06em' }}
-          >
-            Plan your
-            <br />
-            <span className="relative inline-block">
-              <span className="text-indigo">trip</span>
-              <span
-                className="absolute -right-[0.4em] -top-[0.15em] font-black text-orange select-none"
-                style={{ fontSize: '1.6em', lineHeight: 1 }}
-                aria-hidden
-              >
-                .
-              </span>
-            </span>
-          </h1>
-          <p className="mt-4 text-base leading-7 text-text-muted max-w-[30ch]">
-            Cheapest fares. Biggest adventures.
-          </p>
-        </div>
+      {/* ── Body: single column on mobile, 2-panel on lg ── */}
+      <div className="relative lg:flex lg:items-stretch" style={{ minHeight: 'calc(100dvh - 72px)' }}>
 
-        {/* ── Search Form ── */}
-        <div className="section-shell p-4 mb-4">
-          {/* Origin input */}
-          <div className="mb-3">
-            {!showResults && (
-              <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold mb-1.5 ml-1">
-                Where from?
-              </p>
-            )}
-            <div className="relative">
-              <PlaneTakeoff
-                size={16}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-text-xmuted pointer-events-none"
-              />
-              {query && (
-                <button
-                  className="absolute right-14 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg bg-surface-2 flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
-                  onClick={() => {
-                    setQuery('');
-                    inputRef.current?.focus();
-                  }}
-                  aria-label="Clear search"
+        {/* ── Left panel: hero + trust (always visible on lg, stacked on mobile) ── */}
+        <div className="px-5 pt-6 pb-2 lg:flex-1 lg:flex lg:flex-col lg:justify-center lg:px-12 lg:py-12">
+          {/* Hero */}
+          <div className="mb-8 lg:mb-10">
+            <h1
+              className="leading-[0.92] font-black text-text-primary"
+              style={{ fontSize: 'clamp(2.8rem, 10vw, 3.6rem)', letterSpacing: '-0.06em' }}
+            >
+              Plan your
+              <br />
+              <span className="relative inline-block">
+                <span className="text-indigo">trip</span>
+                <span
+                  className="absolute -right-[0.4em] -top-[0.15em] font-black text-orange select-none"
+                  style={{ fontSize: '1.6em', lineHeight: 1 }}
+                  aria-hidden
                 >
-                  <X size={13} />
-                </button>
-              )}
-              <button
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-11 h-11 rounded-xl text-white flex items-center justify-center transition-all active:scale-95"
-                style={{
-                  background: 'linear-gradient(135deg, #F97316 0%, #EA6C0A 100%)',
-                  boxShadow: '0 8px 24px rgba(249,115,22,0.28)',
-                  minHeight: '44px',
-                  minWidth: '44px',
-                }}
-                tabIndex={-1}
-                aria-hidden
-              >
-                {loading ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <Search size={16} />
-                )}
-              </button>
-              <input
-                ref={inputRef}
-                type="text"
-                className="input-field pl-11 pr-28 rounded-2xl text-base"
-                style={{ minHeight: '48px' }}
-                placeholder="City or airport code..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                autoFocus
-                aria-label="Search origin airport"
-              />
-            </div>
+                  .
+                </span>
+              </span>
+            </h1>
+            <p className="mt-4 text-base leading-7 text-text-muted max-w-[30ch]">
+              Cheapest fares. Biggest adventures.
+            </p>
           </div>
 
-          {/* Date + Passengers row (visible only when not searching) */}
+          {/* Trust bar — lg: always in left panel; mobile: hidden here, shown in right panel */}
+          <div className="hidden lg:block">
+            <TrustBar />
+            <p className="mt-6 text-xs text-text-muted/60 leading-5">
+              Up to 15 stops per trip. Always the cheapest next hop.
+              <br />
+              No sign-up required.
+            </p>
+          </div>
+        </div>
+
+        {/* ── Right panel: search form + airports ── */}
+        <div className="px-5 pb-10 lg:w-[400px] xl:w-[440px] lg:flex-shrink-0 lg:border-l lg:border-border/60 lg:bg-white/60 lg:backdrop-blur-sm lg:px-8 lg:py-8">
+          {searchForm}
+          {searchResults}
+          {airportList}
+
+          {/* Trust signals — mobile only (lg shows them in the left panel) */}
           {!showResults && (
-            <div className="grid grid-cols-2 gap-2.5">
-              <div>
-                <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold mb-1.5 ml-1">
-                  Departure
-                </p>
-                <DateField value={departureDate} onChange={setDepartureDate} min={minDate} />
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold mb-1.5 ml-1">
-                  Travelers
-                </p>
-                <PassengerStepper value={passengers} onChange={setPassengers} />
-              </div>
+            <div className="mt-8 lg:hidden">
+              <TrustBar />
             </div>
           )}
+          {!showResults && (
+            <p className="mt-8 text-center text-xs text-text-muted/60 leading-5 lg:hidden">
+              Up to 15 stops per trip. Always the cheapest next hop.
+              <br />
+              No sign-up required.
+            </p>
+          )}
         </div>
-
-        {/* ── Search Results Dropdown ── */}
-        {showResults && (
-          <div className="section-shell overflow-hidden mb-4 animate-fade-in">
-            {results.length === 0 && !loading && (
-              <p className="px-5 py-4 text-text-muted text-sm">
-                No airports found. Try a different city or code.
-              </p>
-            )}
-            {loading && results.length === 0 && (
-              <div className="flex items-center gap-2.5 px-5 py-4 text-text-muted text-sm">
-                <Loader2 size={14} className="animate-spin text-indigo-mid" />
-                Searching airports...
-              </div>
-            )}
-            {results.map((airport, i) => (
-              <AirportRow
-                key={airport.iata}
-                airport={airport}
-                onSelect={() => selectAirport(airport)}
-                delay={i * 20}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* ── Nearby / Popular Airports ── */}
-        {!showResults && (
-          <>
-            <div className="flex items-center gap-2 mb-2.5 mt-2">
-              <MapPin size={13} className="text-indigo-mid" />
-              <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold">
-                Departing from
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              {geoLoading && (
-                <div className="section-shell px-4 py-4 flex items-center gap-2.5 text-text-muted text-sm">
-                  <Loader2 size={14} className="animate-spin text-indigo-mid" />
-                  <span>Detecting nearby airports...</span>
-                </div>
-              )}
-
-              {!geoLoading &&
-                nearby.length > 0 &&
-                nearby.map((airport) => (
-                  <AirportCard
-                    key={airport.iata}
-                    airport={airport}
-                    onSelect={() => selectAirport(airport)}
-                  />
-                ))}
-
-              {!geoLoading &&
-                nearby.length === 0 &&
-                POPULAR_AIRPORTS.map((airport) => (
-                  <AirportCard
-                    key={airport.iata}
-                    airport={airport as Airport}
-                    onSelect={() => selectAirport(airport as Airport)}
-                  />
-                ))}
-            </div>
-          </>
-        )}
-
-        {/* ── Trust Signals ── */}
-        {!showResults && (
-          <div className="mt-8">
-            <TrustBar />
-          </div>
-        )}
-
-        {/* ── Footer tagline ── */}
-        {!showResults && (
-          <p className="mt-8 text-center text-xs text-text-muted/60 leading-5">
-            Up to 15 stops per trip. Always the cheapest next hop.
-            <br />
-            No sign-up required.
-          </p>
-        )}
       </div>
     </div>
   );
