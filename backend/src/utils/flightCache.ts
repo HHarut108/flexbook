@@ -1,5 +1,5 @@
 import { PriceInfo, PriceStatus } from '@fast-travel/shared';
-import { getCache, setCache } from './cache';
+import { getCacheAsync, setCache } from './cache';
 
 // ---------- Types ----------
 
@@ -81,14 +81,14 @@ export function priceSoftTtlSeconds(dateStr: string): number {
 
 // ---------- Schedule cache ----------
 
-export function getScheduleCache(
+export async function getScheduleCache(
   originIata: string,
   date: string,
   destinationIata?: string,
-): ScheduleEntry[] | undefined {
+): Promise<ScheduleEntry[] | undefined> {
   const key = scheduleKey(originIata, date, destinationIata);
   try {
-    const result = getCache<ScheduleEntry[]>(key);
+    const result = await getCacheAsync<ScheduleEntry[]>(key);
     console.log(`[flightCache] schedule ${result ? 'HIT' : 'MISS'} ${key}`);
     return result;
   } catch (err) {
@@ -119,10 +119,10 @@ export function setScheduleCache(
 
 // ---------- Price cache ----------
 
-export function getPriceInfo(flightId: string): PriceInfo | undefined {
+export async function getPriceInfo(flightId: string): Promise<PriceInfo | undefined> {
   const key = priceKey(flightId);
   try {
-    const entry = getCache<PriceCacheEntry>(key);
+    const entry = await getCacheAsync<PriceCacheEntry>(key);
     if (!entry) {
       console.log(`[flightCache] price MISS ${key}`);
       return undefined;

@@ -87,30 +87,30 @@ describe('schedule cache', () => {
     deleteCache(scheduleKey(origin, date, 'CDG'));
   });
 
-  it('returns undefined on miss', () => {
-    expect(getScheduleCache(origin, date)).toBeUndefined();
+  it('returns undefined on miss', async () => {
+    expect(await getScheduleCache(origin, date)).toBeUndefined();
   });
 
-  it('returns cached entries after set', () => {
+  it('returns cached entries after set', async () => {
     const entries = [makeEntry({ originIata: origin })];
     setScheduleCache(origin, date, entries);
-    const result = getScheduleCache(origin, date);
+    const result = await getScheduleCache(origin, date);
     expect(result).toHaveLength(1);
     expect(result![0].flightId).toBe('TEST-LHR-CDG');
   });
 
-  it('does not cache past dates', () => {
+  it('does not cache past dates', async () => {
     setScheduleCache(origin, '2020-01-01', [makeEntry({ originIata: origin })]);
-    expect(getScheduleCache(origin, '2020-01-01')).toBeUndefined();
+    expect(await getScheduleCache(origin, '2020-01-01')).toBeUndefined();
   });
 
-  it('distinguishes keys with and without destination', () => {
+  it('distinguishes keys with and without destination', async () => {
     const withDest = [makeEntry({ originIata: origin, flightId: 'WITH-DEST' })];
     const withoutDest = [makeEntry({ originIata: origin, flightId: 'NO-DEST' })];
     setScheduleCache(origin, date, withDest, 'CDG');
     setScheduleCache(origin, date, withoutDest);
-    expect(getScheduleCache(origin, date, 'CDG')![0].flightId).toBe('WITH-DEST');
-    expect(getScheduleCache(origin, date)![0].flightId).toBe('NO-DEST');
+    expect((await getScheduleCache(origin, date, 'CDG'))![0].flightId).toBe('WITH-DEST');
+    expect((await getScheduleCache(origin, date))![0].flightId).toBe('NO-DEST');
   });
 });
 
@@ -123,11 +123,11 @@ describe('price cache', () => {
     deleteCache(priceKey(flightId));
   });
 
-  it('returns undefined on miss', () => {
-    expect(getPriceInfo(flightId)).toBeUndefined();
+  it('returns undefined on miss', async () => {
+    expect(await getPriceInfo(flightId)).toBeUndefined();
   });
 
-  it('returns cached price with status "cached" when fresh', () => {
+  it('returns cached price with status "cached" when fresh', async () => {
     setPriceInfo(
       flightId,
       {
@@ -139,7 +139,7 @@ describe('price cache', () => {
       },
       '2030-06-01',
     );
-    const result = getPriceInfo(flightId);
+    const result = await getPriceInfo(flightId);
     expect(result).not.toBeUndefined();
     expect(result!.amount).toBe(129);
     expect(result!.currency).toBe('EUR');
@@ -147,7 +147,7 @@ describe('price cache', () => {
     expect(result!.priceStatus).toBe('cached');
   });
 
-  it('returns priceStatus "stale" when price was updated beyond the soft TTL', () => {
+  it('returns priceStatus "stale" when price was updated beyond the soft TTL', async () => {
     // Simulate a price updated 2 hours ago — beyond the 15-min soft TTL for near-term dates
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
     const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -164,7 +164,7 @@ describe('price cache', () => {
       tomorrow,
     );
 
-    const result = getPriceInfo(flightId);
+    const result = await getPriceInfo(flightId);
     expect(result).not.toBeUndefined();
     expect(result!.priceStatus).toBe('stale');
   });

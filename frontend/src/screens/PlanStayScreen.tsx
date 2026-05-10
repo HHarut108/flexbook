@@ -136,21 +136,8 @@ interface CountryInfo {
 
 async function fetchCountryInfo(countryName: string): Promise<CountryInfo | null> {
   try {
-    const res = await fetch(
-      `https://restcountries.com/v3.1/name/${encodeURIComponent(countryName)}?fullText=true&fields=flag,flags,currencies,capital,region`,
-    );
-    if (!res.ok) throw new Error('not found');
-    const [c] = await res.json();
-    const [currencyCode, currencyData] = Object.entries(c.currencies)[0] as [string, { name: string; symbol: string }];
-    return {
-      flag: c.flag,
-      flagUrl: c.flags?.png ?? '',
-      currencyCode,
-      currencyName: currencyData.name,
-      currencySymbol: currencyData.symbol,
-      capital: c.capital?.[0] ?? '',
-      region: c.region ?? '',
-    };
+    const res = await apiClient.get<CountryInfo>('/country-info', { params: { country: countryName } });
+    return res.data;
   } catch {
     return null;
   }

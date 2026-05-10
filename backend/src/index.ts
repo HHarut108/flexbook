@@ -1,8 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import cron from 'node-cron';
 import { config } from './config';
-import { sendDailyReport } from './services/EmailReportService';
 import { healthRoutes } from './routes/health';
 import { airportRoutes } from './routes/airports';
 import { flightRoutes } from './routes/flights';
@@ -14,6 +12,8 @@ import { cityGuideRoutes } from './routes/cityGuide';
 import { metricsRoutes } from './routes/metrics';
 import { adminAuthRoutes } from './routes/adminAuth';
 import { assistanceRequestRoutes } from './routes/assistanceRequests';
+import { cronRoutes } from './routes/cron';
+import { countryInfoRoutes } from './routes/countryInfo';
 
 const app = Fastify({
   logger: {
@@ -43,17 +43,8 @@ async function start() {
   await app.register(metricsRoutes);
   await app.register(adminAuthRoutes);
   await app.register(assistanceRequestRoutes);
-
-  // Daily API usage report — every day at 08:00 Yerevan time
-  cron.schedule('0 8 * * *', async () => {
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-    const result = await sendDailyReport(yesterday);
-    if (result.sent) {
-      app.log.info(`Daily API report sent for ${yesterday}`);
-    } else {
-      app.log.warn(`Daily API report failed: ${result.error}`);
-    }
-  }, { timezone: 'Asia/Yerevan' });
+  await app.register(cronRoutes);
+  await app.register(countryInfoRoutes);
 
   try {
     await app.listen({ port: config.PORT, host: '0.0.0.0' });
