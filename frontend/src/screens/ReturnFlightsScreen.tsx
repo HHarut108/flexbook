@@ -35,12 +35,12 @@ export function ReturnFlightsScreen() {
   );
   const [showCalendar, setShowCalendar] = useState(false);
 
-  // Fetch return flights — limit 3, not deduplicated (all on same route)
+  // Fetch return flights — not deduplicated (all on same route)
   useEffect(() => {
     if (!currentIata || !originIata || !localDate) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      search(currentIata, localDate, { destination: originIata, deduplicate: false, limit: 3 });
+      search(currentIata, localDate, { destination: originIata, deduplicate: false });
     }, 400);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [currentIata, originIata, localDate, search]);
@@ -163,7 +163,7 @@ export function ReturnFlightsScreen() {
           <div className="card mb-4 text-center">
             <p className="text-text-muted text-sm mb-3">Couldn&apos;t load return flights.</p>
             <button
-              onClick={() => search(currentIata, localDate, { destination: originIata, deduplicate: false, limit: 3 })}
+              onClick={() => search(currentIata, localDate, { destination: originIata, deduplicate: false })}
               className="flex items-center gap-2 mx-auto text-indigo-mid text-sm hover:underline"
             >
               <RefreshCw size={14} /> Retry

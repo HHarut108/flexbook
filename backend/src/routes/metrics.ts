@@ -7,6 +7,8 @@ import {
   getAllTimeMetrics,
   startedAt,
 } from '../utils/apiMetrics';
+import { getCacheStats } from '../utils/cache';
+import { config } from '../config';
 import { sendDailyReport, sendHistoryReport } from '../services/EmailReportService';
 import { requireAdminAuth } from '../middleware/requireAdminAuth';
 
@@ -55,6 +57,13 @@ export async function metricsRoutes(app: FastifyInstance) {
   app.get('/metrics/alltime', { preHandler: requireAdminAuth }, async () => {
     const calls = await getAllTimeMetrics();
     return { calls };
+  });
+
+  // GET /metrics/cache — in-memory cache hit/miss stats per namespace since server start
+  app.get('/metrics/cache', { preHandler: requireAdminAuth }, async () => {
+    const stats = getCacheStats();
+    const redisConnected = !!(config.UPSTASH_REDIS_REST_URL && config.UPSTASH_REDIS_REST_TOKEN);
+    return { ...stats, redis: { connected: redisConnected } };
   });
 
   // POST /metrics/report  — send on-demand email report

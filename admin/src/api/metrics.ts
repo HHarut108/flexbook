@@ -117,3 +117,21 @@ export async function fetchAssistanceRequests(): Promise<AssistanceRequest[]> {
   const { data } = await adminClient.get<{ requests: AssistanceRequest[] }>('/assistance-requests');
   return data.requests;
 }
+
+export interface CacheNamespaceStat {
+  hits: number;
+  misses: number;
+  sets: number;
+  hitRate: number;
+}
+
+export interface CacheMetricsResponse {
+  namespaces: Record<string, CacheNamespaceStat>;
+  totalKeys: number;
+  redis: { connected: boolean };
+}
+
+export async function fetchCacheMetrics(): Promise<CacheMetricsResponse> {
+  const { data } = await adminClient.get<CacheMetricsResponse>('/metrics/cache');
+  return data;
+}

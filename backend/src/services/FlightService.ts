@@ -127,7 +127,6 @@ export class FlightService {
     date: string,
     destinationIata?: string,
     deduplicate = true,
-    limit = 10,
     options: KiwiSearchOptions = {},
     apiMode?: 'real' | 'mock',
   ): Promise<FlightSearchResult> {
@@ -139,19 +138,18 @@ export class FlightService {
       if (hasStale) {
         this.refreshInBackground({ originIata, originCity, date, destinationIata, chain, options, deduplicate });
       }
-      return { flights: flights.slice(0, limit), cacheStatus: 'schedule_cached' };
+      return { flights, cacheStatus: 'schedule_cached' };
     }
 
     const { raw, usedProvider } = await this.callWithFallback(
       chain, originIata, originCity, date, destinationIata, options,
     );
     const processed = this.processFlights(raw, originIata, deduplicate);
-    const top10 = processed.slice(0, 10);
 
-    setScheduleCache(originIata, date, top10.map(toScheduleEntry), destinationIata);
-    const withPrices = storePricesAndAttach(top10, usedProvider, date);
+    setScheduleCache(originIata, date, processed.map(toScheduleEntry), destinationIata);
+    const withPrices = storePricesAndAttach(processed, usedProvider, date);
 
-    return { flights: withPrices.slice(0, limit), cacheStatus: 'live' };
+    return { flights: withPrices, cacheStatus: 'live' };
   }
 
   /** Ordered list of providers to try, from primary to fallback. */
@@ -240,9 +238,9 @@ export class FlightService {
           const { raw, usedProvider } = await this.callWithFallback(
             chain, originIata, originCity, date, destinationIata, options,
           );
-          const top10 = this.processFlights(raw, originIata, deduplicate).slice(0, 10);
-          setScheduleCache(originIata, date, top10.map(toScheduleEntry), destinationIata);
-          storePricesAndAttach(top10, usedProvider, date);
+          const processed = this.processFlights(raw, originIata, deduplicate);
+          setScheduleCache(originIata, date, processed.map(toScheduleEntry), destinationIata);
+          storePricesAndAttach(processed, usedProvider, date);
           console.log(`[flightCache] background refresh done ${originIata}:${date}`);
         } catch (err) {
           console.warn(`[flightCache] background refresh failed ${originIata}:${date}`, err);

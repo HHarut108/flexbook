@@ -54,12 +54,14 @@ export function FlightResultsScreen() {
   useEffect(() => {
     setPendingFlights([]);
     setStopsFilter(0);
+    setCurrentPage(1);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIata]);
 
-  // Reset filter when date changes
+  // Reset filter and page when date changes
   useEffect(() => {
     setStopsFilter(0);
+    setCurrentPage(1);
   }, [localDate]);
 
   function shiftDate(delta: number) {
@@ -80,6 +82,8 @@ export function FlightResultsScreen() {
   }
 
   const [stopsFilter, setStopsFilter] = useState<number | null>(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   const outboundLegs = legs.filter((l) => !l.isReturn);
   const stopCount = outboundLegs.length;
@@ -89,7 +93,6 @@ export function FlightResultsScreen() {
   // Stops-based filter buckets
   const directFlights = pendingFlights.filter((f) => f.stops === 0);
   const oneStopFlights = pendingFlights.filter((f) => f.stops === 1);
-  const twoStopFlights = pendingFlights.filter((f) => f.stops >= 2);
 
   const minPrice = (list: FlightOption[]) =>
     list.length > 0 ? Math.min(...list.map((f) => f.priceUsd)) : null;
@@ -99,9 +102,12 @@ export function FlightResultsScreen() {
     { label: '1 stop', value: 1, count: oneStopFlights.length, minPrice: minPrice(oneStopFlights) },
   ];
 
-  const visibleFlights = stopsFilter === null
+  const filteredFlights = stopsFilter === null
     ? pendingFlights
     : pendingFlights.filter((f) => f.stops === stopsFilter);
+
+  const totalPages = Math.max(1, Math.ceil(filteredFlights.length / PAGE_SIZE));
+  const pagedFlights = filteredFlights.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   function handleBack() {
     setScreen(isFirstStop ? 'home' : 'decision');
@@ -213,7 +219,7 @@ export function FlightResultsScreen() {
               tab.count === 0 ? null : (
                 <button
                   key={tab.label}
-                  onClick={() => setStopsFilter(tab.value)}
+                  onClick={() => { setStopsFilter(tab.value); setCurrentPage(1); }}
                   className={`shrink-0 flex items-center gap-1.5 rounded-2xl px-3.5 py-2 text-xs font-semibold transition-all border ${
                     stopsFilter === tab.value
                       ? 'bg-indigo text-white border-indigo shadow-[0_4px_12px_rgba(55,48,163,0.25)]'
@@ -257,7 +263,7 @@ export function FlightResultsScreen() {
         )}
 
         {/* No results */}
-        {!isSearchingFlights && !flightError && visibleFlights.length === 0 && pendingFlights.length === 0 && (
+        {!isSearchingFlights && !flightError && filteredFlights.length === 0 && pendingFlights.length === 0 && (
           <div className="card mb-4">
             <p className="text-text-primary font-semibold text-sm mb-1">No flights on this date — rare!</p>
             <p className="text-text-muted text-sm mb-4 leading-6">
@@ -275,11 +281,11 @@ export function FlightResultsScreen() {
         )}
 
         {/* Filter yields no results */}
-        {!isSearchingFlights && visibleFlights.length === 0 && pendingFlights.length > 0 && (
+        {!isSearchingFlights && filteredFlights.length === 0 && pendingFlights.length > 0 && (
           <div className="text-center py-6">
             <p className="text-sm text-text-muted mb-2">No {stopsFilter === 0 ? 'direct' : '1-stop'} flights on this date.</p>
             <button
-              onClick={() => setStopsFilter(stopsFilter === 0 ? 1 : 0)}
+              onClick={() => { setStopsFilter(stopsFilter === 0 ? 1 : 0); setCurrentPage(1); }}
               className="text-sm text-indigo font-medium hover:underline"
             >
               Try {stopsFilter === 0 ? '1-stop' : 'direct'} flights instead
@@ -288,9 +294,9 @@ export function FlightResultsScreen() {
         )}
 
         {/* Few results notice */}
-        {!isSearchingFlights && visibleFlights.length > 0 && visibleFlights.length < 3 && (
+        {!isSearchingFlights && filteredFlights.length > 0 && filteredFlights.length < 3 && (
           <p className="text-xs text-text-muted mb-3 px-1">
-            Only {visibleFlights.length} {stopsFilter === 0 ? 'direct' : '1-stop'} option{visibleFlights.length > 1 ? 's' : ''} on this date. Try a different day for more.
+            Only {filteredFlights.length} {stopsFilter === 0 ? 'direct' : '1-stop'} option{filteredFlights.length > 1 ? 's' : ''} on this date. Try a different day for more.
           </p>
         )}
 
@@ -304,8 +310,8 @@ export function FlightResultsScreen() {
         {/* Cards */}
         <div className="space-y-3">
           {isSearchingFlights
-            ? Array.from({ length: 10 }).map((_, i) => <FlightCardSkeleton key={i} />)
-            : visibleFlights.map((flight) => (
+            ? Array.from({ length: PAGE_SIZE }).map((_, i) => <FlightCardSkeleton key={i} />)
+            : pagedFlights.map((flight) => (
                 <FlightCard
                   key={flight.flightId}
                   flight={flight}
@@ -315,8 +321,32 @@ export function FlightResultsScreen() {
               ))}
         </div>
 
+        {/* Pagination */}
+        {!isSearchingFlights && totalPages > 1 && (
+          <div className="flex items-center justify-between mt-5 px-1">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="w-10 h-10 flex items-center justify-center rounded-2xl border border-border bg-white/80 text-text-muted hover:border-indigo-border hover:text-indigo disabled:opacity-30 transition-all active:scale-95"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <span className="text-xs text-text-muted tabular-nums">
+              Page <span className="font-semibold text-text-primary">{currentPage}</span> of <span className="font-semibold text-text-primary">{totalPages}</span>
+              <span className="ml-2 text-text-muted/60">· {filteredFlights.length} flights</span>
+            </span>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="w-10 h-10 flex items-center justify-center rounded-2xl border border-border bg-white/80 text-text-muted hover:border-indigo-border hover:text-indigo disabled:opacity-30 transition-all active:scale-95"
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+        )}
+
         {/* "Try next day" nudge shown after results load */}
-        {!isSearchingFlights && visibleFlights.length > 0 && (
+        {!isSearchingFlights && filteredFlights.length > 0 && (
           <button
             onClick={() => shiftDate(1)}
             className="w-full mt-4 py-3 flex items-center justify-center gap-2 text-text-muted text-sm hover:text-indigo transition-colors"

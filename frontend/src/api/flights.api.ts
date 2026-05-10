@@ -5,7 +5,6 @@ import { mockFlights } from './mock-data';
 export interface FlightSearchOptions {
   destination?: string;
   deduplicate?: boolean;
-  limit?: number;
   /** Sort order: 'price' (cheapest), 'duration' (shortest), 'quality' (best overall). Default: 'price' */
   sort?: 'price' | 'duration' | 'quality';
   /** Max stopovers filter. 0 = direct only, 1 = max 1 stop. Omit for any. */
@@ -26,10 +25,7 @@ export async function searchFlights(
   const mode = getApiMode();
 
   // Real API call - pass mode to backend
-  const { destination, deduplicate = true, limit = 10, sort, maxStopovers, currency, cabinClass, passengers } = options;
-  // Backend wraps the flight array in { origin, date, cacheStatus, results } since the
-  // schedule+price cache layer landed (PR #30). Extract `results` to keep this function's
-  // contract — returning a plain FlightOption[] — unchanged for callers.
+  const { destination, deduplicate = true, sort, maxStopovers, currency, cabinClass, passengers } = options;
   const { data } = await apiClient.get<{ origin: string; date: string; cacheStatus: 'live' | 'schedule_cached'; results: FlightOption[] }>(
     '/flights/search',
     {
@@ -37,7 +33,6 @@ export async function searchFlights(
         originIata,
         date,
         deduplicate,
-        limit,
         ...(destination && { destination }),
         ...(sort && { sort }),
         ...(maxStopovers !== undefined && { maxStopovers }),
