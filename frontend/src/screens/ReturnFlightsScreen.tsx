@@ -64,9 +64,9 @@ export function ReturnFlightsScreen() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
-      {/* Header */}
-      <div className="px-4 pt-4 pb-3">
+    <div className="flex flex-col min-h-screen lg:flex-row lg:min-h-0 lg:flex-1">
+      {/* Left panel: controls */}
+      <div className="px-4 pt-4 pb-3 lg:w-[380px] lg:flex-shrink-0 lg:border-r lg:border-border/50 lg:overflow-y-auto lg:pb-8">
         <div className="hero-panel-return mb-4">
           <div className="flex items-center gap-3 mb-3">
             <button
@@ -126,9 +126,10 @@ export function ReturnFlightsScreen() {
             <ChevronLeft size={20} />
           </button>
 
+          {/* Mobile: single date button */}
           <button
             onClick={() => setShowCalendar(true)}
-            className="flex-1 flex items-center gap-3 bg-surface border border-border rounded-xl px-4 py-3 hover:border-indigo-mid transition-colors group"
+            className="flex-1 flex items-center gap-3 bg-surface border border-border rounded-xl px-4 py-3 hover:border-indigo-mid transition-colors group lg:hidden"
           >
             <Calendar size={15} className="text-text-muted group-hover:text-indigo transition-colors shrink-0" />
             <div className="text-left min-w-0">
@@ -138,6 +139,27 @@ export function ReturnFlightsScreen() {
               </div>
             </div>
           </button>
+
+          {/* Desktop: 4-day strip */}
+          <div className="hidden lg:flex flex-1 gap-2">
+            {[-1, 0, 1, 2].map((offset) => {
+              const d = format(addDays(parseISO(localDate), offset), 'yyyy-MM-dd');
+              const isActive = d === localDate;
+              return (
+                <button
+                  key={offset}
+                  onClick={() => setLocalDate(d)}
+                  className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
+                    isActive
+                      ? 'bg-indigo text-white border border-indigo'
+                      : 'bg-surface border border-border text-text-muted hover:border-indigo-mid hover:text-indigo'
+                  }`}
+                >
+                  {format(addDays(parseISO(localDate), offset), 'EEE d')}
+                </button>
+              );
+            })}
+          </div>
 
           <button
             onClick={() => shiftDate(1)}
@@ -149,8 +171,9 @@ export function ReturnFlightsScreen() {
         </div>
       </div>
 
-      {/* Results */}
-      <div className="flex-1 px-4 pb-8">
+      {/* Right panel: results */}
+      <div className="flex-1 flex flex-col min-h-0 lg:overflow-y-auto">
+      <div className="flex-1 px-4 pb-8 pt-3 lg:pt-4">
         {/* Sub-header */}
         {!isSearchingFlights && pendingFlights.length > 0 && (
           <p className="text-xs text-text-muted mb-3 px-1">
@@ -217,6 +240,7 @@ export function ReturnFlightsScreen() {
           ← Back to trip
         </button>
       </div>
+      </div>{/* end right panel */}
 
       {showCalendar && (
         <DatePickerOverlay
