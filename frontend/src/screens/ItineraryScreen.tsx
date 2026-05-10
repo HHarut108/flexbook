@@ -78,9 +78,9 @@ export function ItineraryScreen() {
   );
 
   return (
-    <div className="pb-8 lg:flex lg:gap-0 lg:items-start">
+    <div className="pb-8 md:flex md:gap-0 md:items-start md:max-w-6xl md:mx-auto xl:max-w-7xl">
       {/* Left: header + tabs + timeline/map */}
-      <div className="lg:flex-1 lg:min-w-0">
+      <div className="md:flex-1 md:min-w-0">
         {/* Header */}
         <div className="px-4 pt-4 pb-4">
           <div className="hero-panel">
@@ -192,13 +192,13 @@ export function ItineraryScreen() {
         )}
 
         {/* Actions — mobile only */}
-        <div className="px-4 mt-6 lg:hidden">
+        <div className="px-4 mt-6 md:hidden">
           {actionsPanel}
         </div>
       </div>
 
-      {/* Right: sticky actions panel — desktop only */}
-      <div className="hidden lg:block lg:w-80 xl:w-96 lg:flex-shrink-0 lg:sticky lg:top-16 px-4 pt-6 pb-8 lg:border-l lg:border-border/50">
+      {/* Right: sticky actions panel — md+ only */}
+      <div className="hidden md:block md:w-72 lg:w-80 xl:w-96 md:flex-shrink-0 md:sticky md:top-16 px-4 pt-6 pb-8 md:border-l md:border-border/50">
         <div className="mb-4 px-1">
           <div className="text-orange font-mono font-bold text-4xl">{formatPrice(total)}</div>
           <div className="text-text-muted text-xs mt-0.5">estimated total · {legs.length} flight{legs.length > 1 ? 's' : ''}</div>

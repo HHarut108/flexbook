@@ -22,8 +22,8 @@ export default function App() {
 
   const appClassName =
     screen === 'flight-results'
-      ? 'h-screen bg-bg max-w-[448px] lg:max-w-none mx-auto flex flex-col overflow-hidden'
-      : 'min-h-screen bg-bg max-w-[448px] lg:max-w-none mx-auto';
+      ? 'h-screen bg-bg max-w-[448px] md:max-w-none mx-auto flex flex-col overflow-hidden'
+      : 'min-h-screen bg-bg max-w-[448px] md:max-w-none mx-auto';
 
   return (
     <div className={appClassName}>

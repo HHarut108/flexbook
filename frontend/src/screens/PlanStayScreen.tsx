@@ -273,9 +273,9 @@ export function PlanStayScreen() {
   const dayCount = Math.min(nights, content.days.length);
 
   return (
-    <div className="animate-fade-in lg:flex lg:items-start lg:gap-0">
+    <div className="animate-fade-in md:flex md:items-start md:gap-0 md:max-w-6xl md:mx-auto xl:max-w-7xl">
       {/* ── Left panel ── */}
-      <div className="px-4 pb-32 pt-4 lg:flex-1 lg:min-w-0 lg:pb-12">
+      <div className="px-4 pb-32 pt-4 md:flex-1 md:min-w-0 md:pb-12">
       <StickyReturnBar onBack={handleBack} crumbs={crumbs} currentCity={destinationIata} />
 
       {/* ── Header ── */}
@@ -513,7 +513,7 @@ export function PlanStayScreen() {
       </div>{/* end left panel */}
 
       {/* ── Right panel: day planner + practical ── */}
-      <div className="px-4 pb-12 pt-4 lg:w-[360px] xl:w-[400px] lg:flex-shrink-0 lg:border-l lg:border-border/50 lg:sticky lg:top-0 lg:max-h-screen lg:overflow-y-auto">
+      <div className="px-4 pb-12 pt-4 md:w-[320px] lg:w-[360px] xl:w-[400px] md:flex-shrink-0 md:border-l md:border-border/50 md:sticky md:top-0 md:max-h-screen md:overflow-y-auto">
 
       {/* ── Day-by-day sketch ── */}
       {dayCount > 0 && (
