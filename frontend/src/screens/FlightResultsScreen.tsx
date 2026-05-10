@@ -328,8 +328,8 @@ export function FlightResultsScreen() {
           </p>
         )}
 
-        {/* Cards — 1 col on mobile, 2 cols on lg */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {/* Cards — 1 col on mobile, 2 cols at md+, 3 cols at 2xl */}
+        <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3">
           {isSearchingFlights
             ? Array.from({ length: PAGE_SIZE }).map((_, i) => <FlightCardSkeleton key={i} />)
             : pagedFlights.map((flight) => (

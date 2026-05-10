@@ -30,9 +30,9 @@ export function DecisionScreen() {
   }
 
   return (
-    <div className="px-4 pb-8 pt-4 lg:flex lg:gap-8 lg:px-10 lg:pt-10 lg:pb-10 lg:max-w-5xl lg:mx-auto">
+    <div className="px-4 pb-8 pt-4 md:flex md:gap-6 md:px-8 md:pt-8 md:pb-8 md:max-w-4xl lg:max-w-5xl xl:max-w-6xl md:mx-auto lg:gap-8 lg:px-10 lg:pt-10 lg:pb-10">
       {/* Left: hero panel */}
-      <div className="lg:flex-1">
+      <div className="md:flex-1">
         <div className="hero-panel mb-5">
           <div className="flex items-center gap-3 mb-3">
             <button
@@ -72,7 +72,7 @@ export function DecisionScreen() {
       </div>
 
       {/* Right: nudge + action buttons */}
-      <div className="lg:w-[340px] lg:flex-shrink-0">
+      <div className="md:w-[300px] lg:w-[340px] md:flex-shrink-0">
         {/* Plan stay nudge — only shown for stays of 1+ days */}
         {(lastLeg.stayDurationDays ?? 0) >= 1 && (
           <div className="mb-5">

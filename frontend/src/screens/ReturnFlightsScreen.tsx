@@ -64,9 +64,9 @@ export function ReturnFlightsScreen() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen lg:flex-row lg:min-h-0 lg:flex-1">
+    <div className="flex flex-col min-h-screen md:flex-row md:min-h-0 md:flex-1">
       {/* Left panel: controls */}
-      <div className="px-4 pt-4 pb-3 lg:w-[380px] lg:flex-shrink-0 lg:border-r lg:border-border/50 lg:overflow-y-auto lg:pb-8">
+      <div className="px-4 pt-4 pb-3 md:w-[340px] lg:w-[380px] md:flex-shrink-0 md:border-r md:border-border/50 md:overflow-y-auto md:pb-8">
         <div className="hero-panel-return mb-4">
           <div className="flex items-center gap-3 mb-3">
             <button
@@ -129,7 +129,7 @@ export function ReturnFlightsScreen() {
           {/* Mobile: single date button */}
           <button
             onClick={() => setShowCalendar(true)}
-            className="flex-1 flex items-center gap-3 bg-surface border border-border rounded-xl px-4 py-3 hover:border-indigo-mid transition-colors group lg:hidden"
+            className="flex-1 flex items-center gap-3 bg-surface border border-border rounded-xl px-4 py-3 hover:border-indigo-mid transition-colors group md:hidden"
           >
             <Calendar size={15} className="text-text-muted group-hover:text-indigo transition-colors shrink-0" />
             <div className="text-left min-w-0">
@@ -141,7 +141,7 @@ export function ReturnFlightsScreen() {
           </button>
 
           {/* Desktop: 4-day strip */}
-          <div className="hidden lg:flex flex-1 gap-2">
+          <div className="hidden md:flex flex-1 gap-2">
             {[-1, 0, 1, 2].map((offset) => {
               const d = format(addDays(parseISO(localDate), offset), 'yyyy-MM-dd');
               const isActive = d === localDate;
@@ -172,8 +172,8 @@ export function ReturnFlightsScreen() {
       </div>
 
       {/* Right panel: results */}
-      <div className="flex-1 flex flex-col min-h-0 lg:overflow-y-auto">
-      <div className="flex-1 px-4 pb-8 pt-3 lg:pt-4">
+      <div className="flex-1 flex flex-col min-h-0 md:overflow-y-auto">
+      <div className="flex-1 px-4 pb-8 pt-3 md:pt-4">
         {/* Sub-header */}
         {!isSearchingFlights && pendingFlights.length > 0 && (
           <p className="text-xs text-text-muted mb-3 px-1">

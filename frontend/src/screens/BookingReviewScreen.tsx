@@ -539,12 +539,12 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
         </div>
       </div>
 
-      {/* ── Body: single column on mobile, 2-panel on lg ── */}
-      <div className="lg:flex lg:gap-5 lg:px-4 lg:items-start">
+      {/* ── Body: single column on mobile, 2-panel from md: up ── */}
+      <div className="md:flex md:gap-5 md:px-4 md:items-start md:max-w-6xl md:mx-auto xl:max-w-7xl">
 
         {/* ── Left: flight leg details ── */}
         <div className="flex-1 min-w-0">
-          <div className="px-4 lg:px-0">
+          <div className="px-4 md:px-0">
             <div className="flex items-center gap-2 mb-2">
               <Luggage size={13} className="text-text-muted" />
               <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold">
@@ -567,7 +567,7 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
           </div>
 
           {/* Back button — mobile only (desktop uses sidebar) */}
-          <div className="px-4 mt-5 lg:hidden">
+          <div className="px-4 mt-5 md:hidden">
             <button
               className="btn-outline"
               onClick={() => setScreen(backScreen)}
@@ -578,12 +578,12 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
           </div>
         </div>
 
-        {/* ── Right sidebar: map + price + CTAs (mobile: inline above legs; desktop: sticky sidebar) ── */}
-        <div className="lg:w-80 xl:w-96 lg:flex-shrink-0 lg:sticky lg:top-16 lg:space-y-3">
+        {/* ── Right sidebar: map + price + CTAs (mobile: inline above legs; md+: sticky sidebar) ── */}
+        <div className="md:w-72 lg:w-80 xl:w-96 md:flex-shrink-0 md:sticky md:top-16 md:space-y-3">
 
           {/* Route map */}
           {origin && (
-            <div className="px-4 mb-3 lg:px-0 lg:mb-0">
+            <div className="px-4 mb-3 md:px-0 md:mb-0">
               <div className="section-shell px-3 py-3">
                 <div className="flex items-center gap-2 mb-2">
                   <Map size={13} className="text-indigo" />
@@ -603,17 +603,17 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
           )}
 
           {/* Price breakdown */}
-          <div className="px-4 mb-3 lg:px-0 lg:mb-0">
+          <div className="px-4 mb-3 md:px-0 md:mb-0">
             <PriceBreakdown legs={orderedLegs} />
           </div>
 
           {/* Book CTA */}
-          <div className="px-4 mb-4 lg:px-0 lg:mb-0">
+          <div className="px-4 mb-4 md:px-0 md:mb-0">
             {ctaPanel}
           </div>
 
           {/* Assistant help */}
-          <div className="px-4 mb-4 lg:px-0 lg:mb-0">
+          <div className="px-4 mb-4 md:px-0 md:mb-0">
             <button
               className="w-full flex items-center justify-center gap-2 rounded-2xl border border-indigo-border bg-indigo-soft/40 text-indigo px-4 py-3 text-sm font-semibold hover:bg-indigo-soft transition-colors active:scale-[0.98]"
               style={{ minHeight: '48px' }}
@@ -626,7 +626,7 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
           </div>
 
           {/* Back button — desktop only */}
-          <div className="hidden lg:block px-0">
+          <div className="hidden md:block px-0">
             <button
               className="btn-outline"
               onClick={() => setScreen(backScreen)}

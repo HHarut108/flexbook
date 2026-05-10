@@ -140,14 +140,17 @@ export function AppDrawer({ open, onClose }: Props) {
         onClick={onClose}
       />
 
-      {/* Drawer panel */}
+      {/* Drawer panel
+          Mobile: slides down from the top edge (full width, capped at 448).
+          md+: slides in from the right as a side drawer (420px wide).        */}
       <div
-        className={`fixed top-0 left-0 right-0 z-[201] max-w-[448px] mx-auto transition-transform duration-300 ease-out ${
-          open ? 'translate-y-0' : '-translate-y-full'
-        }`}
+        className={`fixed z-[201] transition-transform duration-300 ease-out
+          top-0 left-0 right-0 max-w-[448px] mx-auto ${open ? 'translate-y-0' : '-translate-y-full'}
+          md:left-auto md:right-0 md:mx-0 md:w-[420px] md:max-w-none md:h-screen md:translate-y-0
+          ${open ? 'md:translate-x-0' : 'md:translate-x-full'}`}
       >
         <div
-          className="bg-white rounded-b-3xl overflow-hidden"
+          className="bg-white rounded-b-3xl overflow-hidden md:rounded-none md:h-full md:flex md:flex-col"
           style={{
             maxHeight: '85vh',
             boxShadow: '0 24px 48px rgba(15,23,42,0.15)',
@@ -170,7 +173,7 @@ export function AppDrawer({ open, onClose }: Props) {
           </div>
 
           {/* Content — scrollable */}
-          <div className="overflow-y-auto" style={{ maxHeight: 'calc(85vh - 72px)' }}>
+          <div className="overflow-y-auto md:flex-1 md:max-h-none" style={{ maxHeight: 'calc(85vh - 72px)' }}>
             {/* Saved Trips */}
             <div className="px-5 pt-5 pb-4">
               <div className="flex items-center gap-2 mb-4">

@@ -183,21 +183,21 @@ function AirportCard({
 
 function TrustBar() {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center sm:gap-6">
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-6">
       <div className="flex items-center gap-2">
         <TrendingUp size={13} className="text-emerald shrink-0" />
         <span className="text-xs text-text-muted">
           <strong className="text-text-secondary">Flexible multi-stop</strong> trip planning
         </span>
       </div>
-      <div className="hidden sm:block w-px h-3 bg-border" />
+      <div className="hidden lg:block w-px h-3 bg-border" />
       <div className="flex items-center gap-2">
         <Star size={13} className="text-gold shrink-0" />
         <span className="text-xs text-text-muted">
           Always the <strong className="text-text-secondary">cheapest next hop</strong>
         </span>
       </div>
-      <div className="hidden sm:block w-px h-3 bg-border" />
+      <div className="hidden lg:block w-px h-3 bg-border" />
       <div className="flex items-center gap-2">
         <Shield size={13} className="text-indigo-mid shrink-0" />
         <span className="text-xs text-text-muted">
@@ -422,7 +422,7 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
       />
 
       {/* ── Nav — full width across all breakpoints ── */}
-      <div className="relative flex items-center justify-between px-5 pt-7 pb-4 lg:px-10 lg:py-5 lg:border-b lg:border-border/50">
+      <div className="relative flex items-center justify-between px-5 pt-7 pb-4 md:px-8 md:py-5 lg:px-10 lg:border-b lg:border-border/50">
         <GoHomeLogo size="lg" variant="light" />
         <button
           onClick={onMenuOpen}
@@ -434,16 +434,19 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
         </button>
       </div>
 
-      {/* ── Body: single column on mobile, 2-panel on lg ── */}
-      <div className="relative lg:flex lg:items-stretch" style={{ minHeight: 'calc(100dvh - 72px)' }}>
+      {/* ── Body: single column on mobile, 2-panel from md: up ── */}
+      <div
+        className="relative md:flex md:items-stretch md:max-w-6xl md:mx-auto xl:max-w-7xl"
+        style={{ minHeight: 'calc(100dvh - 72px)' }}
+      >
 
-        {/* ── Left panel: hero + trust (always visible on lg, stacked on mobile) ── */}
-        <div className="px-5 pt-6 pb-2 lg:flex-1 lg:flex lg:flex-col lg:justify-center lg:px-12 lg:py-12">
+        {/* ── Left panel: hero + trust (always visible on md+, stacked on mobile) ── */}
+        <div className="px-5 pt-6 pb-2 md:flex-1 md:flex md:flex-col md:justify-center md:px-8 md:py-10 lg:px-12 lg:py-12">
           {/* Hero */}
           <div className="mb-8 lg:mb-10">
             <h1
               className="leading-[0.92] font-black text-text-primary"
-              style={{ fontSize: 'clamp(2.8rem, 5vw, 5.5rem)', letterSpacing: '-0.06em' }}
+              style={{ fontSize: 'clamp(2.8rem, 6vw, 7rem)', letterSpacing: '-0.06em' }}
             >
               Plan your
               <br />
@@ -458,13 +461,13 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
                 </span>
               </span>
             </h1>
-            <p className="mt-4 text-base leading-7 text-text-muted max-w-[30ch]">
+            <p className="mt-4 text-base md:text-lg leading-7 text-text-muted max-w-[30ch]">
               Cheapest fares. Biggest adventures.
             </p>
           </div>
 
-          {/* Trust bar — lg: always in left panel; mobile: hidden here, shown in right panel */}
-          <div className="hidden lg:block">
+          {/* Trust bar — md+: always in left panel; mobile: hidden here, shown in right panel */}
+          <div className="hidden md:block">
             <TrustBar />
             <p className="mt-6 text-xs text-text-muted/60 leading-5">
               Up to 15 stops per trip. Always the cheapest next hop.
@@ -475,19 +478,19 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
         </div>
 
         {/* ── Right panel: search form + airports ── */}
-        <div className="px-5 pb-10 lg:w-[400px] xl:w-[440px] lg:flex-shrink-0 lg:border-l lg:border-border/60 lg:bg-white/60 lg:backdrop-blur-sm lg:px-8 lg:py-8">
+        <div className="px-5 pb-10 md:w-[400px] md:flex-shrink-0 md:border-l md:border-border/60 md:bg-white/60 md:backdrop-blur-sm md:px-6 md:py-8 lg:w-[440px] lg:px-8 xl:w-[480px]">
           {searchForm}
           {searchResults}
           {airportList}
 
-          {/* Trust signals — mobile only (lg shows them in the left panel) */}
+          {/* Trust signals — mobile only (md+ shows them in the left panel) */}
           {!showResults && (
-            <div className="mt-8 lg:hidden">
+            <div className="mt-8 md:hidden">
               <TrustBar />
             </div>
           )}
           {!showResults && (
-            <p className="mt-8 text-center text-xs text-text-muted/60 leading-5 lg:hidden">
+            <p className="mt-8 text-center text-xs text-text-muted/60 leading-5 md:hidden">
               Up to 15 stops per trip. Always the cheapest next hop.
               <br />
               No sign-up required.
