@@ -1,4 +1,5 @@
 import { useState, lazy, Suspense } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
 import { useSavedTripsStore } from '../store/saved-trips.store';
@@ -12,12 +13,12 @@ import { MapErrorBoundary } from '../components/MapErrorBoundary';
 const TripMap = lazy(() => import('../components/TripMap').then((m) => ({ default: m.TripMap })));
 
 export function ItineraryScreen() {
+  const navigate = useNavigate();
   const origin = useTripStore((s) => s.origin);
   const legs = useTripStore((s) => s.legs);
   const itinerary = useTripStore((s) => s.toItinerary());
   const reset = useTripStore((s) => s.reset);
   const resetSession = useSessionStore((s) => s.reset);
-  const setScreen = useSessionStore((s) => s.setScreen);
   const showToast = useSessionStore((s) => s.showToast);
   const showShareModal = useSessionStore((s) => s.showShareModal);
   const saveTrip = useSavedTripsStore((s) => s.saveTrip);
@@ -43,14 +44,14 @@ export function ItineraryScreen() {
   function handleNewTrip() {
     reset();
     resetSession();
-    setScreen('home');
+    navigate('/');
   }
 
   const actionsPanel = (
     <div className="space-y-3">
       <button
         className="btn-primary flex items-center justify-center gap-2"
-        onClick={() => setScreen('booking-review')}
+        onClick={() => navigate('/book')}
       >
         <CreditCard size={16} /> Proceed to booking options
       </button>
@@ -87,7 +88,7 @@ export function ItineraryScreen() {
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
               <button
-                onClick={() => setScreen('return-flights')}
+                onClick={() => navigate('/return')}
                 className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white border border-border hover:bg-indigo-soft hover:border-indigo-border transition-all text-text-muted shrink-0 mt-0.5"
                 aria-label="Back to return flights"
               >

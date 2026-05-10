@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSavedTripsStore, SavedTrip } from '../store/saved-trips.store';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
@@ -83,9 +84,9 @@ function SavedTripCard({
 }
 
 export function AppDrawer({ open, onClose }: Props) {
+  const navigate = useNavigate();
   const { trips, deleteTrip } = useSavedTripsStore();
   const loadFromItinerary = useTripStore((s) => s.loadFromItinerary);
-  const setScreen = useSessionStore((s) => s.setScreen);
   const showToast = useSessionStore((s) => s.showToast);
   const showShareModal = useSessionStore((s) => s.showShareModal);
   const [sharingTripId, setSharingTripId] = useState<string | null>(null);
@@ -103,11 +104,11 @@ export function AppDrawer({ open, onClose }: Props) {
   function handleLoad(trip: SavedTrip) {
     loadFromItinerary(trip.itinerary);
     if (trip.itinerary.status === 'complete') {
-      setScreen('itinerary');
+      navigate('/itinerary');
     } else if (trip.itinerary.legs.length > 0) {
-      setScreen('decision');
+      navigate('/review');
     } else {
-      setScreen('flight-results');
+      navigate('/flights');
     }
     onClose();
   }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
 
@@ -13,13 +14,14 @@ interface GoHomeLogoProps {
 export function GoHomeLogo({ size = 'sm', variant = 'dark', onNavigate }: GoHomeLogoProps) {
   const [showConfirm, setShowConfirm] = useState(false);
 
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
   const origin = useTripStore((s) => s.origin);
   const legs = useTripStore((s) => s.legs);
-  const screen = useSessionStore((s) => s.screen);
   const tripReset = useTripStore((s) => s.reset);
   const sessionReset = useSessionStore((s) => s.reset);
 
-  const tripInProgress = screen !== 'home' && origin !== null;
+  const tripInProgress = pathname !== '/' && origin !== null;
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
 
   const textSize = size === 'lg' ? 'text-[1.4rem]' : 'text-[1.1rem]';
@@ -30,6 +32,7 @@ export function GoHomeLogo({ size = 'sm', variant = 'dark', onNavigate }: GoHome
     onNavigate?.();
     tripReset();
     sessionReset();
+    navigate('/');
   };
 
   const logoContent = (

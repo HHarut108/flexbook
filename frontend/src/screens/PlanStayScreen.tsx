@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
-import { useSessionStore } from '../store/session.store';
 import { apiClient } from '../api/client';
 import { StickyReturnBar } from '../components/StickyReturnBar';
 import { formatShortDate } from '../utils/date.utils';
@@ -158,10 +158,10 @@ async function fetchCountryInfo(countryName: string): Promise<CountryInfo | null
 // ── Main screen ────────────────────────────────────────────────────────────────
 
 export function PlanStayScreen() {
+  const navigate = useNavigate();
   const legs = useTripStore((s) => s.legs);
   const origin = useTripStore((s) => s.origin);
   const passengers = useTripStore((s) => s.passengers);
-  const { setScreen } = useSessionStore();
 
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
   const lastLeg = nonReturnLegs.at(-1)!;
@@ -179,7 +179,7 @@ export function PlanStayScreen() {
   const [practicalOpen, setPracticalOpen] = useState(false);
   const [liveRestaurants, setLiveRestaurants] = useState<Restaurant[] | null>(null);
   const [restaurantsLoading, setRestaurantsLoading] = useState(false);
-  const handleBack = () => setScreen('decision');
+  const handleBack = () => navigate('/review');
 
   const checkin = arrivalDatetime ? arrivalDatetime.slice(0, 10) : undefined;
   const checkout = nextDepartureDate ?? undefined;

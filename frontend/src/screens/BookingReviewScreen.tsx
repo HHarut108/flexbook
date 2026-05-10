@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState, useCallback } from 'react';
 import { TripLeg } from '@fast-travel/shared';
+import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
-import { useSessionStore } from '../store/session.store';
 import { fetchAirlineLogos } from '../api/airlines.api';
 import { formatDate, formatTime, durationLabel } from '../utils/date.utils';
 import { formatPrice, totalPrice } from '../utils/price.utils';
@@ -359,9 +359,9 @@ function PriceBreakdown({ legs }: { legs: TripLeg[] }) {
 /* ── Main Screen ── */
 
 export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?: boolean; onMenuOpen?: () => void } = {}) {
+  const navigate = useNavigate();
   const origin = useTripStore((s) => s.origin);
   const allLegs = useTripStore((s) => s.legs);
-  const setScreen = useSessionStore((s) => s.setScreen);
   const [bulkStarted, setBulkStarted] = useState(false);
   const [bookingConfirm, setBookingConfirm] = useState(false);
   const [assistModalOpen, setAssistModalOpen] = useState(false);
@@ -378,7 +378,7 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
   const travelWindow = formatTravelWindow(orderedLegs);
   const totalFlightTime = totalDurationMinutes(orderedLegs);
 
-  const backScreen = partial ? 'decision' : 'itinerary';
+  const backScreen = partial ? '/review' : '/itinerary';
 
   useEffect(() => {
     let cancelled = false;
@@ -494,7 +494,7 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
         <div className="hero-panel">
           <div className="flex items-start gap-3 mb-4">
             <button
-              onClick={() => setScreen(backScreen)}
+              onClick={() => navigate(backScreen)}
               className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white border border-border hover:bg-indigo-soft hover:border-indigo-border transition-all text-text-muted shrink-0"
               style={{ minHeight: '44px', minWidth: '44px' }}
               aria-label={partial ? 'Back to trip planning' : 'Back to trip overview'}
@@ -570,7 +570,7 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
           <div className="px-4 mt-5 md:hidden">
             <button
               className="btn-outline"
-              onClick={() => setScreen(backScreen)}
+              onClick={() => navigate(backScreen)}
               style={{ minHeight: '44px' }}
             >
               {partial ? 'Back to trip planning' : 'Back to trip overview'}
@@ -629,7 +629,7 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
           <div className="hidden md:block px-0">
             <button
               className="btn-outline"
-              onClick={() => setScreen(backScreen)}
+              onClick={() => navigate(backScreen)}
               style={{ minHeight: '44px' }}
             >
               {partial ? 'Back to trip planning' : 'Back to trip overview'}

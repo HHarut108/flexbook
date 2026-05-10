@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { FlightOption } from '@fast-travel/shared';
+import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
 import { useFlightSearch } from '../hooks/useFlightSearch';
@@ -13,6 +14,7 @@ import { ChevronLeft, ChevronRight, Calendar, RefreshCw, ArrowLeft, Home, Users 
 import { format, addDays, parseISO } from 'date-fns';
 
 export function FlightResultsScreen() {
+  const navigate = useNavigate();
   const origin = useTripStore((s) => s.origin);
   const legs = useTripStore((s) => s.legs);
   const passengers = useTripStore((s) => s.passengers);
@@ -25,7 +27,6 @@ export function FlightResultsScreen() {
     weatherMap,
     setSelectedDate,
     setSelectedFlight,
-    setScreen,
     setPendingFlights,
   } = useSessionStore();
   const { search } = useFlightSearch();
@@ -78,7 +79,7 @@ export function FlightResultsScreen() {
 
   function handleSelect(flight: FlightOption) {
     setSelectedFlight(flight);
-    setScreen('stay-duration');
+    navigate('/stay');
   }
 
   const [stopsFilter, setStopsFilter] = useState<number | null>(0);
@@ -110,7 +111,7 @@ export function FlightResultsScreen() {
   const pagedFlights = filteredFlights.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   function handleBack() {
-    setScreen(isFirstStop ? 'home' : 'decision');
+    navigate(isFirstStop ? '/' : '/review');
   }
 
   return (
@@ -383,7 +384,7 @@ export function FlightResultsScreen() {
         {stopCount > 0 && (
           <div className="mt-6 pt-5 border-t border-border/50">
             <button
-              onClick={() => setScreen('return-flights')}
+              onClick={() => navigate('/return')}
               className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-white/86 border border-border hover:border-indigo-border hover:bg-indigo-soft group shadow-[0_10px_22px_rgba(23,50,77,0.05)] transition-all"
             >
               <div className="text-left">

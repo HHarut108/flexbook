@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
 import { formatPrice, totalPrice } from '../utils/price.utils';
@@ -9,9 +10,10 @@ import { ArrowLeft, Ticket } from 'lucide-react';
 import { getDecisionHeadline } from '../utils/copy.utils';
 
 export function DecisionScreen() {
+  const navigate = useNavigate();
   const legs = useTripStore((s) => s.legs);
   const canContinue = useTripStore((s) => s.canContinue());
-  const { setScreen, setSelectedDate } = useSessionStore();
+  const { setSelectedDate } = useSessionStore();
   const [planVisited, setPlanVisited] = useState(false);
 
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
@@ -22,11 +24,11 @@ export function DecisionScreen() {
     if (lastLeg.nextDepartureDate) {
       setSelectedDate(lastLeg.nextDepartureDate);
     }
-    setScreen('flight-results');
+    navigate('/flights');
   }
 
   function handleGoHome() {
-    setScreen('return-flights');
+    navigate('/return');
   }
 
   return (
@@ -36,7 +38,7 @@ export function DecisionScreen() {
         <div className="hero-panel mb-5">
           <div className="flex items-center gap-3 mb-3">
             <button
-              onClick={() => setScreen('stay-duration')}
+              onClick={() => navigate('/stay')}
               className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white border border-border hover:bg-indigo-soft hover:border-indigo-border transition-all text-text-muted shrink-0"
               aria-label="Back to stay duration"
             >
@@ -82,7 +84,7 @@ export function DecisionScreen() {
               visited={planVisited}
               onTap={() => {
                 setPlanVisited(true);
-                setScreen('plan-stay');
+                navigate('/plan');
               }}
             />
           </div>
@@ -104,7 +106,7 @@ export function DecisionScreen() {
           </button>
           <button
             className="btn-outline flex items-center justify-center gap-2"
-            onClick={() => setScreen('partial-booking')}
+            onClick={() => navigate('/book/partial')}
           >
             <Ticket size={16} /> Get tickets for flights so far
           </button>
