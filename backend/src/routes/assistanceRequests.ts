@@ -1,10 +1,10 @@
 import { FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
 import crypto from 'crypto';
-import { Redis } from '@upstash/redis';
 import { TripLeg } from '@fast-travel/shared';
 import { requireAdminAuth } from '../middleware/requireAdminAuth';
 import { tripCache } from '../utils/tripCache';
-import { config } from '../config';
+import { redis, recordRedisOk, recordRedisError } from '../utils/redisClient';
 
 interface TripData {
   origin?: string;
@@ -23,36 +23,56 @@ interface AssistanceRequest {
   totalPrice: number;
 }
 
-// Redis for persistence; falls back to in-memory when credentials are absent
-let redis: Redis | null = null;
-if (config.UPSTASH_REDIS_REST_URL && config.UPSTASH_REDIS_REST_TOKEN) {
-  redis = new Redis({
-    url: config.UPSTASH_REDIS_REST_URL,
-    token: config.UPSTASH_REDIS_REST_TOKEN,
-  });
-}
+const tripLegSchema = z.object({
+  originIata: z.string().length(3),
+  destinationIata: z.string().length(3),
+  departureDatetime: z.string().min(1),
+  priceUsd: z.number().nonnegative().optional(),
+  isReturn: z.boolean().optional(),
+}).passthrough();
+
+const submitSchema = z.object({
+  fullName: z.string().trim().min(1).max(120),
+  email: z.string().trim().toLowerCase().email().max(254),
+  phone: z.string().trim().min(5).max(40),
+  tripData: z.object({
+    origin: z.string().max(120).optional(),
+    cities: z.array(z.string().max(120)).max(50).default([]),
+    legs: z.array(tripLegSchema).min(1).max(50),
+  }),
+});
 
 const REDIS_LIST_KEY = 'assistance:requests';
 const memRequests: AssistanceRequest[] = [];
 
 async function saveRequest(req: AssistanceRequest): Promise<void> {
   if (redis) {
-    await redis.lpush(REDIS_LIST_KEY, JSON.stringify(req));
-  } else {
-    memRequests.unshift(req); // newest first
+    try {
+      await redis.lpush(REDIS_LIST_KEY, JSON.stringify(req));
+      recordRedisOk();
+      return;
+    } catch (err) {
+      recordRedisError(err);
+    }
   }
+  memRequests.unshift(req); // newest first
 }
 
 async function loadRequests(): Promise<AssistanceRequest[]> {
   if (redis) {
-    const raw = await redis.lrange<string>(REDIS_LIST_KEY, 0, -1);
-    return raw.map((item) => {
-      try {
-        return typeof item === 'string' ? JSON.parse(item) : item;
-      } catch {
-        return item as unknown as AssistanceRequest;
-      }
-    });
+    try {
+      const raw = await redis.lrange<string>(REDIS_LIST_KEY, 0, -1);
+      recordRedisOk();
+      return raw.map((item) => {
+        try {
+          return typeof item === 'string' ? JSON.parse(item) : item;
+        } catch {
+          return item as unknown as AssistanceRequest;
+        }
+      });
+    } catch (err) {
+      recordRedisError(err);
+    }
   }
   return [...memRequests];
 }
@@ -77,21 +97,22 @@ function makeSlug(origin: string | undefined, legs: TripLeg[]): string {
 
 export const assistanceRequestRoutes: FastifyPluginAsync = async (app) => {
   // Public — anyone with a trip plan can submit a request
-  app.post('/assistance-requests', async (req, reply) => {
-    const body = (req.body ?? {}) as Record<string, unknown>;
-
-    const fullName = typeof body.fullName === 'string' ? body.fullName.trim() : '';
-    const email = typeof body.email === 'string' ? body.email.trim() : '';
-    const phone = typeof body.phone === 'string' ? body.phone.trim() : '';
-
-    if (!fullName || !email || !phone) {
-      return reply.status(400).send({ error: 'fullName, email, and phone are required.' });
+  app.post('/assistance-requests', {
+    config: {
+      rateLimit: { max: 5, timeWindow: '1 minute' },
+    },
+  }, async (req, reply) => {
+    const parsed = submitSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      const field = issue?.path.join('.') ?? 'body';
+      return reply.status(400).send({ error: `${field}: ${issue?.message ?? 'Invalid request'}` });
     }
 
-    const rawTripData = (body.tripData ?? {}) as Record<string, unknown>;
-    const legs = Array.isArray(rawTripData.legs) ? (rawTripData.legs as TripLeg[]) : [];
-    const origin = typeof rawTripData.origin === 'string' ? rawTripData.origin : undefined;
-    const cities = Array.isArray(rawTripData.cities) ? (rawTripData.cities as string[]) : [];
+    const { fullName, email, phone, tripData } = parsed.data;
+    const legs = tripData.legs as unknown as TripLeg[];
+    const origin = tripData.origin;
+    const cities = tripData.cities;
 
     // Compute total server-side from actual leg prices
     const totalPrice = legs.reduce((sum, l) => sum + (l.priceUsd ?? 0), 0);

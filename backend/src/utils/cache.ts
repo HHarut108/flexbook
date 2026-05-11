@@ -1,14 +1,5 @@
 import NodeCache from 'node-cache';
-import { Redis } from '@upstash/redis';
-import { config } from '../config';
-
-let redis: Redis | null = null;
-if (config.UPSTASH_REDIS_REST_URL && config.UPSTASH_REDIS_REST_TOKEN) {
-  redis = new Redis({
-    url: config.UPSTASH_REDIS_REST_URL,
-    token: config.UPSTASH_REDIS_REST_TOKEN,
-  });
-}
+import { redis, recordRedisOk, recordRedisError } from './redisClient';
 
 const cache = new NodeCache({ stdTTL: 300, checkperiod: 60 }); // 5-minute TTL
 
@@ -50,14 +41,15 @@ export async function getCacheAsync<T>(key: string): Promise<T | undefined> {
   if (redis) {
     try {
       const raw = await redis.get<string>(key);
+      recordRedisOk();
       if (raw !== undefined && raw !== null) {
         const value: T = typeof raw === 'string' ? JSON.parse(raw) : (raw as T);
         cache.set(key, value);
         bump(key, 'hits');
         return value;
       }
-    } catch {
-      // Redis unavailable — fall through
+    } catch (err) {
+      recordRedisError(err);
     }
   }
   bump(key, 'misses');
@@ -69,14 +61,20 @@ export function setCache<T>(key: string, value: T, ttl?: number): void {
   cache.set(key, value, ttlSeconds);
   bump(key, 'sets');
   if (redis) {
-    redis.set(key, JSON.stringify(value), { ex: ttlSeconds }).catch(() => {});
+    redis
+      .set(key, JSON.stringify(value), { ex: ttlSeconds })
+      .then(() => recordRedisOk())
+      .catch((err) => recordRedisError(err));
   }
 }
 
 export function deleteCache(key: string): void {
   cache.del(key);
   if (redis) {
-    redis.del(key).catch(() => {});
+    redis
+      .del(key)
+      .then(() => recordRedisOk())
+      .catch((err) => recordRedisError(err));
   }
 }
 

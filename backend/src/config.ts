@@ -8,7 +8,6 @@ const envSchema = z.object({
   RAPIDAPI_KEY: z.string().default(''),
   SERPAPI_API_KEY: z.string().default(''),
   OPENWEATHER_API_KEY: z.string().default(''),
-  AIRHEX_API_KEY: z.string().default(''),
   GOOGLE_PLACES_API_KEY: z.string().default(''),
   FRONTEND_URL: z.string().default('https://flexbook-frontend.vercel.app'),
   UPSTASH_REDIS_REST_URL: z.string().default(''),
@@ -27,3 +26,15 @@ if (!parsed.success) {
 }
 
 export const config = parsed.data;
+
+if (config.NODE_ENV === 'production') {
+  const missing: string[] = [];
+  if (!config.ADMIN_SESSION_SECRET) missing.push('ADMIN_SESSION_SECRET');
+  if (!config.ADMIN_PASSWORD) missing.push('ADMIN_PASSWORD');
+  if (missing.length) {
+    console.error(
+      `FATAL: ${missing.join(', ')} must be set in production. Refusing to start.`,
+    );
+    process.exit(1);
+  }
+}

@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { getCache, setCache } from '../utils/cache';
+import { fetchWithTimeout } from '../utils/http';
 
 const TTL = 24 * 60 * 60; // 24 hours
 
@@ -25,8 +26,10 @@ export async function countryInfoRoutes(app: FastifyInstance) {
     if (cached) return reply.send(cached);
 
     try {
-      const res = await fetch(
+      const res = await fetchWithTimeout(
         `https://restcountries.com/v3.1/name/${encodeURIComponent(country)}?fullText=true&fields=flag,flags,currencies,capital,region`,
+        {},
+        8000,
       );
       if (!res.ok) {
         return reply.status(404).send({ error: 'Country not found' });

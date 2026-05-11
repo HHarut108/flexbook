@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { config } from '../config';
+import { redis, recordRedisOk, recordRedisError } from './redisClient';
 
 const TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
@@ -26,11 +27,17 @@ export function verifyToken(token: string): boolean {
 }
 
 function sign(payload: string): string {
-  const secret = config.ADMIN_SESSION_SECRET || 'insecure-default-set-ADMIN_SESSION_SECRET';
-  return createHmac('sha256', secret).update(payload).digest('hex');
+  if (!config.ADMIN_SESSION_SECRET) {
+    // Refuse to sign — would otherwise use a hardcoded fallback and let attackers forge tokens.
+    // Production startup already fails when this is empty; this guard covers test/dev misuse.
+    throw new Error('ADMIN_SESSION_SECRET is not configured');
+  }
+  return createHmac('sha256', config.ADMIN_SESSION_SECRET).update(payload).digest('hex');
 }
 
-// ── Rate limiter (in-memory, per IP) ─────────────────────────────────────────
+// ── Rate limiter ─────────────────────────────────────────────────────────────
+// Redis-backed when available (shared across instances and restart-safe);
+// falls back to in-memory bucket per process when Redis is unreachable.
 
 interface Bucket {
   count: number;
@@ -38,10 +45,31 @@ interface Bucket {
 }
 
 const MAX_ATTEMPTS = 5;
-const BLOCK_MS = 15 * 60 * 1000; // 15 minutes
+const BLOCK_SECONDS = 15 * 60; // 15 minutes
+const ATTEMPT_WINDOW_SECONDS = 15 * 60;
 const buckets = new Map<string, Bucket>();
 
-export function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
+function attemptsKey(ip: string): string {
+  return `admin:login:attempts:${ip}`;
+}
+
+function blockKey(ip: string): string {
+  return `admin:login:blocked:${ip}`;
+}
+
+export async function checkRateLimit(ip: string): Promise<{ allowed: boolean; retryAfter?: number }> {
+  if (redis) {
+    try {
+      const ttl = await redis.ttl(blockKey(ip));
+      recordRedisOk();
+      if (ttl > 0) return { allowed: false, retryAfter: ttl };
+      return { allowed: true };
+    } catch (err) {
+      recordRedisError(err);
+      // Fall through to in-memory bucket
+    }
+  }
+
   const now = Date.now();
   const b = buckets.get(ip);
   if (b && now < b.blockedUntil) {
@@ -50,7 +78,23 @@ export function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: num
   return { allowed: true };
 }
 
-export function recordFailedAttempt(ip: string): void {
+export async function recordFailedAttempt(ip: string): Promise<void> {
+  if (redis) {
+    try {
+      const count = await redis.incr(attemptsKey(ip));
+      if (count === 1) await redis.expire(attemptsKey(ip), ATTEMPT_WINDOW_SECONDS);
+      if (count >= MAX_ATTEMPTS) {
+        await redis.set(blockKey(ip), '1', { ex: BLOCK_SECONDS });
+        await redis.del(attemptsKey(ip));
+      }
+      recordRedisOk();
+      return;
+    } catch (err) {
+      recordRedisError(err);
+      // Fall through to in-memory bucket
+    }
+  }
+
   const now = Date.now();
   const b = buckets.get(ip);
   if (!b || now >= b.blockedUntil) {
@@ -58,11 +102,19 @@ export function recordFailedAttempt(ip: string): void {
   } else {
     b.count += 1;
     if (b.count >= MAX_ATTEMPTS) {
-      b.blockedUntil = now + BLOCK_MS;
+      b.blockedUntil = now + BLOCK_SECONDS * 1000;
     }
   }
 }
 
-export function clearAttempts(ip: string): void {
+export async function clearAttempts(ip: string): Promise<void> {
+  if (redis) {
+    try {
+      await redis.del(attemptsKey(ip), blockKey(ip));
+      recordRedisOk();
+    } catch (err) {
+      recordRedisError(err);
+    }
+  }
   buckets.delete(ip);
 }

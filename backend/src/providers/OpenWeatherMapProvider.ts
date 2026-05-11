@@ -36,7 +36,10 @@ export async function fetchWeather(
     increment('openweathermap');
     const { data: response } = await axios.get<OWMForecastResponse>(
       'https://api.openweathermap.org/data/2.5/forecast',
-      { params: { lat, lon: lng, appid: config.OPENWEATHER_API_KEY, units: 'metric', cnt: 40 } },
+      {
+        params: { lat, lon: lng, appid: config.OPENWEATHER_API_KEY, units: 'metric', cnt: 40 },
+        timeout: 10000,
+      },
     );
 
     // Find the forecast item closest to noon on the target date
@@ -58,7 +61,10 @@ export async function fetchWeather(
   increment('openweathermap');
   const { data: response } = await axios.get<{ main: { temp: number }; weather: Array<{ id: number }> }>(
     'https://api.openweathermap.org/data/2.5/weather',
-    { params: { lat, lon: lng, appid: config.OPENWEATHER_API_KEY, units: 'metric' } },
+    {
+      params: { lat, lon: lng, appid: config.OPENWEATHER_API_KEY, units: 'metric' },
+      timeout: 10000,
+    },
   );
 
   return {

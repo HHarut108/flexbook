@@ -50,7 +50,7 @@ export async function flightRoutes(app: FastifyInstance) {
       }
       if (err instanceof SerpApiResponseError) {
         app.log.error(err, 'SerpAPI returned an error in response body');
-        return reply.status(503).send(fail('FLIGHT_API_ERROR', `SerpAPI error — check API key or quota. Detail: ${err.message}`, true));
+        return reply.status(503).send(fail('FLIGHT_API_ERROR', 'Flight search is temporarily unavailable. Please try again shortly.', true));
       }
       if (err instanceof RapidApiRateLimitError) {
         return reply.status(429).headers({ 'Retry-After': '60' }).send(
@@ -59,7 +59,7 @@ export async function flightRoutes(app: FastifyInstance) {
       }
       if (err instanceof RapidApiAuthError) {
         app.log.error(err, 'RapidAPI auth failure — invalid or missing API key');
-        return reply.status(503).send(fail('FLIGHT_API_AUTH_ERROR', 'RapidAPI key is invalid or missing. Check RAPIDAPI_KEY env var on Render.', true));
+        return reply.status(503).send(fail('FLIGHT_API_AUTH_ERROR', 'Flight search is temporarily unavailable. Please try again shortly.', true));
       }
       if (err instanceof RapidApiUnavailableError) {
         app.log.warn(err, 'RapidAPI temporarily unavailable');

@@ -1,18 +1,9 @@
 import NodeCache from 'node-cache';
 import crypto from 'crypto';
-import { Redis } from '@upstash/redis';
 import { Itinerary } from '@fast-travel/shared';
-import { config } from '../config';
+import { redis, recordRedisOk, recordRedisError } from './redisClient';
 
 const TTL_SECONDS = 2592000; // 30 days
-
-let redis: Redis | null = null;
-if (config.UPSTASH_REDIS_REST_URL && config.UPSTASH_REDIS_REST_TOKEN) {
-  redis = new Redis({
-    url: config.UPSTASH_REDIS_REST_URL,
-    token: config.UPSTASH_REDIS_REST_TOKEN,
-  });
-}
 
 const localCache = new NodeCache({ stdTTL: TTL_SECONDS });
 
@@ -25,22 +16,24 @@ export const tripCache = {
     if (redis) {
       try {
         await redis.set(redisKey(slug), JSON.stringify(itinerary), { ex: TTL_SECONDS });
-      } catch {
-        localCache.set(slug, itinerary);
+        recordRedisOk();
+        return;
+      } catch (err) {
+        recordRedisError(err);
       }
-    } else {
-      localCache.set(slug, itinerary);
     }
+    localCache.set(slug, itinerary);
   },
 
   async get(slug: string): Promise<Itinerary | null> {
     if (redis) {
       try {
         const raw = await redis.get<string>(redisKey(slug));
-        if (!raw) return null;
+        recordRedisOk();
+        if (!raw) return localCache.get<Itinerary>(slug) ?? null;
         return typeof raw === 'string' ? JSON.parse(raw) : (raw as Itinerary);
-      } catch {
-        return localCache.get<Itinerary>(slug) ?? null;
+      } catch (err) {
+        recordRedisError(err);
       }
     }
     return localCache.get<Itinerary>(slug) ?? null;

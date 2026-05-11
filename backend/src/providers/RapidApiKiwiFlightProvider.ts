@@ -1,7 +1,14 @@
 import { FlightOption } from '@fast-travel/shared';
 import axios, { AxiosError } from 'axios';
 import { config } from '../config';
-import { KiwiSearchOptions } from './KiwiFlightProvider';
+
+export interface KiwiSearchOptions {
+  sort?: 'price' | 'duration' | 'quality';
+  maxStopovers?: number;
+  currency?: string;
+  cabinClass?: 'M' | 'W' | 'C' | 'F';
+  passengers?: number;
+}
 
 export class RapidApiRateLimitError extends Error {
   constructor() {

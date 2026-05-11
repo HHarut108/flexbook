@@ -1,6 +1,9 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import rateLimit from '@fastify/rate-limit';
 import { config } from './config';
+import { setRedisLogger } from './utils/redisClient';
+import { setSharedLogger } from './utils/logger';
 import { healthRoutes } from './routes/health';
 import { airportRoutes } from './routes/airports';
 import { flightRoutes } from './routes/flights';
@@ -24,12 +27,26 @@ const app = Fastify({
   },
 });
 
+setRedisLogger(app.log);
+setSharedLogger(app.log);
+
 async function start() {
   const wwwVariant = config.FRONTEND_URL.replace('https://', 'https://www.').replace('https://www.www.', 'https://www.');
   const noWwwVariant = config.FRONTEND_URL.replace('https://www.', 'https://');
+  const corsOrigins = [wwwVariant, noWwwVariant, 'https://flexbook-admin.vercel.app'];
+  if (config.NODE_ENV !== 'production') {
+    corsOrigins.push('http://localhost:5173', 'http://localhost:5176');
+  }
   await app.register(cors, {
-    origin: [wwwVariant, noWwwVariant, 'http://localhost:5173', 'http://localhost:5176', 'https://flexbook-admin.vercel.app'],
+    origin: corsOrigins,
     methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+  });
+
+  await app.register(rateLimit, {
+    global: true,
+    max: 120,
+    timeWindow: '1 minute',
+    allowList: (request) => request.url === '/health',
   });
 
   await app.register(healthRoutes);
