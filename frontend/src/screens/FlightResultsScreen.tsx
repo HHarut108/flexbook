@@ -4,7 +4,7 @@ import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
-import { useFlightSearch } from '../hooks/useFlightSearch';
+import { useFlightResults } from '../hooks/useFlightResults';
 import { useWeatherBatch } from '../hooks/useWeatherBatch';
 import { FlightCard, FlightCardSkeleton } from '../components/FlightCard';
 import { DatePickerOverlay } from '../components/DatePickerOverlay';
@@ -20,17 +20,8 @@ export function FlightResultsScreen() {
   const legs = useTripStore((s) => s.legs);
   const passengers = useTripStore((s) => s.passengers);
   const setPassengers = useTripStore((s) => s.setPassengers);
-  const {
-    selectedDate,
-    pendingFlights,
-    isSearchingFlights,
-    flightError,
-    weatherMap,
-    setSelectedDate,
-    setSelectedFlight,
-    setPendingFlights,
-  } = useSessionStore();
-  const { search } = useFlightSearch();
+  const { selectedDate, weatherMap, setSelectedDate, setSelectedFlight } = useSessionStore();
+  const { flights: pendingFlights, isLoading: isSearchingFlights, error: flightError, search, reset: resetFlights } = useFlightResults();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const [localDate, setLocalDate] = useState(selectedDate ?? format(addDays(new Date(), 1), 'yyyy-MM-dd'));
   const [showCalendar, setShowCalendar] = useState(false);
@@ -54,11 +45,10 @@ export function FlightResultsScreen() {
 
   // Clear stale results and reset filter when changing origin city
   useEffect(() => {
-    setPendingFlights([]);
+    resetFlights();
     setStopsFilter(0);
     setCurrentPage(1);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIata]);
+  }, [currentIata, resetFlights]);
 
   // Reset filter and page when date changes
   useEffect(() => {
