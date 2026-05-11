@@ -3,8 +3,7 @@ import { FlightOption } from '@fast-travel/shared';
 import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
-import { useSessionStore } from '../store/session.store';
-import { useFlightSearch } from '../hooks/useFlightSearch';
+import { useFlightResults } from '../hooks/useFlightResults';
 import { DatePickerOverlay } from '../components/DatePickerOverlay';
 import { ReturnFlightCard, ReturnFlightCardSkeleton } from '../components/ReturnFlightCard';
 import { TripTimeline } from '../components/TripTimeline';
@@ -30,8 +29,7 @@ export function ReturnFlightsScreen() {
   const tripTotal = totalPrice(outboundLegs);
 
   const navigate = useNavigate();
-  const { pendingFlights, isSearchingFlights, flightError } = useSessionStore();
-  const { search } = useFlightSearch();
+  const { flights: pendingFlights, isLoading: isSearchingFlights, error: flightError, search } = useFlightResults();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const [localDate, setLocalDate] = useState(
     nextDeparture ?? format(addDays(new Date(), 1), 'yyyy-MM-dd'),

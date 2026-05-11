@@ -56,6 +56,30 @@ export default defineConfig({
               expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
             },
           },
+          {
+            urlPattern: /\/api\/airports\//i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'airports-cache',
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7 },
+            },
+          },
+          {
+            urlPattern: /\/api\/airlines\//i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'airlines-cache',
+              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 7 },
+            },
+          },
+          {
+            urlPattern: /\/api\/country-info/i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'country-info-cache',
+              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
+          },
         ],
       },
     }),
