@@ -175,50 +175,78 @@ describe('FlightService.search — priceInfo', () => {
     expect(flights[0].priceInfo!.priceStatus).toBe('cached');
   });
 
-  it('returns stale priceInfo with zero-price fallback when price entry is evicted from cache', async () => {
-    const flightId = 'STALE-PRICE-FALLBACK';
+  it('falls through to a live fetch when all cached price entries are evicted', async () => {
+    const flightId = 'EVICTED-PRICE-LIVE-REFETCH';
     const svc = new FlightService();
     mockFetch.mockResolvedValue([makeFlight({ flightId, destinationIata: 'OSL', priceUsd: 180 })]);
 
     // First search — both caches populated
     await svc.search('LHR', 'London', '2030-10-03');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
 
-    // Simulate price cache expiry (e.g. memory restart, TTL shorter than schedule)
+    // Simulate price cache expiry (e.g. memory restart, TTL shorter than schedule).
+    // The single cached flight now has no price, so the cached path would yield zero
+    // results — the service must fall through to a live fetch instead of returning $0.
     deleteCache(priceKey(flightId));
 
-    // Second search — schedule hits, price misses → returns stale sentinel values
     const { flights, cacheStatus } = await svc.search('LHR', 'London', '2030-10-03');
-    expect(cacheStatus).toBe('schedule_cached');
-    expect(flights[0].priceInfo!.priceStatus).toBe('stale');
-    expect(flights[0].priceUsd).toBe(0);       // sentinel: price unknown
-    expect(flights[0].bookingUrl).toBe('');    // sentinel: booking link unknown
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(cacheStatus).toBe('live');
+    expect(flights[0].priceUsd).toBe(180);
+    expect(flights[0].priceInfo!.priceStatus).toBe('live');
   });
 
-  it('triggers background refresh when prices are stale and repopulates for the next request', async () => {
-    const flightId = 'BACKGROUND-REFRESH';
+  it('drops cached flights with missing prices but keeps the rest', async () => {
+    const keepId = 'KEEP-PRICED';
+    const dropId = 'DROP-MISSING-PRICE';
     const svc = new FlightService();
-    mockFetch.mockResolvedValue([makeFlight({ flightId, destinationIata: 'CPH', priceUsd: 210 })]);
+    mockFetch.mockResolvedValue([
+      makeFlight({ flightId: keepId, destinationIata: 'OSL', priceUsd: 180 }),
+      makeFlight({ flightId: dropId, destinationIata: 'CPH', priceUsd: 220 }),
+    ]);
 
-    // First search — populates schedule + price (provider call #1)
+    await svc.search('LHR', 'London', '2030-10-06');
+    deleteCache(priceKey(dropId));
+
+    const { flights, cacheStatus } = await svc.search('LHR', 'London', '2030-10-06');
+    expect(cacheStatus).toBe('schedule_cached');
+    expect(flights).toHaveLength(1);
+    expect(flights[0].flightId).toBe(keepId);
+    expect(flights[0].priceUsd).toBe(180);
+    // Background refresh should have been triggered to repopulate the missing price.
+    await new Promise<void>((resolve) => setTimeout(resolve, 50));
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('triggers background refresh when a price is missing and repopulates for the next request', async () => {
+    const keepId = 'BG-REFRESH-KEEP';
+    const evictId = 'BG-REFRESH-EVICT';
+    const svc = new FlightService();
+    mockFetch.mockResolvedValue([
+      makeFlight({ flightId: keepId, destinationIata: 'CPH', priceUsd: 210 }),
+      makeFlight({ flightId: evictId, destinationIata: 'OSL', priceUsd: 175 }),
+    ]);
+
+    // First search — populates schedule + prices (provider call #1)
     await svc.search('LHR', 'London', '2030-10-04');
     expect(mockFetch).toHaveBeenCalledTimes(1);
 
-    // Evict price so the next schedule-cache hit triggers a background refresh
-    deleteCache(priceKey(flightId));
+    // Evict one price so the next schedule-cache hit returns the remaining
+    // priced flight and fires a background refresh for the missing one.
+    deleteCache(priceKey(evictId));
 
-    // Second search — returns stale data but fires refresh in background (provider call #2)
-    const staleResult = await svc.search('LHR', 'London', '2030-10-04');
-    expect(staleResult.flights[0].priceInfo!.priceStatus).toBe('stale');
+    const partial = await svc.search('LHR', 'London', '2030-10-04');
+    expect(partial.cacheStatus).toBe('schedule_cached');
+    expect(partial.flights).toHaveLength(1);
+    expect(partial.flights[0].flightId).toBe(keepId);
 
     // Let the background refresh microtask + async provider call complete.
-    // The refresh is scheduled via Promise.resolve().then(), so a single setTimeout(0)
-    // pushes past all queued microtasks and lets the mock provider resolve.
     await new Promise<void>((resolve) => setTimeout(resolve, 50));
     expect(mockFetch).toHaveBeenCalledTimes(2);
 
-    // Third search — price cache is repopulated; should now return 'cached'
+    // Third search — price cache is repopulated; should now return both flights as 'cached'
     const freshResult = await svc.search('LHR', 'London', '2030-10-04');
-    expect(freshResult.flights[0].priceInfo!.priceStatus).toBe('cached');
-    expect(freshResult.flights[0].priceUsd).toBe(210);
+    expect(freshResult.flights).toHaveLength(2);
+    expect(freshResult.flights.every((f) => f.priceInfo!.priceStatus === 'cached')).toBe(true);
   });
 });

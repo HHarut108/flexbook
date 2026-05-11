@@ -95,29 +95,27 @@ function storePricesAndAttach(
   });
 }
 
-async function attachCachedPrices(entries: ScheduleEntry[]): Promise<{ flights: FlightOption[]; hasStale: boolean }> {
+async function attachCachedPrices(
+  entries: ScheduleEntry[],
+): Promise<{ flights: FlightOption[]; hasStale: boolean; hasMissing: boolean }> {
   let hasStale = false;
-  const flights: FlightOption[] = await Promise.all(entries.map(async (entry) => {
+  let hasMissing = false;
+  const resolved = await Promise.all(entries.map(async (entry) => {
     const priceInfo = await getPriceInfo(entry.flightId);
-    if (!priceInfo || priceInfo.priceStatus === 'stale') hasStale = true;
-
-    const resolvedPriceInfo = priceInfo ?? {
-      amount: 0,
-      currency: 'USD',
-      provider: 'unknown',
-      deeplink: '',
-      priceUpdatedAt: new Date(0).toISOString(),
-      priceStatus: 'stale' as const,
-    };
-
+    if (!priceInfo) {
+      hasMissing = true;
+      return null;
+    }
+    if (priceInfo.priceStatus === 'stale') hasStale = true;
     return {
       ...entry,
-      priceUsd: resolvedPriceInfo.amount,
-      bookingUrl: resolvedPriceInfo.deeplink,
-      priceInfo: resolvedPriceInfo,
-    };
+      priceUsd: priceInfo.amount,
+      bookingUrl: priceInfo.deeplink,
+      priceInfo,
+    } as FlightOption;
   }));
-  return { flights, hasStale };
+  const flights = resolved.filter((f): f is FlightOption => f !== null);
+  return { flights, hasStale, hasMissing };
 }
 
 export class FlightService {
@@ -134,11 +132,15 @@ export class FlightService {
 
     const cachedSchedule = await getScheduleCache(originIata, date, destinationIata);
     if (cachedSchedule) {
-      const { flights, hasStale } = await attachCachedPrices(cachedSchedule);
-      if (hasStale) {
-        this.refreshInBackground({ originIata, originCity, date, destinationIata, chain, options, deduplicate });
+      const { flights, hasStale, hasMissing } = await attachCachedPrices(cachedSchedule);
+      // Fall through to a live fetch when no flights remain after dropping
+      // entries with no cached price — otherwise the user sees an empty list.
+      if (flights.length > 0) {
+        if (hasStale || hasMissing) {
+          this.refreshInBackground({ originIata, originCity, date, destinationIata, chain, options, deduplicate });
+        }
+        return { flights, cacheStatus: 'schedule_cached' };
       }
-      return { flights, cacheStatus: 'schedule_cached' };
     }
 
     const { raw, usedProvider } = await this.callWithFallback(
