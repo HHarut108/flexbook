@@ -63,6 +63,15 @@
         "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/tender-torvalds-0e711e/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5181"
       ],
       "port": 5181
+    },
+    {
+      "name": "Frontend-silly (Vite :5184)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/silly-hoover-0b1c5f/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5184"
+      ],
+      "port": 5184
     }
   ]
 }

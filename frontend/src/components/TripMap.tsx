@@ -94,11 +94,48 @@ function computeArc(from: [number, number], to: [number, number], flipCurve = fa
 
 function AutoFit({ pins }: { pins: MapPin[] }) {
   const map = useMap();
+  // Depend on a stringified key so we only refit when coords actually change.
+  const coordsKey = pins.map((p) => `${p.lat.toFixed(3)},${p.lng.toFixed(3)}`).join('|');
   useEffect(() => {
     if (pins.length === 0) return;
     const bounds = L.latLngBounds(pins.map((p) => [p.lat, p.lng]));
     map.fitBounds(bounds, { padding: [60, 60], maxZoom: 6 });
-  }, [map, pins]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, coordsKey]);
+  return null;
+}
+
+/* ── Keep Leaflet in sync with container size ──
+ *
+ * Without this, tiles render gray / misaligned whenever the wrapper resizes
+ * after mount: window resize, sticky sidebar settling, fonts loading,
+ * tab visibility flip, mobile rotation. invalidateSize() forces a re-layout. */
+
+function SizeWatcher() {
+  const map = useMap();
+  useEffect(() => {
+    const container = map.getContainer();
+    // Initial nudge — covers the case where the map mounted while the parent
+    // was still being sized (e.g. inside a Suspense boundary that just resolved
+    // or a sticky sidebar that hasn't laid out yet).
+    const initial = setTimeout(() => map.invalidateSize({ animate: false }), 50);
+
+    const ro = new ResizeObserver(() => {
+      map.invalidateSize({ animate: false });
+    });
+    ro.observe(container);
+
+    const onWinResize = () => map.invalidateSize({ animate: false });
+    window.addEventListener('resize', onWinResize);
+    window.addEventListener('orientationchange', onWinResize);
+
+    return () => {
+      clearTimeout(initial);
+      ro.disconnect();
+      window.removeEventListener('resize', onWinResize);
+      window.removeEventListener('orientationchange', onWinResize);
+    };
+  }, [map]);
   return null;
 }
 
@@ -135,7 +172,8 @@ interface Props {
 }
 
 export function TripMap({ origin, legs }: Props) {
-  const { pins, lines } = buildMapData(origin, legs);
+  // Memoize so AutoFit / arc useMemo don't refire on every parent render.
+  const { pins, lines } = useMemo(() => buildMapData(origin, legs), [origin, legs]);
 
   // Pre-compute arcs for all lines (must be before early return — hooks rule)
   const arcs = useMemo(
@@ -166,6 +204,7 @@ export function TripMap({ origin, legs }: Props) {
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
         />
+        <SizeWatcher />
         <AutoFit pins={pins} />
 
         {/* Glow underline for arcs (rendered first, behind) */}
