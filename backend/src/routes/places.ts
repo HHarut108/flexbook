@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { config } from '../config';
 import { ok, fail } from '../utils/response';
 import { increment } from '../utils/apiMetrics';
+import { fetchWithTimeout } from '../utils/http';
+import { PRICE_LEVEL_LABEL } from '../utils/priceLevel';
 
 const querySchema = z.object({
   city: z.string().min(1).max(100),
@@ -18,14 +20,6 @@ interface GooglePlace {
   userRatingCount?: number;
   location?: { latitude: number; longitude: number };
 }
-
-const PRICE_MAP: Record<string, string> = {
-  PRICE_LEVEL_FREE: 'Free',
-  PRICE_LEVEL_INEXPENSIVE: '€',
-  PRICE_LEVEL_MODERATE: '€€',
-  PRICE_LEVEL_EXPENSIVE: '€€€',
-  PRICE_LEVEL_VERY_EXPENSIVE: '€€€€',
-};
 
 export async function placesRoutes(app: FastifyInstance) {
   app.get('/restaurants', async (request, reply) => {
@@ -44,7 +38,7 @@ export async function placesRoutes(app: FastifyInstance) {
       const query = country ? `restaurants in ${city}, ${country}` : `restaurants in ${city}`;
 
       increment('google-places');
-      const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      const res = await fetchWithTimeout('https://places.googleapis.com/v1/places:searchText', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -61,8 +55,7 @@ export async function placesRoutes(app: FastifyInstance) {
       });
 
       if (!res.ok) {
-        const err = await res.text();
-        app.log.error({ status: res.status, err }, 'Google Places API error');
+        app.log.error({ status: res.status }, 'Google Places API error');
         return reply.status(502).send(fail('PLACES_API_ERROR', 'Could not fetch restaurants'));
       }
 
@@ -75,13 +68,13 @@ export async function placesRoutes(app: FastifyInstance) {
         description:
           [
             p.rating ? `Rated ${p.rating}/5` : null,
-            p.priceLevel ? PRICE_MAP[p.priceLevel] : null,
+            p.priceLevel ? PRICE_LEVEL_LABEL[p.priceLevel] : null,
           ]
             .filter(Boolean)
             .join(' · ') || 'Local favourite',
         rating: p.rating,
         reviewCount: p.userRatingCount ?? null,
-        priceLevel: p.priceLevel ? PRICE_MAP[p.priceLevel] : undefined,
+        priceLevel: p.priceLevel ? PRICE_LEVEL_LABEL[p.priceLevel] : undefined,
         lat: p.location?.latitude ?? null,
         lng: p.location?.longitude ?? null,
       }));

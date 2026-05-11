@@ -117,6 +117,7 @@ export async function fetchSerpApiFlights(
         hl: 'en',
         api_key: config.SERPAPI_API_KEY,
       },
+      timeout: 15000,
     });
     response = data;
   } catch (err) {

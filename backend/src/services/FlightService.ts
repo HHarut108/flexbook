@@ -1,11 +1,11 @@
 import { FlightOption } from '@fast-travel/shared';
 import { config } from '../config';
-import { KiwiSearchOptions } from '../providers/KiwiFlightProvider';
-import { fetchRapidApiKiwiFlights } from '../providers/RapidApiKiwiFlightProvider';
+import { fetchRapidApiKiwiFlights, KiwiSearchOptions } from '../providers/RapidApiKiwiFlightProvider';
 import { fetchSerpApiFlights, fetchSerpApiOpenFlights } from '../providers/SerpApiFlightProvider';
 import { fetchMockFlights } from '../providers/MockFlightProvider';
 import { airportService } from './AirportService';
 import { increment, CallType } from '../utils/apiMetrics';
+import { log } from '../utils/logger';
 import {
   ScheduleEntry,
   getScheduleCache,
@@ -185,8 +185,9 @@ export class FlightService {
       } catch (err) {
         lastError = err;
         if (i < chain.length - 1) {
-          console.warn(
-            `[FlightService] Provider "${provider}" failed (${err instanceof Error ? err.message : err}), trying "${chain[i + 1]}"`,
+          log().warn(
+            { provider, nextProvider: chain[i + 1], err: err instanceof Error ? err.message : err },
+            'FlightService provider failed, falling back',
           );
         }
       }
@@ -231,24 +232,18 @@ export class FlightService {
     deduplicate: boolean;
   }): void {
     const { originIata, originCity, date, destinationIata, chain, options, deduplicate } = params;
-    Promise.resolve()
-      .then(async () => {
-        try {
-          console.log(`[flightCache] background refresh start ${originIata}:${date}`);
-          const { raw, usedProvider } = await this.callWithFallback(
-            chain, originIata, originCity, date, destinationIata, options,
-          );
-          const processed = this.processFlights(raw, originIata, deduplicate);
-          setScheduleCache(originIata, date, processed.map(toScheduleEntry), destinationIata);
-          storePricesAndAttach(processed, usedProvider, date);
-          console.log(`[flightCache] background refresh done ${originIata}:${date}`);
-        } catch (err) {
-          console.warn(`[flightCache] background refresh failed ${originIata}:${date}`, err);
-        }
-      })
-      .catch((err) => {
-        console.warn(`[flightCache] background refresh uncaught ${originIata}:${date}`, err);
-      });
+    void (async () => {
+      try {
+        const { raw, usedProvider } = await this.callWithFallback(
+          chain, originIata, originCity, date, destinationIata, options,
+        );
+        const processed = this.processFlights(raw, originIata, deduplicate);
+        setScheduleCache(originIata, date, processed.map(toScheduleEntry), destinationIata);
+        storePricesAndAttach(processed, usedProvider, date);
+      } catch (err) {
+        log().warn({ originIata, date, err }, 'flightCache background refresh failed');
+      }
+    })();
   }
 }
 

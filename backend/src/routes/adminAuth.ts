@@ -7,7 +7,7 @@ export async function adminAuthRoutes(app: FastifyInstance) {
   app.post('/admin/login', async (request, reply) => {
     const ip = request.ip;
 
-    const rate = checkRateLimit(ip);
+    const rate = await checkRateLimit(ip);
     if (!rate.allowed) {
       return reply
         .status(429)
@@ -32,12 +32,12 @@ export async function adminAuthRoutes(app: FastifyInstance) {
     }
 
     if (!match) {
-      recordFailedAttempt(ip);
+      await recordFailedAttempt(ip);
       // Same message whether wrong password or empty — no enumeration
       return reply.status(401).send({ error: 'Invalid password.' });
     }
 
-    clearAttempts(ip);
+    await clearAttempts(ip);
     return { token: createToken() };
   });
 }

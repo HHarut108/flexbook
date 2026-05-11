@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { config } from '../config';
 import { ok, fail } from '../utils/response';
 import { increment } from '../utils/apiMetrics';
+import { fetchWithTimeout } from '../utils/http';
+import { PRICE_LEVEL_LABEL, PRICE_LEVEL_ORDER } from '../utils/priceLevel';
 
 const querySchema = z.object({
   city: z.string().min(1).max(100),
@@ -12,14 +14,6 @@ const querySchema = z.object({
   passengers: z.coerce.number().int().min(1).max(9).default(1),
   nights: z.coerce.number().int().min(1).max(14).optional(),
 });
-
-const PRICE_MAP: Record<string, string> = {
-  PRICE_LEVEL_FREE: 'free',
-  PRICE_LEVEL_INEXPENSIVE: '€',
-  PRICE_LEVEL_MODERATE: '€€',
-  PRICE_LEVEL_EXPENSIVE: '€€€',
-  PRICE_LEVEL_VERY_EXPENSIVE: '€€€€',
-};
 
 const ICON_BY_TYPE: [string, string][] = [
   ['museum', 'Building2'],
@@ -88,8 +82,10 @@ async function geocodeCity(
 ): Promise<{ lat: number; lon: number } | null> {
   try {
     const q = country ? `${city},${country}` : city;
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(q)}&limit=1&appid=${apiKey}`,
+      {},
+      8000,
     );
     if (!res.ok) return null;
     const data = (await res.json()) as Array<{ lat: number; lon: number }>;
@@ -116,7 +112,7 @@ async function searchPlaces(
   };
   if (locationBias) body.locationBias = locationBias;
 
-  const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+  const res = await fetchWithTimeout('https://places.googleapis.com/v1/places:searchText', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -126,8 +122,7 @@ async function searchPlaces(
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Places API ${res.status}: ${err}`);
+    throw new Error(`Places API ${res.status}`);
   }
   const json = (await res.json()) as { places?: GooglePlace[] };
   return json.places ?? [];
@@ -139,7 +134,7 @@ function toPlaceItem(p: GooglePlace): PlaceItem {
     type: p.primaryTypeDisplayName?.text ?? '',
     rating: p.rating ?? null,
     reviewCount: p.userRatingCount ?? null,
-    priceLevel: p.priceLevel ? (PRICE_MAP[p.priceLevel] ?? null) : null,
+    priceLevel: p.priceLevel ? (PRICE_LEVEL_LABEL[p.priceLevel] ?? null) : null,
     address: p.formattedAddress ?? null,
     lat: p.location?.latitude ?? null,
     lng: p.location?.longitude ?? null,
@@ -263,13 +258,6 @@ export async function cityGuideRoutes(app: FastifyInstance) {
         ),
       ]);
 
-      const PRICE_LEVEL_ORDER: Record<string, number> = {
-        PRICE_LEVEL_INEXPENSIVE: 1,
-        PRICE_LEVEL_MODERATE: 2,
-        PRICE_LEVEL_EXPENSIVE: 3,
-        PRICE_LEVEL_VERY_EXPENSIVE: 4,
-      };
-
       const hotels = hotelPlaces
         .slice(0, 6)
         .map((p) => {
@@ -288,7 +276,7 @@ export async function cityGuideRoutes(app: FastifyInstance) {
           return {
             name: p.displayName?.text ?? 'Hotel',
             neighborhood,
-            priceLevel: p.priceLevel ? (PRICE_MAP[p.priceLevel] ?? null) : null,
+            priceLevel: p.priceLevel ? (PRICE_LEVEL_LABEL[p.priceLevel] ?? null) : null,
             priceLevelOrder: p.priceLevel ? (PRICE_LEVEL_ORDER[p.priceLevel] ?? 99) : 99,
             why: p.rating ? `Rated ${p.rating.toFixed(1)}/5 by guests.` : 'Well-reviewed hotel in the city.',
             bookingUrl: `https://www.booking.com/searchresults.html?${bookingParams.toString()}`,
@@ -303,7 +291,7 @@ export async function cityGuideRoutes(app: FastifyInstance) {
       const activities = attractionPlaces.map((p, i) => ({
         name: p.displayName?.text ?? 'Attraction',
         duration: '1–2 hours',
-        cost: (p.priceLevel ? PRICE_MAP[p.priceLevel] : 'free') as 'free' | '€' | '€€' | '€€€',
+        cost: (p.priceLevel ? PRICE_LEVEL_LABEL[p.priceLevel] : 'free') as 'free' | '€' | '€€' | '€€€',
         note: undefined,
         rating: p.rating ?? null,
         reviewCount: p.userRatingCount ?? null,
@@ -318,12 +306,12 @@ export async function cityGuideRoutes(app: FastifyInstance) {
         description:
           [
             p.rating ? `Rated ${p.rating.toFixed(1)}/5` : null,
-            p.priceLevel ? PRICE_MAP[p.priceLevel] : null,
+            p.priceLevel ? PRICE_LEVEL_LABEL[p.priceLevel] : null,
           ]
             .filter(Boolean)
             .join(' · ') || 'Local favourite',
         rating: p.rating,
-        priceLevel: p.priceLevel ? PRICE_MAP[p.priceLevel] : undefined,
+        priceLevel: p.priceLevel ? PRICE_LEVEL_LABEL[p.priceLevel] : undefined,
       }));
 
       const doCategories = {

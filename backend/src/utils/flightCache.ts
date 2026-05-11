@@ -1,5 +1,6 @@
 import { PriceInfo, PriceStatus } from '@fast-travel/shared';
 import { getCacheAsync, setCache } from './cache';
+import { log } from './logger';
 
 // ---------- Types ----------
 
@@ -89,10 +90,10 @@ export async function getScheduleCache(
   const key = scheduleKey(originIata, date, destinationIata);
   try {
     const result = await getCacheAsync<ScheduleEntry[]>(key);
-    console.log(`[flightCache] schedule ${result ? 'HIT' : 'MISS'} ${key}`);
+    log().debug({ key, hit: !!result }, 'flightCache schedule read');
     return result;
   } catch (err) {
-    console.warn(`[flightCache] schedule read failed, treating as MISS ${key}`, err);
+    log().warn({ key, err }, 'flightCache schedule read failed, treating as MISS');
     return undefined;
   }
 }
@@ -106,14 +107,14 @@ export function setScheduleCache(
   const key = scheduleKey(originIata, date, destinationIata);
   const ttl = scheduleTtlSeconds(date);
   if (ttl === null) {
-    console.log(`[flightCache] schedule SKIP ${key} (past date)`);
+    log().debug({ key }, 'flightCache schedule SKIP (past date)');
     return;
   }
   try {
-    console.log(`[flightCache] schedule SET ${key} ttl=${ttl}s entries=${entries.length}`);
+    log().debug({ key, ttl, entries: entries.length }, 'flightCache schedule SET');
     setCache(key, entries, ttl);
   } catch (err) {
-    console.warn(`[flightCache] schedule write failed, continuing without cache ${key}`, err);
+    log().warn({ key, err }, 'flightCache schedule write failed, continuing without cache');
   }
 }
 
@@ -124,7 +125,7 @@ export async function getPriceInfo(flightId: string): Promise<PriceInfo | undefi
   try {
     const entry = await getCacheAsync<PriceCacheEntry>(key);
     if (!entry) {
-      console.log(`[flightCache] price MISS ${key}`);
+      log().debug({ key }, 'flightCache price MISS');
       return undefined;
     }
 
@@ -133,9 +134,9 @@ export async function getPriceInfo(flightId: string): Promise<PriceInfo | undefi
     // Stale entries remain in cache to support stale-while-revalidate — the caller triggers a
     // background refresh and returns the stale data immediately rather than blocking.
     const status: PriceStatus = ageSeconds > entry.softTtlSeconds ? 'stale' : 'cached';
-    console.log(
-      `[flightCache] price ${status === 'stale' ? 'STALE' : 'HIT'} ${key}` +
-        ` (age=${Math.round(ageSeconds)}s softTtl=${entry.softTtlSeconds}s)`,
+    log().debug(
+      { key, status, ageSeconds: Math.round(ageSeconds), softTtl: entry.softTtlSeconds },
+      'flightCache price read',
     );
 
     return {
@@ -147,7 +148,7 @@ export async function getPriceInfo(flightId: string): Promise<PriceInfo | undefi
       priceStatus: status,
     };
   } catch (err) {
-    console.warn(`[flightCache] price read failed, treating as MISS ${key}`, err);
+    log().warn({ key, err }, 'flightCache price read failed, treating as MISS');
     return undefined;
   }
 }
@@ -171,9 +172,9 @@ export function setPriceInfo(
   };
 
   try {
-    console.log(`[flightCache] price SET ${key} softTtl=${softTtl}s hardTtl=${hardTtl}s`);
+    log().debug({ key, softTtl, hardTtl }, 'flightCache price SET');
     setCache(key, entry, hardTtl);
   } catch (err) {
-    console.warn(`[flightCache] price write failed, continuing without cache ${key}`, err);
+    log().warn({ key, err }, 'flightCache price write failed, continuing without cache');
   }
 }

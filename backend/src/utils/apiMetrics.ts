@@ -1,5 +1,4 @@
-import { Redis } from '@upstash/redis';
-import { config } from '../config';
+import { redis, recordRedisOk, recordRedisError } from './redisClient';
 
 export type CallType = 'primary' | 'fallback';
 
@@ -7,14 +6,6 @@ export const startedAt = new Date().toISOString();
 
 // Always-on in-memory session counter (tracks since process start, regardless of Redis)
 const sessionCounts = new Map<string, number>();
-
-let redis: Redis | null = null;
-if (config.UPSTASH_REDIS_REST_URL && config.UPSTASH_REDIS_REST_TOKEN) {
-  redis = new Redis({
-    url: config.UPSTASH_REDIS_REST_URL,
-    token: config.UPSTASH_REDIS_REST_TOKEN,
-  });
-}
 
 function todayKey(): string {
   return `api:calls:${new Date().toISOString().slice(0, 10)}`;
@@ -24,7 +15,10 @@ export function increment(service: string, type: CallType = 'primary'): void {
   const field = `${service}:${type}`;
   sessionCounts.set(field, (sessionCounts.get(field) ?? 0) + 1);
   if (redis) {
-    redis.hincrby(todayKey(), field, 1).catch(() => {});
+    redis
+      .hincrby(todayKey(), field, 1)
+      .then(() => recordRedisOk())
+      .catch((err) => recordRedisError(err));
   }
 }
 

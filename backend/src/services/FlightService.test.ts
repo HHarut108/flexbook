@@ -3,18 +3,15 @@ import { FlightOption } from '@fast-travel/shared';
 import { deleteCache } from '../utils/cache';
 import { priceKey } from '../utils/flightCache';
 
-vi.mock('../providers/KiwiFlightProvider', async (importOriginal) => {
-  const orig = await importOriginal<typeof import('../providers/KiwiFlightProvider')>();
-  return { ...orig, fetchKiwiFlights: vi.fn() };
-});
 vi.mock('../providers/MockFlightProvider', () => ({
   fetchMockFlights: vi.fn(),
 }));
 vi.mock('../config', () => ({
   config: {
     KIWI_API_KEY: '',
+    RAPIDAPI_KEY: '',
+    SERPAPI_API_KEY: '',
     OPENWEATHER_API_KEY: '',
-    AIRHEX_API_KEY: '',
     PORT: 3000,
     NODE_ENV: 'test',
     FRONTEND_URL: 'http://localhost:5173',

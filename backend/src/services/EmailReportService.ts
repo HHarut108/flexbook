@@ -8,7 +8,6 @@ const SERVICE_LABELS: Record<string, string> = {
   'serpapi': 'SerpAPI (Google Flights)',
   'openweathermap': 'OpenWeatherMap',
   'google-places': 'Google Places',
-  'airhex': 'Airhex (Airline Logos)',
 };
 
 function formatDate(d: string): string {
