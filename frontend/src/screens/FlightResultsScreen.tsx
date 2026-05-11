@@ -171,16 +171,16 @@ export function FlightResultsScreen() {
             </div>
           </button>
 
-          {/* Desktop: scrollable 5-day ribbon centred on the active date */}
-          <div className="hidden lg:flex flex-1 min-w-0 gap-1.5 overflow-x-auto scrollbar-none snap-x snap-mandatory scroll-smooth">
-            {[-2, -1, 0, 1, 2].map((offset) => {
+          {/* Desktop: 3-day ribbon centred on the active date — fits the narrow panel */}
+          <div className="hidden lg:flex flex-1 min-w-0 gap-1.5">
+            {[-1, 0, 1].map((offset) => {
               const d = format(addDays(parseISO(localDate), offset), 'yyyy-MM-dd');
-              const isActive = d === localDate;
+              const isActive = offset === 0;
               return (
                 <button
                   key={offset}
                   onClick={() => { setLocalDate(d); setSelectedDate(d); }}
-                  className={`flex-1 min-w-[58px] snap-center rounded-2xl px-1.5 py-2 transition-all shadow-[0_4px_12px_rgba(23,50,77,0.05)] flex flex-col items-center justify-center leading-tight ${
+                  className={`flex-1 min-w-0 rounded-2xl px-1.5 py-2 transition-all shadow-[0_4px_12px_rgba(23,50,77,0.05)] flex flex-col items-center justify-center leading-tight ${
                     isActive
                       ? 'bg-indigo text-white border border-indigo'
                       : 'bg-white/75 border border-white/80 text-text-muted hover:border-indigo-mid hover:text-indigo-mid'
