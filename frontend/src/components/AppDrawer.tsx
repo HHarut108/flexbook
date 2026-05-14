@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useSavedTripsStore, SavedTrip } from '../store/saved-trips.store';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
+import { useAuthStore } from '../store/auth.store';
+import { authApi } from '../api/auth.api';
 import { buildSlugShareUrl } from '../utils/url.utils';
 import { createTripShare } from '../api/trips.api';
 import { formatPrice } from '../utils/price.utils';
 import { useThemeStore } from '../store/theme.store';
-import { X, MapPin, Share2, Trash2, Plane, BookmarkCheck, Loader2, Sun, Moon } from 'lucide-react';
+import { X, MapPin, Share2, Trash2, Plane, BookmarkCheck, Loader2, Sun, Moon, User, LogOut, ChevronRight } from 'lucide-react';
 import { GoHomeLogo } from './GoHomeLogo';
 
 interface Props {
@@ -91,7 +93,19 @@ export function AppDrawer({ open, onClose }: Props) {
   const showShareModal = useSessionStore((s) => s.showShareModal);
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
+  const { user, logout } = useAuthStore();
   const [sharingTripId, setSharingTripId] = useState<string | null>(null);
+
+  async function handleLogout() {
+    try { await authApi.logout(); } catch { /* ignore */ }
+    logout();
+    onClose();
+  }
+
+  function goTo(path: string) {
+    navigate(path);
+    onClose();
+  }
 
   // Lock body scroll when open
   useEffect(() => {
@@ -177,6 +191,69 @@ export function AppDrawer({ open, onClose }: Props) {
 
           {/* Content — scrollable */}
           <div className="overflow-y-auto md:flex-1 md:max-h-none" style={{ maxHeight: 'calc(85vh - 72px)' }}>
+
+            {/* Account section */}
+            <div className="px-5 pt-5 pb-4 border-b border-border">
+              {user ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-indigo/15 border border-indigo-border flex items-center justify-center shrink-0">
+                      <span className="text-sm font-bold text-indigo leading-none">
+                        {user.firstName[0]}{user.lastName[0]}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-text-primary truncate">{user.firstName} {user.lastName}</p>
+                      <p className="text-xs text-text-muted truncate">{user.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => goTo('/account')}
+                      className="flex-1 flex items-center justify-between px-3 py-2.5 rounded-xl bg-indigo-soft border border-indigo-border text-xs font-semibold text-indigo hover:bg-indigo/10 transition-all"
+                    >
+                      <span>Account settings</span>
+                      <ChevronRight size={13} />
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className="w-10 h-10 rounded-xl border border-border flex items-center justify-center text-text-muted hover:text-red-500 hover:border-red-200 transition-all"
+                      title="Log out"
+                    >
+                      <LogOut size={15} />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-8 h-8 rounded-full bg-indigo/10 flex items-center justify-center">
+                      <User size={15} className="text-indigo" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-text-primary">Your account</p>
+                      <p className="text-xs text-text-muted">Save trips across devices</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => goTo('/login')}
+                      className="flex-1 py-2.5 rounded-xl border border-border text-xs font-semibold text-text-primary hover:bg-surface-2 transition-all"
+                    >
+                      Log in
+                    </button>
+                    <button
+                      onClick={() => goTo('/signup')}
+                      className="flex-1 py-2.5 rounded-xl bg-indigo text-white text-xs font-semibold hover:bg-indigo/90 transition-all"
+                      style={{ boxShadow: '0 4px 12px rgba(55,48,163,0.2)' }}
+                    >
+                      Sign up
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Saved Trips */}
             <div className="px-5 pt-5 pb-4">
               <div className="flex items-center gap-2 mb-4">

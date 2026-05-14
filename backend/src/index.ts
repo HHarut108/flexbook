@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
+import cookie from '@fastify/cookie';
 import { config } from './config';
 import { setRedisLogger } from './utils/redisClient';
 import { setSharedLogger } from './utils/logger';
@@ -17,6 +18,7 @@ import { adminAuthRoutes } from './routes/adminAuth';
 import { assistanceRequestRoutes } from './routes/assistanceRequests';
 import { cronRoutes } from './routes/cron';
 import { countryInfoRoutes } from './routes/countryInfo';
+import { userAuthRoutes } from './routes/userAuth';
 
 const app = Fastify({
   logger: {
@@ -40,7 +42,10 @@ async function start() {
   await app.register(cors, {
     origin: corsOrigins,
     methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+    credentials: true,
   });
+
+  await app.register(cookie);
 
   await app.register(rateLimit, {
     global: true,
@@ -62,6 +67,7 @@ async function start() {
   await app.register(assistanceRequestRoutes);
   await app.register(cronRoutes);
   await app.register(countryInfoRoutes);
+  await app.register(userAuthRoutes);
 
   try {
     await app.listen({ port: config.PORT, host: '0.0.0.0' });

@@ -1,7 +1,8 @@
 import { useLocation } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
+import { useAuthStore } from '../store/auth.store';
 import { GoHomeLogo } from './GoHomeLogo';
-import { Menu } from 'lucide-react';
+import { User } from 'lucide-react';
 
 const MAX_STOPS = 15;
 
@@ -27,6 +28,8 @@ function stepLabel(pathname: string, stopCount: number): string {
 export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const legs = useTripStore((s) => s.legs);
   const origin = useTripStore((s) => s.origin);
+  const user = useAuthStore((s) => s.user);
+  const initials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : null;
   const { pathname } = useLocation();
 
   if (pathname === '/' || pathname === '/book' || pathname === '/book/partial') return null;
@@ -102,13 +105,16 @@ export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
           </div>
         )}
 
-        {/* Menu button */}
+        {/* Account button */}
         <button
           onClick={onMenuOpen}
           className="shrink-0 ml-1 w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-white hover:bg-white/25 transition-all active:scale-95"
-          aria-label="Open menu"
+          aria-label="Account"
         >
-          <Menu size={16} />
+          {initials
+            ? <span className="text-[11px] font-bold leading-none">{initials}</span>
+            : <User size={15} />
+          }
         </button>
       </div>
     </div>
