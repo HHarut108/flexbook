@@ -130,7 +130,6 @@ export const assistanceRequestRoutes: FastifyPluginAsync = async (app) => {
       legs,
       status: 'complete',
       createdAt: new Date().toISOString(),
-      passengers: 1,
     });
 
     const request: AssistanceRequest = {
