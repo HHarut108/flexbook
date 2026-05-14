@@ -145,7 +145,12 @@ export async function userAuthRoutes(app: FastifyInstance) {
         await db.oTP.updateMany({ where: { userId: existing.id, used: false }, data: { used: true } });
         const code = generateOtp();
         await db.oTP.create({ data: { userId: existing.id, code: await hashOtp(code), expiresAt: otpExpiresAt() } });
-        await sendOtpEmail(existing.email, code);
+        try {
+          await sendOtpEmail(existing.email, code);
+        } catch (emailErr) {
+          req.log.error({ err: emailErr }, 'Failed to send OTP email during re-register');
+          return reply.status(500).send({ error: { message: 'Account exists but email delivery failed. Please try again.' } });
+        }
         return reply.status(200).send({ success: true, data: { message: 'Verification code resent', emailVerified: false } });
       }
       return reply.status(409).send({ error: { message: 'Email already registered' } });
@@ -167,7 +172,12 @@ export async function userAuthRoutes(app: FastifyInstance) {
 
     const code = generateOtp();
     await db.oTP.create({ data: { userId: user.id, code: await hashOtp(code), expiresAt: otpExpiresAt() } });
-    await sendOtpEmail(user.email, code);
+    try {
+      await sendOtpEmail(user.email, code);
+    } catch (emailErr) {
+      req.log.error({ err: emailErr }, 'Failed to send OTP email after registration');
+      return reply.status(500).send({ error: { message: 'Account created but email delivery failed. Please contact support.' } });
+    }
 
     return reply.status(201).send({ success: true, data: { message: 'Account created. Check your email for the verification code.' } });
   });
