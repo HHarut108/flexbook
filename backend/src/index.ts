@@ -69,6 +69,13 @@ async function start() {
   await app.register(countryInfoRoutes);
   await app.register(userAuthRoutes);
 
+  app.setErrorHandler((err, req, reply) => {
+    app.log.error({ err, url: req.url, method: req.method }, 'Unhandled route error');
+    reply.status(err.statusCode ?? 500).send({
+      error: { message: err.message || 'Internal server error' },
+    });
+  });
+
   try {
     await app.listen({ port: config.PORT, host: '0.0.0.0' });
     app.log.info(`Backend running at http://localhost:${config.PORT}`);
