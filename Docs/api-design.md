@@ -1182,6 +1182,208 @@ GET /v1/itineraries/a1b2c3d4-e5f6-7890-abcd-ef1234567890
 
 ---
 
+---
+
+## User Authentication Endpoints
+
+Auth uses **httpOnly JWT cookies** (`user_session`, 30-day TTL). No Authorization header is required — the browser sends the cookie automatically. All endpoints return the standard `{ success, data }` / `{ success, error }` envelope.
+
+Guest mode is preserved — all trip-planning endpoints work without authentication.
+
+### Endpoint Index
+
+| # | Method | Route | Auth required | Purpose |
+|---|---|---|---|---|
+| A1 | POST | `/auth/register` | ❌ | Create account, send OTP |
+| A2 | POST | `/auth/verify-otp` | ❌ | Verify email, set session cookie |
+| A3 | POST | `/auth/resend-otp` | ❌ | Re-send verification code |
+| A4 | POST | `/auth/login` | ❌ | Login, set session cookie |
+| A5 | POST | `/auth/logout` | ❌ | Clear session cookie |
+| A6 | GET | `/auth/me` | ✅ | Restore session on page load |
+| A7 | PATCH | `/auth/password` | ✅ | Change password |
+| A8 | DELETE | `/auth/account` | ✅ | Delete account permanently |
+
+---
+
+### A1. `POST /auth/register`
+
+**Rate limit:** 10 requests / hour per IP
+
+**Request Body:**
+
+```typescript
+{
+  email: string;           // valid email, lowercased before storage
+  password: string;        // min 8 chars
+  firstName: string;       // min 1, max 100
+  lastName: string;        // min 1, max 100
+  birthday?: string;       // YYYY-MM-DD, validated on FE (real date, min age 13)
+  citizenships?: Array<{
+    countryCode: string;   // ISO 3166-1 alpha-2 (exactly 2 chars)
+    countryName: string;
+    documentNumber?: string;
+    isPrimary?: boolean;
+  }>;                      // max 2 entries
+}
+```
+
+**Responses:**
+
+| Scenario | HTTP | Body |
+|---|---|---|
+| New account created | 201 | `{ message: "Account created. Check your email for the verification code." }` |
+| Email already registered (unverified) | 200 | `{ message: "Verification code resent", emailVerified: false }` — re-sends OTP |
+| Email already registered (verified) | 409 | `{ error: { message: "Email already registered" } }` |
+| Validation failure | 400 | `{ error: { message: "Invalid input", details: … } }` |
+
+---
+
+### A2. `POST /auth/verify-otp`
+
+**Rate limit:** 10 requests / 15 minutes per IP
+
+**Request Body:**
+
+```typescript
+{ email: string; code: string; }  // code: exactly 6 digits
+```
+
+**Responses:**
+
+| Scenario | HTTP | Body |
+|---|---|---|
+| Valid code | 200 | `{ user: AuthUser }` + sets `user_session` cookie |
+| Invalid / expired code | 400 | `{ error: { message: "Invalid or expired code" } }` |
+
+---
+
+### A3. `POST /auth/resend-otp`
+
+**Rate limit:** 1 request / 60 seconds per IP (Redis-backed)
+
+**Request Body:**
+
+```typescript
+{ email: string; }
+```
+
+**Responses:**
+
+| Scenario | HTTP | Body |
+|---|---|---|
+| Code resent | 200 | `{ message: "Verification code sent" }` |
+| Already verified or email unknown | 200 | Identical success message (no enumeration) |
+| Cooldown active | 429 | `{ error: { message: "Please wait Xs before requesting a new code" } }` |
+
+---
+
+### A4. `POST /auth/login`
+
+**Rate limit:** 5 failed attempts triggers a 15-minute block per IP (Redis-backed with in-memory fallback)
+
+**Request Body:**
+
+```typescript
+{ email: string; password: string; }
+```
+
+**Responses:**
+
+| Scenario | HTTP | Body |
+|---|---|---|
+| Valid credentials | 200 | `{ user: AuthUser }` + sets `user_session` cookie |
+| Wrong email or password | 401 | `{ error: { message: "Invalid email or password" } }` |
+| Email not verified | 403 | `{ error: { message: "Please verify your email before logging in" } }` |
+| Rate limited | 429 | `{ error: { message: "Too many attempts. Try again in Xs" } }` |
+
+---
+
+### A5. `POST /auth/logout`
+
+No body. Clears the `user_session` cookie.
+
+**Response:** `200 { message: "Logged out" }`
+
+---
+
+### A6. `GET /auth/me`
+
+Reads the `user_session` cookie. Called once on app mount to restore session.
+
+**Responses:**
+
+| Scenario | HTTP | Body |
+|---|---|---|
+| Valid session | 200 | `{ user: AuthUser }` |
+| No cookie / expired | 401 | `{ error: { message: "Not authenticated" } }` |
+
+---
+
+### A7. `PATCH /auth/password`
+
+Requires valid `user_session` cookie.
+
+**Request Body:**
+
+```typescript
+{ currentPassword: string; newPassword: string; }  // newPassword min 8 chars
+```
+
+**Responses:**
+
+| Scenario | HTTP | Body |
+|---|---|---|
+| Updated | 200 | `{ message: "Password updated" }` |
+| Wrong current password | 401 | `{ error: { message: "Current password is incorrect" } }` |
+
+---
+
+### A8. `DELETE /auth/account`
+
+Requires valid `user_session` cookie. Deletes user + all related data (citizenships, OTPs) via cascade. Clears cookie.
+
+**Request Body:**
+
+```typescript
+{ password: string; }
+```
+
+**Responses:**
+
+| Scenario | HTTP | Body |
+|---|---|---|
+| Deleted | 200 | `{ message: "Account deleted" }` |
+| Wrong password | 401 | `{ error: { message: "Password is incorrect" } }` |
+
+---
+
+### AuthUser response shape
+
+Returned by A2, A4, A6. `passwordHash` is always stripped before sending.
+
+```typescript
+interface AuthUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  birthday?: string;
+  emailVerified: boolean;
+  citizenships: UserCitizenship[];
+  createdAt: string;
+}
+
+interface UserCitizenship {
+  id: string;
+  countryCode: string;
+  countryName: string;
+  documentNumber?: string;
+  isPrimary: boolean;
+}
+```
+
+---
+
 ## API Call Sequence (Full User Flow)
 
 ```

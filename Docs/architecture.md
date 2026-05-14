@@ -51,6 +51,13 @@ This means:
 | Environment config | dotenv |
 | Logging | Fastify built-in pino |
 | Testing | Vitest |
+| Database | SQLite via Prisma 6 + LibSQL adapter (`@prisma/adapter-libsql`) |
+| Auth | httpOnly JWT cookie (`jsonwebtoken`), 30-day TTL |
+| Password hashing | bcryptjs (12 rounds) |
+| OTP hashing | bcryptjs (same rounds — OTPs are never stored plaintext) |
+| Email | Resend (OTP delivery); falls back to `console.log` when `RESEND_API_KEY` unset |
+| Rate limiting | `@fastify/rate-limit` + Upstash Redis; in-memory fallback when Redis unavailable |
+| Session cookies | `@fastify/cookie` v8 |
 
 ---
 
@@ -134,7 +141,9 @@ Trip state lives in the URL (lz-string compressed). Zero infrastructure cost. Ze
 **Deployment (free tier):**
 - Frontend: Vercel (free, Vite SPA, global CDN)
 - Backend: Railway or Render (free tier, Node.js, always-on)
-- No database. No Redis. No message queue.
+- Database: SQLite file on disk (dev) / Turso LibSQL (production)
+- Redis: Upstash (free tier) for rate-limit buckets; in-memory fallback if not configured
+- No message queue.
 
 ---
 
@@ -718,15 +727,87 @@ trip-planner/
 
 ---
 
-## 11. Future Scalability Without Overengineering
+## 11. User Authentication Architecture
+
+Authentication is separate from the admin back office — different JWT secret, different cookie name, different rate-limit buckets.
+
+**Auth flow:**
+
+```
+Register → OTP email (Resend) → Verify OTP → httpOnly cookie set → authenticated
+Login     →                                 → httpOnly cookie set → authenticated
+```
+
+**Cookie:**
+- Name: `user_session`
+- httpOnly, sameSite: strict, secure in production
+- 30-day TTL (`maxAge`)
+- JWT payload: `{ sub: userId, email }`
+
+**OTP security:**
+- 6-digit code, 10-minute expiry
+- Hashed with bcrypt (12 rounds) before persisting — plaintext never touches the DB
+- Compared with `bcrypt.compare` at verification time
+- Marked `used: true` on first match; expired rows ignored
+
+**Rate limits:**
+
+| Endpoint | Limit | Window | Backend |
+|---|---|---|---|
+| `POST /auth/register` | 10 requests | 1 hour per IP | `@fastify/rate-limit` |
+| `POST /auth/verify-otp` | 10 requests | 15 minutes per IP | `@fastify/rate-limit` |
+| `POST /auth/resend-otp` | 1 request | 60 second cooldown per IP | Redis / in-memory |
+| `POST /auth/login` | 5 attempts | 15 minutes per IP | Redis / in-memory |
+
+**Database schema (Prisma):**
+
+```
+User
+  id            CUID (PK)
+  email         String (unique, lowercased)
+  passwordHash  String (bcrypt, 12 rounds)
+  firstName     String
+  lastName      String
+  birthday      String? (YYYY-MM-DD)
+  emailVerified Boolean (default false)
+  createdAt     DateTime
+  updatedAt     DateTime
+
+UserCitizenship
+  id             CUID (PK)
+  userId         FK → User (cascade delete)
+  countryCode    String (ISO 3166-1 alpha-2)
+  countryName    String
+  documentNumber String?
+  isPrimary      Boolean
+
+OTP
+  id        CUID (PK)
+  userId    FK → User (cascade delete)
+  code      String (bcrypt hash of 6-digit code)
+  expiresAt DateTime
+  used      Boolean
+  createdAt DateTime
+```
+
+**Guest mode:** All trip-planning flows work without an account. Auth state initialises with `loading: true`; a spinner is shown while `GET /auth/me` resolves on cold load, preventing a flash to unauthenticated UI.
+
+**Required environment variables (production):**
+- `USER_JWT_SECRET` — must differ from dev default or startup aborts
+- `RESEND_API_KEY` — must be set or startup aborts
+- `DATABASE_URL` — LibSQL URL for production (default: `file:./dev.db`)
+
+---
+
+## 12. Future Scalability Without Overengineering
 
 Every decision below is zero cost at MVP and unlocks the next phase cleanly.
 
 **Provider swapping (already solved)**
 The `FlightProvider` and `WeatherProvider` interfaces mean adding Amadeus, Skyscanner, or Google Flights is a new adapter file + one line change in `app.ts`. No service changes required.
 
-**Adding a database when needed**
-When user accounts or saved trips are required: add Postgres via Prisma. The store's `syncToUrl` becomes `syncToUrl + syncToDb` in one place. No component changes.
+**Database (implemented)**
+User accounts and saved trips use SQLite (dev) / LibSQL (production) via Prisma 6. The store's `syncToUrl` remains unchanged — the DB layer is additive alongside URL state.
 
 **Caching upgrade path**
 `node-cache` → Redis: change one line in `cache.ts`. The service layer doesn't know what's caching it.

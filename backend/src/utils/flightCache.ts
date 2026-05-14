@@ -1,6 +1,16 @@
-import { PriceInfo, PriceStatus } from '@fast-travel/shared';
 import { getCacheAsync, setCache } from './cache';
 import { log } from './logger';
+
+export type PriceStatus = 'cached' | 'stale';
+
+export interface PriceInfo {
+  amount: number;
+  currency: string;
+  provider: string;
+  deeplink: string;
+  priceUpdatedAt: string;
+  priceStatus: PriceStatus;
+}
 
 // ---------- Types ----------
 
