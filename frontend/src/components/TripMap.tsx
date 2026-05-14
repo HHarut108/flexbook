@@ -69,6 +69,7 @@ function computeArc(from: [number, number], to: [number, number], flipCurve = fa
   const dLat = lat2 - lat1;
   const dLng = lng2 - lng1;
   const dist = Math.sqrt(dLat * dLat + dLng * dLng);
+  if (dist === 0) return [from, to];
   // Return arcs curve more aggressively so they're clearly separate
   const curvature = flipCurve ? Math.min(dist * 0.35, 12) : Math.min(dist * 0.15, 8);
 
