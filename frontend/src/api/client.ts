@@ -10,6 +10,7 @@ export const apiClient = axios.create({
   baseURL: getBaseURL(),
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 });
 
 // Unwrap the { success, data } envelope

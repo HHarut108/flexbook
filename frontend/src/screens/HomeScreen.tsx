@@ -7,6 +7,7 @@ import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
+import { useAuthStore } from '../store/auth.store';
 import { formatYMD } from '../utils/date.utils';
 import { addDays, format } from 'date-fns';
 import { GoHomeLogo } from '../components/GoHomeLogo';
@@ -14,7 +15,7 @@ import {
   MapPin,
   Search,
   Loader2,
-  Menu,
+  User,
   ArrowRight,
   PlaneTakeoff,
   CalendarDays,
@@ -215,6 +216,8 @@ function TrustBar() {
    ═══════════════════════════════════════════ */
 
 export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
+  const user = useAuthStore((s) => s.user);
+  const initials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : null;
   const [query, setQuery] = useState('');
   const [nearby, setNearby] = useState<Airport[]>([]);
   const [geoLoading, setGeoLoading] = useState(false);
@@ -435,9 +438,12 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
           onClick={onMenuOpen}
           className="w-11 h-11 rounded-2xl bg-surface border border-border flex items-center justify-center text-indigo-mid transition-all hover:bg-indigo-soft hover:border-indigo-border"
           style={{ boxShadow: '0 4px 12px rgba(15,23,42,0.08)' }}
-          aria-label="Open menu"
+          aria-label="Account"
         >
-          <Menu size={20} />
+          {initials
+            ? <span className="text-xs font-bold text-indigo leading-none">{initials}</span>
+            : <User size={20} />
+          }
         </button>
       </div>
 

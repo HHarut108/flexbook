@@ -72,6 +72,15 @@
         "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/silly-hoover-0b1c5f/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5184"
       ],
       "port": 5184
+    },
+    {
+      "name": "Frontend-gracious (Vite :5185)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/gracious-heisenberg-f83ea5/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5185"
+      ],
+      "port": 5185
     }
   ]
 }
