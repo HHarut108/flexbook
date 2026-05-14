@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import cookie from '@fastify/cookie';
 import { config } from './config';
+import { db } from './db';
 import { setRedisLogger } from './utils/redisClient';
 import { setSharedLogger } from './utils/logger';
 import { healthRoutes } from './routes/health';
@@ -32,7 +33,47 @@ const app = Fastify({
 setRedisLogger(app.log);
 setSharedLogger(app.log);
 
+async function runMigrations() {
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS "User" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "email" TEXT NOT NULL,
+      "passwordHash" TEXT NOT NULL,
+      "firstName" TEXT NOT NULL,
+      "lastName" TEXT NOT NULL,
+      "birthday" TEXT,
+      "emailVerified" BOOLEAN NOT NULL DEFAULT false,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "User_email_key" ON "User"("email")`,
+    `CREATE TABLE IF NOT EXISTS "UserCitizenship" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "userId" TEXT NOT NULL,
+      "countryCode" TEXT NOT NULL,
+      "countryName" TEXT NOT NULL,
+      "documentNumber" TEXT,
+      "isPrimary" BOOLEAN NOT NULL DEFAULT false,
+      FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS "OTP" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "userId" TEXT NOT NULL,
+      "code" TEXT NOT NULL,
+      "expiresAt" DATETIME NOT NULL,
+      "used" BOOLEAN NOT NULL DEFAULT false,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE
+    )`,
+  ];
+  for (const sql of statements) {
+    await db.$executeRawUnsafe(sql);
+  }
+}
+
 async function start() {
+  await runMigrations();
+
   const wwwVariant = config.FRONTEND_URL.replace('https://', 'https://www.').replace('https://www.www.', 'https://www.');
   const noWwwVariant = config.FRONTEND_URL.replace('https://www.', 'https://');
   const corsOrigins = [wwwVariant, noWwwVariant, 'https://flexbook-admin.vercel.app'];
