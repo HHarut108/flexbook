@@ -34,6 +34,7 @@ if (config.NODE_ENV === 'production') {
   if (!config.ADMIN_SESSION_SECRET) missing.push('ADMIN_SESSION_SECRET');
   if (!config.ADMIN_PASSWORD) missing.push('ADMIN_PASSWORD');
   if (!config.USER_JWT_SECRET || config.USER_JWT_SECRET === 'dev-user-jwt-secret-change-in-prod') missing.push('USER_JWT_SECRET');
+  if (!config.RESEND_API_KEY) missing.push('RESEND_API_KEY');
   if (missing.length) {
     console.error(
       `FATAL: ${missing.join(', ')} must be set in production. Refusing to start.`,

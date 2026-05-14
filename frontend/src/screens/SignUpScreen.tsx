@@ -68,6 +68,21 @@ export function SignUpScreen() {
     const dd = String(birthDay).padStart(2, '0');
     const birthday = `${birthYear}-${mm}-${dd}`;
 
+    const parsed = new Date(birthday);
+    if (isNaN(parsed.getTime()) || parsed.getDate() !== Number(dd)) {
+      setError('Please enter a valid date of birth');
+      return;
+    }
+
+    const today = new Date();
+    const anniversary = new Date(parsed);
+    anniversary.setFullYear(today.getFullYear());
+    const age = today.getFullYear() - parsed.getFullYear() - (today < anniversary ? 1 : 0);
+    if (age < 13) {
+      setError('You must be at least 13 years old to register');
+      return;
+    }
+
     setLoading(true);
     try {
       const filledCitizenships = citizenships

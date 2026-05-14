@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import { useUrlSync } from './hooks/useUrlSync';
 import { ProgressBar } from './components/ProgressBar';
 import { Toast } from './components/Toast';
@@ -31,7 +32,7 @@ const FIXED_HEIGHT_PATHS = new Set(['/flights', '/return']);
 export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { pathname } = useLocation();
-  const { setUser, setLoading } = useAuthStore();
+  const { setUser, setLoading, loading: authLoading } = useAuthStore();
   useUrlSync();
 
   useEffect(() => {
@@ -43,6 +44,14 @@ export default function App() {
   const rootClass = FIXED_HEIGHT_PATHS.has(pathname)
     ? 'h-screen bg-bg max-w-[448px] md:max-w-none mx-auto flex flex-col overflow-hidden'
     : 'min-h-screen bg-bg max-w-[448px] md:max-w-none mx-auto';
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center">
+        <Loader2 size={32} className="text-indigo animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className={rootClass}>

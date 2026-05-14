@@ -6,6 +6,8 @@ import {
   hashPassword,
   verifyPassword,
   generateOtp,
+  hashOtp,
+  compareOtp,
   otpExpiresAt,
   sendOtpEmail,
   signUserToken,
@@ -142,7 +144,7 @@ export async function userAuthRoutes(app: FastifyInstance) {
         // Re-issue OTP for unverified account
         await db.oTP.updateMany({ where: { userId: existing.id, used: false }, data: { used: true } });
         const code = generateOtp();
-        await db.oTP.create({ data: { userId: existing.id, code, expiresAt: otpExpiresAt() } });
+        await db.oTP.create({ data: { userId: existing.id, code: await hashOtp(code), expiresAt: otpExpiresAt() } });
         await sendOtpEmail(existing.email, code);
         return reply.status(200).send({ success: true, data: { message: 'Verification code resent', emailVerified: false } });
       }
@@ -164,7 +166,7 @@ export async function userAuthRoutes(app: FastifyInstance) {
     });
 
     const code = generateOtp();
-    await db.oTP.create({ data: { userId: user.id, code, expiresAt: otpExpiresAt() } });
+    await db.oTP.create({ data: { userId: user.id, code: await hashOtp(code), expiresAt: otpExpiresAt() } });
     await sendOtpEmail(user.email, code);
 
     return reply.status(201).send({ success: true, data: { message: 'Account created. Check your email for the verification code.' } });
@@ -181,13 +183,17 @@ export async function userAuthRoutes(app: FastifyInstance) {
     const user = await db.user.findUnique({ where: { email: email.toLowerCase() } });
     if (!user) return reply.status(400).send({ error: { message: 'Invalid code' } });
 
-    const otp = await db.oTP.findFirst({
-      where: { userId: user.id, code, used: false, expiresAt: { gt: new Date() } },
+    const candidates = await db.oTP.findMany({
+      where: { userId: user.id, used: false, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: 'desc' },
     });
-    if (!otp) return reply.status(400).send({ error: { message: 'Invalid or expired code' } });
+    let matchedOtp: typeof candidates[0] | null = null;
+    for (const candidate of candidates) {
+      if (await compareOtp(code, candidate.code)) { matchedOtp = candidate; break; }
+    }
+    if (!matchedOtp) return reply.status(400).send({ error: { message: 'Invalid or expired code' } });
 
-    await db.oTP.update({ where: { id: otp.id }, data: { used: true } });
+    await db.oTP.update({ where: { id: matchedOtp.id }, data: { used: true } });
     const updated = await db.user.update({
       where: { id: user.id },
       data: { emailVerified: true },
@@ -218,7 +224,7 @@ export async function userAuthRoutes(app: FastifyInstance) {
 
     await db.oTP.updateMany({ where: { userId: user.id, used: false }, data: { used: true } });
     const code = generateOtp();
-    await db.oTP.create({ data: { userId: user.id, code, expiresAt: otpExpiresAt() } });
+    await db.oTP.create({ data: { userId: user.id, code: await hashOtp(code), expiresAt: otpExpiresAt() } });
     await sendOtpEmail(user.email, code);
     await setResendCooldown(ip);
 

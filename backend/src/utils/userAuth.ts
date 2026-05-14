@@ -24,6 +24,9 @@ export function otpExpiresAt(): Date {
   return new Date(Date.now() + OTP_TTL_MS);
 }
 
+export const hashOtp = (code: string) => hash(code, BCRYPT_ROUNDS);
+export const compareOtp = (code: string, hashed: string) => compare(code, hashed);
+
 // ── JWT ───────────────────────────────────────────────────────────────────────
 
 export interface UserJwtPayload {

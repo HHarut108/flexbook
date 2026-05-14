@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, NavigateFunction } from 'react-router-dom';
 import { ArrowLeft, LogOut, Trash2, Key, User, ChevronRight } from 'lucide-react';
 import { authApi } from '../api/auth.api';
-import { useAuthStore } from '../store/auth.store';
+import { useAuthStore, AuthUser } from '../store/auth.store';
 
 type View = 'main' | 'change-password' | 'delete-account';
 
@@ -39,7 +39,14 @@ export function AccountScreen() {
   );
 }
 
-function MainView({ user, logout, navigate, setView }: any) {
+interface MainViewProps {
+  user: AuthUser;
+  logout: () => void;
+  navigate: NavigateFunction;
+  setView: (v: View) => void;
+}
+
+function MainView({ user, logout, navigate, setView }: MainViewProps) {
   async function handleLogout() {
     try { await authApi.logout(); } catch { /* ignore */ }
     logout();
