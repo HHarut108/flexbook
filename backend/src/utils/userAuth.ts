@@ -59,7 +59,7 @@ export async function sendOtpEmail(email: string, otp: string): Promise<void> {
     console.log(`[DEV] OTP for ${email}: ${otp}`);
     return;
   }
-  await getResend().emails.send({
+  const result = await getResend().emails.send({
     from: 'Flexbook <noreply@flexbook.space>',
     to: email,
     subject: 'Your Flexbook verification code',
@@ -74,6 +74,10 @@ export async function sendOtpEmail(email: string, otp: string): Promise<void> {
       </div>
     `,
   });
+  if (result.error) {
+    console.error('[Resend] Failed to send OTP email:', result.error);
+    throw new Error(`Email delivery failed: ${result.error.message}`);
+  }
 }
 
 // ── Cookie helpers ────────────────────────────────────────────────────────────
