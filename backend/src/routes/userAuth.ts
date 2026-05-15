@@ -15,6 +15,7 @@ import {
   cookieOptions,
 } from '../utils/userAuth';
 import { redis, recordRedisOk, recordRedisError } from '../utils/redisClient';
+import { encryptPii, decryptPii } from '../utils/pii';
 
 // ── Rate limit helpers (same Redis-with-in-memory-fallback pattern) ───────────
 
@@ -179,7 +180,14 @@ export async function userAuthRoutes(app: FastifyInstance) {
             birthday: birthday ?? null,
             citizenships: {
               deleteMany: {},
-              create: citizenships?.length ? citizenships.map((c, i) => ({ ...c, isPrimary: i === 0 })) : [],
+              create: citizenships?.length
+                ? citizenships.map((c, i) => ({
+                    countryCode: c.countryCode,
+                    countryName: c.countryName,
+                    documentNumber: encryptPii(c.documentNumber),
+                    isPrimary: i === 0,
+                  }))
+                : [],
             },
           },
         });
@@ -206,7 +214,14 @@ export async function userAuthRoutes(app: FastifyInstance) {
         lastName,
         birthday: birthday ?? null,
         citizenships: citizenships?.length
-          ? { create: citizenships.map((c, i) => ({ ...c, isPrimary: i === 0 })) }
+          ? {
+              create: citizenships.map((c, i) => ({
+                countryCode: c.countryCode,
+                countryName: c.countryName,
+                documentNumber: encryptPii(c.documentNumber),
+                isPrimary: i === 0,
+              })),
+            }
           : undefined,
       },
     });
@@ -358,7 +373,7 @@ export async function userAuthRoutes(app: FastifyInstance) {
             userId,
             countryCode: c.countryCode,
             countryName: c.countryName,
-            documentNumber: c.documentNumber ?? null,
+            documentNumber: encryptPii(c.documentNumber),
             isPrimary: c.isPrimary ?? i === 0,
           },
         });
@@ -386,7 +401,7 @@ export async function userAuthRoutes(app: FastifyInstance) {
             countryCode: v.countryCode,
             countryName: v.countryName,
             visaType: v.visaType ?? null,
-            documentNumber: v.documentNumber ?? null,
+            documentNumber: encryptPii(v.documentNumber),
             validUntil: v.validUntil ?? null,
           },
         });
@@ -440,6 +455,20 @@ export async function userAuthRoutes(app: FastifyInstance) {
 
 function safeUser(user: any) {
   const { passwordHash: _, ...safe } = user;
+  // decryptPii is a no-op for null/empty and for legacy plaintext rows
+  // (anything without the enc:v1: prefix), so this is safe to apply blindly.
+  if (safe.citizenships) {
+    safe.citizenships = safe.citizenships.map((c: any) => ({
+      ...c,
+      documentNumber: decryptPii(c.documentNumber),
+    }));
+  }
+  if (safe.visas) {
+    safe.visas = safe.visas.map((v: any) => ({
+      ...v,
+      documentNumber: decryptPii(v.documentNumber),
+    }));
+  }
   return safe;
 }
 
