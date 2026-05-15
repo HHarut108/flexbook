@@ -8,14 +8,20 @@ export interface UserCitizenship {
   isPrimary: boolean;
 }
 
+export type VisaEntries = 'single' | 'double' | 'multiple';
+
 export interface UserVisa {
   id: string;
   citizenshipId: string;
   countryCode: string;
   countryName: string;
   visaType?: string | null;
-  documentNumber?: string | null;
-  validUntil?: string | null;
+  stickerNumber?: string | null;
+  startDate?: string | null;
+  expirationDate?: string | null;
+  entries?: VisaEntries | null;
+  issuedByCountryCode?: string | null;
+  issuedByCountryName?: string | null;
 }
 
 export interface AuthUser {

@@ -1424,3 +1424,137 @@
   color: var(--text-muted);
   margin: 0;
 }
+
+/* ── Registered Users page ── */
+
+.users-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+
+.users-search input {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.users-table-wrap {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.users-table {
+  white-space: normal;
+}
+
+.users-table__th--left,
+.users-table__td--left {
+  text-align: left;
+}
+
+.users-table__row:hover {
+  background: var(--bg-table-hover);
+}
+
+.users-table__detail-row {
+  background: var(--bg-table-even);
+}
+
+.users-detail {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-table-even);
+}
+
+.users-detail__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px 24px;
+  margin-bottom: 12px;
+}
+
+.users-detail__field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  color: var(--text-table-row);
+}
+
+.users-detail__label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.users-detail__section {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+
+.users-detail__h {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.users-detail__badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: var(--bg-tag);
+  color: var(--text-primary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.users-detail__empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.users-visa-table {
+  width: 100%;
+  margin-top: 8px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.users-visa-table th {
+  text-align: left;
+  padding: 6px 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+}
+
+.users-visa-table td {
+  padding: 6px 10px;
+  color: var(--text-table-row);
+  border-bottom: 1px solid var(--border);
+}

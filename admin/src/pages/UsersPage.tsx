@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, AlertCircle, Inbox, Mail, User, MapPin, Calendar, BadgeCheck, BadgeAlert, Clock } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { RefreshCw, AlertCircle, Inbox, Search, ChevronRight, ChevronDown, BadgeCheck, BadgeAlert } from 'lucide-react';
 import { fetchUsers, AdminUser } from '../api/users';
 
 function formatBirthday(birthday: string | null): string {
@@ -19,84 +19,76 @@ function formatTimestamp(iso: string): string {
   });
 }
 
-function UserCard({ user }: { user: AdminUser }) {
+function countryFlag(code: string | null): string {
+  if (!code || code.length !== 2) return '';
+  return code.toUpperCase().replace(/./g, (c) => String.fromCodePoint(c.charCodeAt(0) + 127397));
+}
+
+function UserDetail({ user }: { user: AdminUser }) {
   return (
-    <div className="req-card">
-      <div className="req-card__header">
-        <div className="req-card__header-top">
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="req-card__route">
-              <User size={13} className="req-card__route-icon" />
-              <span className="req-card__city">{user.firstName} {user.lastName}</span>
-            </div>
-            <p className="req-card__route-meta">
-              {user.citizenships.length} citizenship{user.citizenships.length !== 1 ? 's' : ''}
-              {user.visas.length > 0 ? ` · ${user.visas.length} visa${user.visas.length !== 1 ? 's' : ''}` : ''}
-            </p>
-          </div>
-          <div className="req-card__timestamp">
-            <Clock size={11} className="req-card__timestamp-icon" />
-            <span className="req-card__timestamp-text">{formatTimestamp(user.createdAt)}</span>
-          </div>
-        </div>
+    <div className="users-detail">
+      <div className="users-detail__grid">
+        <div className="users-detail__field"><span className="users-detail__label">Full name</span><span>{user.firstName} {user.lastName}</span></div>
+        <div className="users-detail__field"><span className="users-detail__label">Email</span><span>{user.email}</span></div>
+        <div className="users-detail__field"><span className="users-detail__label">Email verified</span><span>{user.emailVerified ? 'Yes' : 'No'}</span></div>
+        <div className="users-detail__field"><span className="users-detail__label">Date of birth</span><span>{formatBirthday(user.birthday)}</span></div>
+        <div className="users-detail__field"><span className="users-detail__label">Country of residence</span><span>{user.countryOfResidenceName ? `${countryFlag(user.countryOfResidenceCode)} ${user.countryOfResidenceName}` : '—'}</span></div>
+        <div className="users-detail__field"><span className="users-detail__label">Registered</span><span>{formatTimestamp(user.createdAt)}</span></div>
+        <div className="users-detail__field"><span className="users-detail__label">User ID</span><span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>{user.id}</span></div>
       </div>
 
-      <div className="req-card__body">
-        <div>
-          <p className="req-card__section-label">Account</p>
-          <div className="req-card__contact-grid">
-            <div className="req-card__chip">
-              <Mail size={13} className="req-card__chip-icon" />
-              <span className="req-card__chip-text">{user.email}</span>
-            </div>
-            <div className="req-card__chip">
-              {user.emailVerified ? <BadgeCheck size={13} className="req-card__chip-icon" /> : <BadgeAlert size={13} className="req-card__chip-icon" />}
-              <span className="req-card__chip-text">{user.emailVerified ? 'Verified' : 'Unverified'}</span>
-            </div>
-            <div className="req-card__chip">
-              <Calendar size={13} className="req-card__chip-icon" />
-              <span className="req-card__chip-text">Born {formatBirthday(user.birthday)}</span>
-            </div>
-            {user.countryOfResidenceName && (
-              <div className="req-card__chip">
-                <MapPin size={13} className="req-card__chip-icon" />
-                <span className="req-card__chip-text">Lives in {user.countryOfResidenceName}</span>
+      {user.citizenships.length === 0 ? (
+        <div className="users-detail__section">
+          <h4 className="users-detail__h">Citizenships</h4>
+          <p className="users-detail__empty">No citizenships on file.</p>
+        </div>
+      ) : (
+        user.citizenships.map((c) => {
+          const visasForC = user.visas.filter((v) => v.citizenshipId === c.id);
+          return (
+            <div key={c.id} className="users-detail__section">
+              <h4 className="users-detail__h">
+                {countryFlag(c.countryCode)} {c.countryName} passport
+                {c.isPrimary && <span className="users-detail__badge">Primary</span>}
+              </h4>
+              <div className="users-detail__grid">
+                <div className="users-detail__field"><span className="users-detail__label">Passport / ID number</span><span>{c.documentNumber || '—'}</span></div>
               </div>
-            )}
-          </div>
-        </div>
 
-        {user.citizenships.length > 0 && (
-          <div>
-            <p className="req-card__section-label">Citizenships</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {user.citizenships.map((c) => {
-                const visasForC = user.visas.filter((v) => v.citizenshipId === c.id);
-                return (
-                  <div key={c.id} className="req-card__chip" style={{ flexDirection: 'column', alignItems: 'flex-start', padding: '8px 12px', gap: 4 }}>
-                    <span className="req-card__chip-text">
-                      <strong>{c.countryName}</strong>{c.isPrimary ? ' · Primary' : ''}
-                      {c.documentNumber ? ` · ${c.documentNumber}` : ''}
-                    </span>
-                    {visasForC.length > 0 && (
-                      <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, opacity: 0.8 }}>
-                        {visasForC.map((v) => (
-                          <li key={v.id}>
-                            {v.countryName}
-                            {v.visaType ? ` · ${v.visaType}` : ''}
-                            {v.documentNumber ? ` · #${v.documentNumber}` : ''}
-                            {v.validUntil ? ` · until ${v.validUntil}` : ''}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                );
-              })}
+              {visasForC.length === 0 ? (
+                <p className="users-detail__empty" style={{ marginTop: 8 }}>No visas on this passport.</p>
+              ) : (
+                <table className="users-visa-table">
+                  <thead>
+                    <tr>
+                      <th>Destination</th>
+                      <th>Type</th>
+                      <th>Sticker #</th>
+                      <th>Start</th>
+                      <th>Expires</th>
+                      <th>Entries</th>
+                      <th>Issued by</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visasForC.map((v) => (
+                      <tr key={v.id}>
+                        <td>{countryFlag(v.countryCode)} {v.countryName}</td>
+                        <td>{v.visaType || '—'}</td>
+                        <td>{v.stickerNumber || '—'}</td>
+                        <td>{v.startDate || '—'}</td>
+                        <td>{v.expirationDate || '—'}</td>
+                        <td>{v.entries ? v.entries.charAt(0).toUpperCase() + v.entries.slice(1) : '—'}</td>
+                        <td>{v.issuedByCountryName ? `${countryFlag(v.issuedByCountryCode)} ${v.issuedByCountryName}` : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
-          </div>
-        )}
-      </div>
+          );
+        })
+      )}
     </div>
   );
 }
@@ -105,6 +97,8 @@ export function UsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -121,19 +115,48 @@ export function UsersPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter((u) =>
+      u.email.toLowerCase().includes(q)
+      || u.firstName.toLowerCase().includes(q)
+      || u.lastName.toLowerCase().includes(q)
+      || (u.countryOfResidenceName ?? '').toLowerCase().includes(q)
+      || u.citizenships.some((c) => c.countryName.toLowerCase().includes(q))
+    );
+  }, [users, search]);
+
+  function toggle(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
   return (
     <div className="admin-page">
       <div className="admin-page__header">
         <div>
           <h1 className="admin-page__title">Registered Users</h1>
           <p className="admin-page__subtitle">
-            {loading ? '—' : `${users.length} user${users.length !== 1 ? 's' : ''} registered`}
+            {loading ? '—' : `${filtered.length} of ${users.length} user${users.length !== 1 ? 's' : ''}`}
           </p>
         </div>
         <button className="admin-btn admin-btn--ghost" onClick={load} disabled={loading}>
           <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
           Refresh
         </button>
+      </div>
+
+      <div className="users-search">
+        <Search size={14} />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by name, email, country…"
+        />
       </div>
 
       {error && (
@@ -144,19 +167,77 @@ export function UsersPage() {
       )}
 
       {loading && users.length === 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="admin-card admin-spin" style={{ height: '180px', opacity: 0.4 }} />
-          ))}
-        </div>
-      ) : users.length === 0 ? (
+        <div className="admin-card admin-spin" style={{ height: '180px', opacity: 0.4 }} />
+      ) : filtered.length === 0 ? (
         <div className="admin-card req-empty">
           <Inbox size={40} className="req-empty__icon" />
-          <p className="req-empty__title">No registered users yet</p>
-          <p className="req-empty__sub">New sign-ups will appear here.</p>
+          <p className="req-empty__title">{users.length === 0 ? 'No registered users yet' : 'No users match this search'}</p>
+          <p className="req-empty__sub">{users.length === 0 ? 'New sign-ups will appear here.' : 'Try a different search.'}</p>
         </div>
       ) : (
-        users.map((u) => <UserCard key={u.id} user={u} />)
+        <div className="admin-table-wrap users-table-wrap">
+          <table className="admin-table users-table">
+            <thead>
+              <tr>
+                <th className="admin-table__th users-table__th--left" style={{ width: 28 }}></th>
+                <th className="admin-table__th users-table__th--left">Name</th>
+                <th className="admin-table__th users-table__th--left">Email</th>
+                <th className="admin-table__th">Verified</th>
+                <th className="admin-table__th users-table__th--left">Residence</th>
+                <th className="admin-table__th">Citizenships</th>
+                <th className="admin-table__th">Visas</th>
+                <th className="admin-table__th users-table__th--left">Joined</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((u) => {
+                const isOpen = expanded.has(u.id);
+                return (
+                  <>
+                    <tr
+                      key={u.id}
+                      className="admin-table__row users-table__row"
+                      onClick={() => toggle(u.id)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <td className="admin-table__td users-table__td--left" style={{ paddingRight: 0 }}>
+                        {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      </td>
+                      <td className="admin-table__td users-table__td--left">
+                        <strong>{u.firstName} {u.lastName}</strong>
+                      </td>
+                      <td className="admin-table__td users-table__td--left">{u.email}</td>
+                      <td className="admin-table__td" style={{ textAlign: 'center' }}>
+                        {u.emailVerified
+                          ? <BadgeCheck size={14} style={{ color: '#10b981' }} />
+                          : <BadgeAlert size={14} style={{ color: '#f59e0b' }} />}
+                      </td>
+                      <td className="admin-table__td users-table__td--left">
+                        {u.countryOfResidenceName ? `${countryFlag(u.countryOfResidenceCode)} ${u.countryOfResidenceName}` : '—'}
+                      </td>
+                      <td className={`admin-table__td ${u.citizenships.length === 0 ? 'admin-table__td--zero' : ''}`}>
+                        {u.citizenships.length}
+                      </td>
+                      <td className={`admin-table__td ${u.visas.length === 0 ? 'admin-table__td--zero' : ''}`}>
+                        {u.visas.length}
+                      </td>
+                      <td className="admin-table__td users-table__td--left admin-table__td--date">
+                        {formatTimestamp(u.createdAt)}
+                      </td>
+                    </tr>
+                    {isOpen && (
+                      <tr key={`${u.id}-detail`} className="users-table__detail-row">
+                        <td colSpan={8} style={{ padding: 0 }}>
+                          <UserDetail user={u} />
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

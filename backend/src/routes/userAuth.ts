@@ -133,8 +133,12 @@ const visaInputSchema = z.object({
   countryCode: z.string().length(2),
   countryName: z.string().min(1),
   visaType: z.string().max(100).optional().nullable(),
-  documentNumber: z.string().max(100).optional().nullable(),
-  validUntil: z.string().max(20).optional().nullable(),
+  stickerNumber: z.string().max(100).optional().nullable(),
+  startDate: z.string().max(20).optional().nullable(),
+  expirationDate: z.string().max(20).optional().nullable(),
+  entries: z.enum(['single', 'double', 'multiple']).optional().nullable(),
+  issuedByCountryCode: z.string().length(2).optional().nullable(),
+  issuedByCountryName: z.string().min(1).optional().nullable(),
 });
 
 const updateProfileBody = z.object({
@@ -386,8 +390,12 @@ export async function userAuthRoutes(app: FastifyInstance) {
             countryCode: v.countryCode,
             countryName: v.countryName,
             visaType: v.visaType ?? null,
-            documentNumber: v.documentNumber ?? null,
-            validUntil: v.validUntil ?? null,
+            stickerNumber: v.stickerNumber ?? null,
+            startDate: v.startDate ?? null,
+            expirationDate: v.expirationDate ?? null,
+            entries: v.entries ?? null,
+            issuedByCountryCode: v.issuedByCountryCode ?? null,
+            issuedByCountryName: v.issuedByCountryName ?? null,
           },
         });
       }

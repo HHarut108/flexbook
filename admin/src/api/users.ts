@@ -37,8 +37,12 @@ export interface AdminVisa {
   countryCode: string;
   countryName: string;
   visaType: string | null;
-  documentNumber: string | null;
-  validUntil: string | null;
+  stickerNumber: string | null;
+  startDate: string | null;
+  expirationDate: string | null;
+  entries: 'single' | 'double' | 'multiple' | null;
+  issuedByCountryCode: string | null;
+  issuedByCountryName: string | null;
 }
 
 export interface AdminUser {

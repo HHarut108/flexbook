@@ -66,8 +66,12 @@ async function runMigrations() {
       "countryCode" TEXT NOT NULL,
       "countryName" TEXT NOT NULL,
       "visaType" TEXT,
-      "documentNumber" TEXT,
-      "validUntil" TEXT,
+      "stickerNumber" TEXT,
+      "startDate" TEXT,
+      "expirationDate" TEXT,
+      "entries" TEXT,
+      "issuedByCountryCode" TEXT,
+      "issuedByCountryName" TEXT,
       FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE,
       FOREIGN KEY ("citizenshipId") REFERENCES "UserCitizenship" ("id") ON DELETE CASCADE
     )`,
@@ -90,6 +94,12 @@ async function runMigrations() {
   const alters = [
     `ALTER TABLE "User" ADD COLUMN "countryOfResidenceCode" TEXT`,
     `ALTER TABLE "User" ADD COLUMN "countryOfResidenceName" TEXT`,
+    `ALTER TABLE "UserVisa" ADD COLUMN "stickerNumber" TEXT`,
+    `ALTER TABLE "UserVisa" ADD COLUMN "startDate" TEXT`,
+    `ALTER TABLE "UserVisa" ADD COLUMN "expirationDate" TEXT`,
+    `ALTER TABLE "UserVisa" ADD COLUMN "entries" TEXT`,
+    `ALTER TABLE "UserVisa" ADD COLUMN "issuedByCountryCode" TEXT`,
+    `ALTER TABLE "UserVisa" ADD COLUMN "issuedByCountryName" TEXT`,
   ];
   for (const sql of alters) {
     try {

@@ -101,7 +101,8 @@ function MainView({ user, logout, navigate, setView }: MainViewProps) {
                         <li key={v.id}>
                           Visa: {v.countryName}
                           {v.visaType ? ` · ${v.visaType}` : ''}
-                          {v.validUntil ? ` · valid until ${v.validUntil}` : ''}
+                          {v.entries ? ` · ${v.entries}` : ''}
+                          {v.expirationDate ? ` · exp ${v.expirationDate}` : ''}
                         </li>
                       ))}
                     </ul>
@@ -167,13 +168,18 @@ function findCountry(code?: string | null): Country | null {
   return COUNTRIES.find((c) => c.code === code) ?? null;
 }
 
+type VisaEntriesDraft = '' | 'single' | 'double' | 'multiple';
+
 interface VisaDraft {
   id?: string;
   citizenshipKey: string; // local key matching the citizenship draft (id or temp)
   country: Country | null;
   visaType: string;
-  documentNumber: string;
-  validUntil: string;
+  stickerNumber: string;
+  startDate: string;
+  expirationDate: string;
+  entries: VisaEntriesDraft;
+  issuedByCountry: Country | null;
 }
 
 interface CitizenshipDraft {
@@ -214,8 +220,11 @@ function EditProfileView({ user, setView }: { user: AuthUser; setView: (v: View)
       citizenshipKey: v.citizenshipId,
       country: findCountry(v.countryCode),
       visaType: v.visaType ?? '',
-      documentNumber: v.documentNumber ?? '',
-      validUntil: v.validUntil ?? '',
+      stickerNumber: v.stickerNumber ?? '',
+      startDate: v.startDate ?? '',
+      expirationDate: v.expirationDate ?? '',
+      entries: (v.entries ?? '') as VisaEntriesDraft,
+      issuedByCountry: findCountry(v.issuedByCountryCode),
     })) ?? [],
   );
 
@@ -242,7 +251,16 @@ function EditProfileView({ user, setView }: { user: AuthUser; setView: (v: View)
   }
 
   function addVisa(citizenshipKey: string) {
-    setVisas((prev) => [...prev, { citizenshipKey, country: null, visaType: '', documentNumber: '', validUntil: '' }]);
+    setVisas((prev) => [...prev, {
+      citizenshipKey,
+      country: null,
+      visaType: '',
+      stickerNumber: '',
+      startDate: '',
+      expirationDate: '',
+      entries: '',
+      issuedByCountry: null,
+    }]);
   }
 
   function removeVisa(idx: number) {
@@ -297,8 +315,12 @@ function EditProfileView({ user, setView }: { user: AuthUser; setView: (v: View)
           countryCode: v.country!.code,
           countryName: v.country!.name,
           visaType: v.visaType.trim() || null,
-          documentNumber: v.documentNumber.trim() || null,
-          validUntil: v.validUntil.trim() || null,
+          stickerNumber: v.stickerNumber.trim() || null,
+          startDate: v.startDate.trim() || null,
+          expirationDate: v.expirationDate.trim() || null,
+          entries: v.entries || null,
+          issuedByCountryCode: v.issuedByCountry?.code ?? null,
+          issuedByCountryName: v.issuedByCountry?.name ?? null,
         };
       });
 
@@ -408,17 +430,46 @@ function EditProfileView({ user, setView }: { user: AuthUser; setView: (v: View)
                             className={inputCls}
                           />
                           <input
-                            value={v.documentNumber}
-                            onChange={(e) => updateVisa(idx, { documentNumber: e.target.value })}
-                            placeholder="Visa number"
+                            value={v.stickerNumber}
+                            onChange={(e) => updateVisa(idx, { stickerNumber: e.target.value })}
+                            placeholder="Sticker number"
                             className={inputCls}
                           />
                         </div>
-                        <input
-                          type="date"
-                          value={v.validUntil}
-                          onChange={(e) => updateVisa(idx, { validUntil: e.target.value })}
-                          className={inputCls}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[10px] uppercase tracking-wide text-text-muted">Start date</label>
+                            <input
+                              type="date"
+                              value={v.startDate}
+                              onChange={(e) => updateVisa(idx, { startDate: e.target.value })}
+                              className={inputCls}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] uppercase tracking-wide text-text-muted">Expiration date</label>
+                            <input
+                              type="date"
+                              value={v.expirationDate}
+                              onChange={(e) => updateVisa(idx, { expirationDate: e.target.value })}
+                              className={inputCls}
+                            />
+                          </div>
+                        </div>
+                        <select
+                          value={v.entries}
+                          onChange={(e) => updateVisa(idx, { entries: e.target.value as VisaEntriesDraft })}
+                          className={inputCls + ' appearance-none cursor-pointer'}
+                        >
+                          <option value="">Entries (single / double / multiple)</option>
+                          <option value="single">Single entry</option>
+                          <option value="double">Double entry</option>
+                          <option value="multiple">Multiple entries</option>
+                        </select>
+                        <CountrySelect
+                          value={v.issuedByCountry}
+                          onChange={(country) => updateVisa(idx, { issuedByCountry: country })}
+                          placeholder="Issued by (country)"
                         />
                       </div>
                     ))}

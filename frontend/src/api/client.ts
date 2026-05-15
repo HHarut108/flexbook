@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { useApiSwitcher } from '../store/api-switcher';
+import { useAuthStore } from '../store/auth.store';
 
 const getBaseURL = () => {
   const apiUrl = import.meta.env.VITE_API_URL;
@@ -23,6 +24,13 @@ apiClient.interceptors.response.use(
   },
   (error) => {
     const status = error.response?.status;
+    const url: string = error.config?.url ?? '';
+    // If an authenticated endpoint rejects us (cookie missing/expired), drop the
+    // stale local user state. The AccountScreen useEffect will then redirect to /login.
+    // We exclude /auth/me — its 401 is expected for unauth visitors and is handled in App.tsx.
+    if (status === 401 && !url.endsWith('/auth/me') && !url.endsWith('/auth/login')) {
+      try { useAuthStore.getState().logout(); } catch { /* ignore */ }
+    }
     if (status === 429) {
       const retryAfter = error.response?.headers?.['retry-after'];
       const wait = retryAfter ? ` Please wait ${retryAfter}s.` : '';

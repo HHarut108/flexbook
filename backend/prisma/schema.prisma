@@ -38,14 +38,18 @@ model UserCitizenship {
 }
 
 model UserVisa {
-  id             String  @id @default(cuid())
-  userId         String
-  citizenshipId  String
-  countryCode    String
-  countryName    String
-  visaType       String?
-  documentNumber String?
-  validUntil     String?
+  id                   String  @id @default(cuid())
+  userId               String
+  citizenshipId        String
+  countryCode          String
+  countryName          String
+  visaType             String?
+  stickerNumber        String?
+  startDate            String?
+  expirationDate       String?
+  entries              String? // 'single' | 'double' | 'multiple'
+  issuedByCountryCode  String?
+  issuedByCountryName  String?
 
   user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   citizenship UserCitizenship @relation(fields: [citizenshipId], references: [id], onDelete: Cascade)
