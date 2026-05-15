@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../db';
 import { requireAdminAuth } from '../middleware/requireAdminAuth';
+import { decryptPii } from '../utils/pii';
 
 export async function adminUsersRoutes(app: FastifyInstance) {
   // GET /admin/users — list every registered user with all signup data.
@@ -9,9 +10,19 @@ export async function adminUsersRoutes(app: FastifyInstance) {
       include: { citizenships: true, visas: true },
       orderBy: { createdAt: 'desc' },
     });
-    const safe = users.map((u: { passwordHash: string } & Record<string, unknown>) => {
-      const { passwordHash: _pw, ...rest } = u;
-      return rest;
+    const safe = users.map((u: any) => {
+      const { passwordHash: _pw, citizenships, visas, ...rest } = u;
+      return {
+        ...rest,
+        citizenships: (citizenships ?? []).map((c: any) => ({
+          ...c,
+          documentNumber: decryptPii(c.documentNumber),
+        })),
+        visas: (visas ?? []).map((v: any) => ({
+          ...v,
+          documentNumber: decryptPii(v.documentNumber),
+        })),
+      };
     });
     return reply.send({ users: safe });
   });
