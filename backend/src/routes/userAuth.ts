@@ -15,6 +15,7 @@ import {
   cookieOptions,
 } from '../utils/userAuth';
 import { redis, recordRedisOk, recordRedisError } from '../utils/redisClient';
+import { encryptPii, decryptPii } from '../utils/pii';
 
 // ── Rate limit helpers (same Redis-with-in-memory-fallback pattern) ───────────
 
@@ -183,7 +184,14 @@ export async function userAuthRoutes(app: FastifyInstance) {
             birthday: birthday ?? null,
             citizenships: {
               deleteMany: {},
-              create: citizenships?.length ? citizenships.map((c, i) => ({ ...c, isPrimary: i === 0 })) : [],
+              create: citizenships?.length
+                ? citizenships.map((c, i) => ({
+                    countryCode: c.countryCode,
+                    countryName: c.countryName,
+                    documentNumber: encryptPii(c.documentNumber),
+                    isPrimary: i === 0,
+                  }))
+                : [],
             },
           },
         });
@@ -210,7 +218,14 @@ export async function userAuthRoutes(app: FastifyInstance) {
         lastName,
         birthday: birthday ?? null,
         citizenships: citizenships?.length
-          ? { create: citizenships.map((c, i) => ({ ...c, isPrimary: i === 0 })) }
+          ? {
+              create: citizenships.map((c, i) => ({
+                countryCode: c.countryCode,
+                countryName: c.countryName,
+                documentNumber: encryptPii(c.documentNumber),
+                isPrimary: i === 0,
+              })),
+            }
           : undefined,
       },
     });
@@ -342,64 +357,68 @@ export async function userAuthRoutes(app: FastifyInstance) {
     const userId = (req as any).userId as string;
     const { firstName, lastName, birthday, countryOfResidenceCode, countryOfResidenceName, citizenships, visas } = parsed.data;
 
-    await db.user.update({
-      where: { id: userId },
-      data: {
-        ...(firstName !== undefined ? { firstName } : {}),
-        ...(lastName !== undefined ? { lastName } : {}),
-        ...(birthday !== undefined ? { birthday } : {}),
-        ...(countryOfResidenceCode !== undefined ? { countryOfResidenceCode } : {}),
-        ...(countryOfResidenceName !== undefined ? { countryOfResidenceName } : {}),
-      },
+    // All profile mutations run in a single transaction so a mid-flight failure
+    // can't leave the user with deleted citizenships but no replacements.
+    await db.$transaction(async (tx: any) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          ...(firstName !== undefined ? { firstName } : {}),
+          ...(lastName !== undefined ? { lastName } : {}),
+          ...(birthday !== undefined ? { birthday } : {}),
+          ...(countryOfResidenceCode !== undefined ? { countryOfResidenceCode } : {}),
+          ...(countryOfResidenceName !== undefined ? { countryOfResidenceName } : {}),
+        },
+      });
+
+      if (citizenships !== undefined) {
+        await tx.userCitizenship.deleteMany({ where: { userId } });
+        for (let i = 0; i < citizenships.length; i++) {
+          const c = citizenships[i];
+          await tx.userCitizenship.create({
+            data: {
+              userId,
+              countryCode: c.countryCode,
+              countryName: c.countryName,
+              documentNumber: encryptPii(c.documentNumber),
+              isPrimary: c.isPrimary ?? i === 0,
+            },
+          });
+        }
+      }
+
+      if (visas !== undefined) {
+        const existingCitizenships = await tx.userCitizenship.findMany({ where: { userId } });
+        const byCountryCode = new Map<string, string>(
+          existingCitizenships.map((c: { id: string; countryCode: string }) => [c.countryCode, c.id]),
+        );
+        const byId = new Set<string>(existingCitizenships.map((c: { id: string }) => c.id));
+        await tx.userVisa.deleteMany({ where: { userId } });
+        for (const v of visas) {
+          // Resolve which citizenship this visa attaches to. Accept either explicit
+          // citizenshipId or citizenshipCountryCode (e.g. "the visa is stamped in my AM passport").
+          let citizenshipId: string | undefined;
+          if (v.citizenshipId && byId.has(v.citizenshipId)) citizenshipId = v.citizenshipId;
+          if (!citizenshipId && v.citizenshipCountryCode) citizenshipId = byCountryCode.get(v.citizenshipCountryCode);
+          if (!citizenshipId) continue;
+          await tx.userVisa.create({
+            data: {
+              userId,
+              citizenshipId,
+              countryCode: v.countryCode,
+              countryName: v.countryName,
+              visaType: v.visaType ?? null,
+              stickerNumber: encryptPii(v.stickerNumber),
+              startDate: v.startDate ?? null,
+              expirationDate: v.expirationDate ?? null,
+              entries: v.entries ?? null,
+              issuedByCountryCode: v.issuedByCountryCode ?? null,
+              issuedByCountryName: v.issuedByCountryName ?? null,
+            },
+          });
+        }
+      }
     });
-
-    if (citizenships !== undefined) {
-      await db.userCitizenship.deleteMany({ where: { userId } });
-      for (let i = 0; i < citizenships.length; i++) {
-        const c = citizenships[i];
-        await db.userCitizenship.create({
-          data: {
-            userId,
-            countryCode: c.countryCode,
-            countryName: c.countryName,
-            documentNumber: c.documentNumber ?? null,
-            isPrimary: c.isPrimary ?? i === 0,
-          },
-        });
-      }
-    }
-
-    if (visas !== undefined) {
-      const existingCitizenships = await db.userCitizenship.findMany({ where: { userId } });
-      const byCountryCode = new Map<string, string>(
-        existingCitizenships.map((c: { id: string; countryCode: string }) => [c.countryCode, c.id]),
-      );
-      const byId = new Set<string>(existingCitizenships.map((c: { id: string }) => c.id));
-      await db.userVisa.deleteMany({ where: { userId } });
-      for (const v of visas) {
-        // Resolve which citizenship this visa attaches to. Accept either explicit citizenshipId
-        // or citizenshipCountryCode (e.g. "the visa is stamped in my AM passport").
-        let citizenshipId: string | undefined;
-        if (v.citizenshipId && byId.has(v.citizenshipId)) citizenshipId = v.citizenshipId;
-        if (!citizenshipId && v.citizenshipCountryCode) citizenshipId = byCountryCode.get(v.citizenshipCountryCode);
-        if (!citizenshipId) continue;
-        await db.userVisa.create({
-          data: {
-            userId,
-            citizenshipId,
-            countryCode: v.countryCode,
-            countryName: v.countryName,
-            visaType: v.visaType ?? null,
-            stickerNumber: v.stickerNumber ?? null,
-            startDate: v.startDate ?? null,
-            expirationDate: v.expirationDate ?? null,
-            entries: v.entries ?? null,
-            issuedByCountryCode: v.issuedByCountryCode ?? null,
-            issuedByCountryName: v.issuedByCountryName ?? null,
-          },
-        });
-      }
-    }
 
     const fresh = await db.user.findUnique({
       where: { id: userId },
@@ -448,6 +467,20 @@ export async function userAuthRoutes(app: FastifyInstance) {
 
 function safeUser(user: any) {
   const { passwordHash: _, ...safe } = user;
+  // Decrypt PII fields before sending to clients. decryptPii is a no-op for
+  // null and for legacy plaintext rows (anything without the enc:v1: prefix).
+  if (safe.citizenships) {
+    safe.citizenships = safe.citizenships.map((c: any) => ({
+      ...c,
+      documentNumber: decryptPii(c.documentNumber),
+    }));
+  }
+  if (safe.visas) {
+    safe.visas = safe.visas.map((v: any) => ({
+      ...v,
+      stickerNumber: decryptPii(v.stickerNumber),
+    }));
+  }
   return safe;
 }
 

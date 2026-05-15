@@ -57,8 +57,11 @@ async function runMigrations() {
       "countryName" TEXT NOT NULL,
       "documentNumber" TEXT,
       "isPrimary" BOOLEAN NOT NULL DEFAULT false,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE
     )`,
+    `CREATE INDEX IF NOT EXISTS "UserCitizenship_userId_idx" ON "UserCitizenship"("userId")`,
     `CREATE TABLE IF NOT EXISTS "UserVisa" (
       "id" TEXT NOT NULL PRIMARY KEY,
       "userId" TEXT NOT NULL,
@@ -72,9 +75,13 @@ async function runMigrations() {
       "entries" TEXT,
       "issuedByCountryCode" TEXT,
       "issuedByCountryName" TEXT,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE,
       FOREIGN KEY ("citizenshipId") REFERENCES "UserCitizenship" ("id") ON DELETE CASCADE
     )`,
+    `CREATE INDEX IF NOT EXISTS "UserVisa_userId_idx" ON "UserVisa"("userId")`,
+    `CREATE INDEX IF NOT EXISTS "UserVisa_citizenshipId_idx" ON "UserVisa"("citizenshipId")`,
     `CREATE TABLE IF NOT EXISTS "OTP" (
       "id" TEXT NOT NULL PRIMARY KEY,
       "userId" TEXT NOT NULL,
@@ -100,6 +107,12 @@ async function runMigrations() {
     `ALTER TABLE "UserVisa" ADD COLUMN "entries" TEXT`,
     `ALTER TABLE "UserVisa" ADD COLUMN "issuedByCountryCode" TEXT`,
     `ALTER TABLE "UserVisa" ADD COLUMN "issuedByCountryName" TEXT`,
+    // SQLite forbids non-constant defaults on ADD COLUMN, so seed with NULL and
+    // let the app populate. updatedAt/createdAt are nullable on legacy rows.
+    `ALTER TABLE "UserCitizenship" ADD COLUMN "createdAt" DATETIME`,
+    `ALTER TABLE "UserCitizenship" ADD COLUMN "updatedAt" DATETIME`,
+    `ALTER TABLE "UserVisa" ADD COLUMN "createdAt" DATETIME`,
+    `ALTER TABLE "UserVisa" ADD COLUMN "updatedAt" DATETIME`,
   ];
   for (const sql of alters) {
     try {
@@ -107,6 +120,18 @@ async function runMigrations() {
     } catch (e: any) {
       if (!/duplicate column/i.test(e?.message ?? '')) throw e;
     }
+  }
+
+  // Backfill the newly-added timestamp columns on legacy rows. Prisma types them
+  // as NOT NULL, so we cannot leave them blank or reads will throw.
+  const backfills = [
+    `UPDATE "UserCitizenship" SET "createdAt" = CURRENT_TIMESTAMP WHERE "createdAt" IS NULL`,
+    `UPDATE "UserCitizenship" SET "updatedAt" = CURRENT_TIMESTAMP WHERE "updatedAt" IS NULL`,
+    `UPDATE "UserVisa" SET "createdAt" = CURRENT_TIMESTAMP WHERE "createdAt" IS NULL`,
+    `UPDATE "UserVisa" SET "updatedAt" = CURRENT_TIMESTAMP WHERE "updatedAt" IS NULL`,
+  ];
+  for (const sql of backfills) {
+    await db.$executeRawUnsafe(sql);
   }
 }
 

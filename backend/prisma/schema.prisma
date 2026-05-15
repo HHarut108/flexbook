@@ -26,33 +26,42 @@ model User {
 }
 
 model UserCitizenship {
-  id             String  @id @default(cuid())
+  id             String   @id @default(cuid())
   userId         String
   countryCode    String
   countryName    String
-  documentNumber String?
-  isPrimary      Boolean @default(false)
+  documentNumber String?  // encrypted (AES-256-GCM, see utils/pii.ts)
+  isPrimary      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   visas UserVisa[]
+
+  @@index([userId])
 }
 
 model UserVisa {
-  id                   String  @id @default(cuid())
+  id                   String   @id @default(cuid())
   userId               String
   citizenshipId        String
   countryCode          String
   countryName          String
   visaType             String?
-  stickerNumber        String?
+  stickerNumber        String?  // encrypted (AES-256-GCM, see utils/pii.ts)
   startDate            String?
   expirationDate       String?
-  entries              String? // 'single' | 'double' | 'multiple'
+  entries              String?  // 'single' | 'double' | 'multiple'
   issuedByCountryCode  String?
   issuedByCountryName  String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   citizenship UserCitizenship @relation(fields: [citizenshipId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([citizenshipId])
 }
 
 model OTP {
