@@ -90,6 +90,24 @@
         "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/infallible-chebyshev-c5f52d/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5186"
       ],
       "port": 5186
+    },
+    {
+      "name": "Frontend-musing-wing (Vite :5187)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/musing-wing-fb3f15/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5187"
+      ],
+      "port": 5187
+    },
+    {
+      "name": "Admin-musing-wing (Vite :5188)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/musing-wing-fb3f15/admin && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5188"
+      ],
+      "port": 5188
     }
   ]
 }

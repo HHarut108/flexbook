@@ -457,6 +457,14 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
         <div className="px-5 pt-6 pb-2 md:flex-1 md:flex md:flex-col md:justify-center md:px-8 md:py-10 lg:px-12 lg:py-12">
           {/* Hero */}
           <div className="mb-8 lg:mb-10">
+            {user && (
+              <p
+                className="text-text-secondary font-semibold mb-2"
+                style={{ fontSize: 'clamp(1.1rem, 1.6vw, 1.5rem)', letterSpacing: '-0.01em' }}
+              >
+                Hi {user.firstName} 👋
+              </p>
+            )}
             <h1
               className="leading-[0.92] font-black text-text-primary"
               style={{ fontSize: 'clamp(2.8rem, 6vw, 7rem)', letterSpacing: '-0.06em' }}

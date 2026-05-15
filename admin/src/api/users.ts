@@ -41,11 +41,14 @@ export interface AdminVisa {
   validUntil: string | null;
 }
 
+export type AdminGender = 'male' | 'female' | 'other' | 'prefer_not_to_say';
+
 export interface AdminUser {
   id: string;
   email: string;
   firstName: string;
   lastName: string;
+  gender: AdminGender | null;
   birthday: string | null;
   countryOfResidenceCode: string | null;
   countryOfResidenceName: string | null;

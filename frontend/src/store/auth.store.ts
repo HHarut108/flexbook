@@ -18,11 +18,14 @@ export interface UserVisa {
   validUntil?: string | null;
 }
 
+export type Gender = 'male' | 'female' | 'other' | 'prefer_not_to_say';
+
 export interface AuthUser {
   id: string;
   email: string;
   firstName: string;
   lastName: string;
+  gender?: Gender | null;
   birthday?: string;
   countryOfResidenceCode?: string | null;
   countryOfResidenceName?: string | null;

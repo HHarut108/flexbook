@@ -94,18 +94,31 @@ async function setResendCooldown(ip: string): Promise<void> {
 
 // ── Validation schemas ────────────────────────────────────────────────────────
 
+// First / last names: letters (any script), space, hyphen, apostrophe — 1-50 chars.
+const NAME_RE = /^[\p{L}][\p{L}\s'\-]{0,49}$/u;
+const GENDER_VALUES = ['male', 'female', 'other', 'prefer_not_to_say'] as const;
+
 const registerBody = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  firstName: z.string().min(1).max(100),
-  lastName: z.string().min(1).max(100),
+  email: z.string().email().max(254),
+  password: z.string().min(8).max(200),
+  firstName: z.string().min(1).max(50).regex(NAME_RE, 'Invalid first name'),
+  lastName: z.string().min(1).max(50).regex(NAME_RE, 'Invalid last name'),
+  gender: z.enum(GENDER_VALUES).optional(),
   birthday: z.string().optional(),
   citizenships: z.array(z.object({
     countryCode: z.string().length(2),
     countryName: z.string().min(1),
-    documentNumber: z.string().optional(),
+    documentNumber: z.string().max(50).optional(),
     isPrimary: z.boolean().optional(),
   })).max(2).optional(),
+  visas: z.array(z.object({
+    citizenshipCountryCode: z.string().length(2).optional(),
+    countryCode: z.string().length(2),
+    countryName: z.string().min(1),
+    visaType: z.string().max(50).optional(),
+    documentNumber: z.string().max(50).optional(),
+    validUntil: z.string().max(20).optional(),
+  })).max(20).optional(),
 });
 
 const loginBody = z.object({
@@ -139,8 +152,9 @@ const visaInputSchema = z.object({
 });
 
 const updateProfileBody = z.object({
-  firstName: z.string().min(1).max(100).optional(),
-  lastName: z.string().min(1).max(100).optional(),
+  firstName: z.string().min(1).max(50).regex(NAME_RE, 'Invalid first name').optional(),
+  lastName: z.string().min(1).max(50).regex(NAME_RE, 'Invalid last name').optional(),
+  gender: z.enum(GENDER_VALUES).nullable().optional(),
   birthday: z.string().nullable().optional(),
   countryOfResidenceCode: z.string().length(2).nullable().optional(),
   countryOfResidenceName: z.string().min(1).nullable().optional(),
@@ -163,7 +177,7 @@ export async function userAuthRoutes(app: FastifyInstance) {
   }, async (req, reply) => {
     const parsed = registerBody.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ error: { message: 'Invalid input', details: parsed.error.flatten() } });
-    const { email, password, firstName, lastName, birthday, citizenships } = parsed.data;
+    const { email, password, firstName, lastName, gender, birthday, citizenships, visas } = parsed.data;
 
     const existing = await db.user.findUnique({ where: { email: email.toLowerCase() } });
     if (existing) {
@@ -177,7 +191,9 @@ export async function userAuthRoutes(app: FastifyInstance) {
             passwordHash,
             firstName,
             lastName,
+            gender: gender ?? null,
             birthday: birthday ?? null,
+            visas: { deleteMany: {} },
             citizenships: {
               deleteMany: {},
               create: citizenships?.length
@@ -191,6 +207,9 @@ export async function userAuthRoutes(app: FastifyInstance) {
             },
           },
         });
+        if (visas?.length) {
+          await createVisasForUser(existing.id, visas);
+        }
         await db.oTP.updateMany({ where: { userId: existing.id, used: false }, data: { used: true } });
         const code = generateOtp();
         await db.oTP.create({ data: { userId: existing.id, code: await hashOtp(code), expiresAt: otpExpiresAt() } });
@@ -212,6 +231,7 @@ export async function userAuthRoutes(app: FastifyInstance) {
         passwordHash,
         firstName,
         lastName,
+        gender: gender ?? null,
         birthday: birthday ?? null,
         citizenships: citizenships?.length
           ? {
@@ -225,6 +245,9 @@ export async function userAuthRoutes(app: FastifyInstance) {
           : undefined,
       },
     });
+    if (visas?.length) {
+      await createVisasForUser(user.id, visas);
+    }
 
     const code = generateOtp();
     await db.oTP.create({ data: { userId: user.id, code: await hashOtp(code), expiresAt: otpExpiresAt() } });
@@ -351,13 +374,14 @@ export async function userAuthRoutes(app: FastifyInstance) {
     const parsed = updateProfileBody.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ error: { message: 'Invalid input', details: parsed.error.flatten() } });
     const userId = (req as any).userId as string;
-    const { firstName, lastName, birthday, countryOfResidenceCode, countryOfResidenceName, citizenships, visas } = parsed.data;
+    const { firstName, lastName, gender, birthday, countryOfResidenceCode, countryOfResidenceName, citizenships, visas } = parsed.data;
 
     await db.user.update({
       where: { id: userId },
       data: {
         ...(firstName !== undefined ? { firstName } : {}),
         ...(lastName !== undefined ? { lastName } : {}),
+        ...(gender !== undefined ? { gender } : {}),
         ...(birthday !== undefined ? { birthday } : {}),
         ...(countryOfResidenceCode !== undefined ? { countryOfResidenceCode } : {}),
         ...(countryOfResidenceName !== undefined ? { countryOfResidenceName } : {}),
@@ -470,6 +494,40 @@ function safeUser(user: any) {
     }));
   }
   return safe;
+}
+
+// Attach a list of registration-time visas to the user. Each visa must point at one
+// of the user's just-created citizenships via `citizenshipCountryCode` — visas without
+// a matching passport are skipped (the signup flow only surfaces them after a country
+// is picked, so this is a defensive filter for malformed clients).
+async function createVisasForUser(
+  userId: string,
+  visas: Array<{
+    citizenshipCountryCode?: string;
+    countryCode: string;
+    countryName: string;
+    visaType?: string;
+    documentNumber?: string;
+    validUntil?: string;
+  }>,
+) {
+  const userCitizenships = await db.userCitizenship.findMany({ where: { userId } });
+  const byCountry = new Map(userCitizenships.map((c: any) => [c.countryCode, c.id]));
+  for (const v of visas) {
+    const citizenshipId = v.citizenshipCountryCode ? byCountry.get(v.citizenshipCountryCode) : undefined;
+    if (!citizenshipId) continue;
+    await db.userVisa.create({
+      data: {
+        userId,
+        citizenshipId,
+        countryCode: v.countryCode,
+        countryName: v.countryName,
+        visaType: v.visaType ?? null,
+        documentNumber: encryptPii(v.documentNumber),
+        validUntil: v.validUntil ?? null,
+      },
+    });
+  }
 }
 
 async function requireAuth(req: any, reply: any) {

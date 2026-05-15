@@ -8,14 +8,7 @@ export interface CitizenshipInput {
   isPrimary?: boolean;
 }
 
-export interface RegisterInput {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-  birthday?: string;
-  citizenships?: CitizenshipInput[];
-}
+export type Gender = 'male' | 'female' | 'other' | 'prefer_not_to_say';
 
 export interface VisaInput {
   id?: string;
@@ -28,9 +21,21 @@ export interface VisaInput {
   validUntil?: string | null;
 }
 
+export interface RegisterInput {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  gender?: Gender;
+  birthday?: string;
+  citizenships?: CitizenshipInput[];
+  visas?: VisaInput[];
+}
+
 export interface UpdateProfileInput {
   firstName?: string;
   lastName?: string;
+  gender?: Gender | null;
   birthday?: string | null;
   countryOfResidenceCode?: string | null;
   countryOfResidenceName?: string | null;

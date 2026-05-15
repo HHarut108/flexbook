@@ -13,6 +13,7 @@ model User {
   passwordHash             String
   firstName                String
   lastName                 String
+  gender                   String?  // male | female | other | prefer_not_to_say
   birthday                 String?
   countryOfResidenceCode   String?
   countryOfResidenceName   String?
