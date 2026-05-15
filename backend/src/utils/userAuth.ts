@@ -85,7 +85,10 @@ export async function sendOtpEmail(email: string, otp: string): Promise<void> {
 export const cookieOptions = {
   httpOnly: true,
   secure: config.NODE_ENV === 'production',
-  sameSite: 'strict' as const,
+  // Production deploys frontend and API on different domains (vercel.app vs API host),
+  // so the cookie must be SameSite=None to be sent on cross-site fetches. In dev (HTTP
+  // localhost) we use 'lax' because 'none' requires Secure.
+  sameSite: (config.NODE_ENV === 'production' ? 'none' : 'lax') as 'none' | 'lax',
   path: '/',
   maxAge: 30 * 24 * 60 * 60, // 30 days in seconds
 };

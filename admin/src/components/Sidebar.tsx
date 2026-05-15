@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { BarChart2, LogOut, Zap, Sun, Moon, Headphones } from 'lucide-react';
+import { BarChart2, LogOut, Zap, Sun, Moon, Headphones, Users } from 'lucide-react';
 import { logout } from '../auth';
 
 interface NavItem {
@@ -18,6 +18,11 @@ const NAV_ITEMS: NavItem[] = [
     to: '/assistance-requests',
     icon: <Headphones size={18} />,
     label: 'Assistance Requests',
+  },
+  {
+    to: '/users',
+    icon: <Users size={18} />,
+    label: 'Registered Users',
   },
 ];
 

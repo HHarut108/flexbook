@@ -4,7 +4,7 @@ import type { AuthUser } from '../store/auth.store';
 export interface CitizenshipInput {
   countryCode: string;
   countryName: string;
-  documentNumber?: string;
+  documentNumber?: string | null;
   isPrimary?: boolean;
 }
 
@@ -15,6 +15,27 @@ export interface RegisterInput {
   lastName: string;
   birthday?: string;
   citizenships?: CitizenshipInput[];
+}
+
+export interface VisaInput {
+  id?: string;
+  citizenshipId?: string;
+  citizenshipCountryCode?: string;
+  countryCode: string;
+  countryName: string;
+  visaType?: string | null;
+  documentNumber?: string | null;
+  validUntil?: string | null;
+}
+
+export interface UpdateProfileInput {
+  firstName?: string;
+  lastName?: string;
+  birthday?: string | null;
+  countryOfResidenceCode?: string | null;
+  countryOfResidenceName?: string | null;
+  citizenships?: CitizenshipInput[];
+  visas?: VisaInput[];
 }
 
 export const authApi = {
@@ -44,6 +65,11 @@ export const authApi = {
 
   getMe: async (): Promise<{ user: AuthUser }> => {
     const res = await apiClient.get('/auth/me');
+    return res.data;
+  },
+
+  updateProfile: async (data: UpdateProfileInput): Promise<{ user: AuthUser }> => {
+    const res = await apiClient.patch('/auth/profile', data);
     return res.data;
   },
 

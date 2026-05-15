@@ -20,6 +20,7 @@ import { assistanceRequestRoutes } from './routes/assistanceRequests';
 import { cronRoutes } from './routes/cron';
 import { countryInfoRoutes } from './routes/countryInfo';
 import { userAuthRoutes } from './routes/userAuth';
+import { adminUsersRoutes } from './routes/adminUsers';
 
 const app = Fastify({
   logger: {
@@ -42,6 +43,8 @@ async function runMigrations() {
       "firstName" TEXT NOT NULL,
       "lastName" TEXT NOT NULL,
       "birthday" TEXT,
+      "countryOfResidenceCode" TEXT,
+      "countryOfResidenceName" TEXT,
       "emailVerified" BOOLEAN NOT NULL DEFAULT false,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -56,6 +59,18 @@ async function runMigrations() {
       "isPrimary" BOOLEAN NOT NULL DEFAULT false,
       FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE
     )`,
+    `CREATE TABLE IF NOT EXISTS "UserVisa" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "userId" TEXT NOT NULL,
+      "citizenshipId" TEXT NOT NULL,
+      "countryCode" TEXT NOT NULL,
+      "countryName" TEXT NOT NULL,
+      "visaType" TEXT,
+      "documentNumber" TEXT,
+      "validUntil" TEXT,
+      FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE,
+      FOREIGN KEY ("citizenshipId") REFERENCES "UserCitizenship" ("id") ON DELETE CASCADE
+    )`,
     `CREATE TABLE IF NOT EXISTS "OTP" (
       "id" TEXT NOT NULL PRIMARY KEY,
       "userId" TEXT NOT NULL,
@@ -68,6 +83,20 @@ async function runMigrations() {
   ];
   for (const sql of statements) {
     await db.$executeRawUnsafe(sql);
+  }
+
+  // Idempotent ALTER TABLE for columns added to existing tables. SQLite has no
+  // "ADD COLUMN IF NOT EXISTS", so we swallow the "duplicate column" error.
+  const alters = [
+    `ALTER TABLE "User" ADD COLUMN "countryOfResidenceCode" TEXT`,
+    `ALTER TABLE "User" ADD COLUMN "countryOfResidenceName" TEXT`,
+  ];
+  for (const sql of alters) {
+    try {
+      await db.$executeRawUnsafe(sql);
+    } catch (e: any) {
+      if (!/duplicate column/i.test(e?.message ?? '')) throw e;
+    }
   }
 }
 
@@ -109,6 +138,7 @@ async function start() {
   await app.register(cronRoutes);
   await app.register(countryInfoRoutes);
   await app.register(userAuthRoutes);
+  await app.register(adminUsersRoutes);
 
   app.setErrorHandler((err, req, reply) => {
     app.log.error({ err, url: req.url, method: req.method }, 'Unhandled route error');

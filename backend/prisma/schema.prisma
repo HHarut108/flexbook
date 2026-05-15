@@ -8,17 +8,20 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  passwordHash  String
-  firstName     String
-  lastName      String
-  birthday      String?
-  emailVerified Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                       String   @id @default(cuid())
+  email                    String   @unique
+  passwordHash             String
+  firstName                String
+  lastName                 String
+  birthday                 String?
+  countryOfResidenceCode   String?
+  countryOfResidenceName   String?
+  emailVerified            Boolean  @default(false)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
   citizenships UserCitizenship[]
+  visas        UserVisa[]
   otps         OTP[]
 }
 
@@ -30,7 +33,22 @@ model UserCitizenship {
   documentNumber String?
   isPrimary      Boolean @default(false)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  visas UserVisa[]
+}
+
+model UserVisa {
+  id             String  @id @default(cuid())
+  userId         String
+  citizenshipId  String
+  countryCode    String
+  countryName    String
+  visaType       String?
+  documentNumber String?
+  validUntil     String?
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  citizenship UserCitizenship @relation(fields: [citizenshipId], references: [id], onDelete: Cascade)
 }
 
 model OTP {
