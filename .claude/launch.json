@@ -81,6 +81,15 @@
         "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/gracious-heisenberg-f83ea5/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5185"
       ],
       "port": 5185
+    },
+    {
+      "name": "Frontend-infallible (Vite :5186)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/infallible-chebyshev-c5f52d/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5186"
+      ],
+      "port": 5186
     }
   ]
 }

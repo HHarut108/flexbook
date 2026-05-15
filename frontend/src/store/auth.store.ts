@@ -8,14 +8,27 @@ export interface UserCitizenship {
   isPrimary: boolean;
 }
 
+export interface UserVisa {
+  id: string;
+  citizenshipId: string;
+  countryCode: string;
+  countryName: string;
+  visaType?: string | null;
+  documentNumber?: string | null;
+  validUntil?: string | null;
+}
+
 export interface AuthUser {
   id: string;
   email: string;
   firstName: string;
   lastName: string;
   birthday?: string;
+  countryOfResidenceCode?: string | null;
+  countryOfResidenceName?: string | null;
   emailVerified: boolean;
   citizenships: UserCitizenship[];
+  visas: UserVisa[];
   createdAt: string;
 }
 

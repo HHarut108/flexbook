@@ -126,6 +126,32 @@ const deleteAccountBody = z.object({
   password: z.string().min(1),
 });
 
+const visaInputSchema = z.object({
+  id: z.string().optional(),
+  citizenshipId: z.string().optional(),
+  citizenshipCountryCode: z.string().length(2).optional(),
+  countryCode: z.string().length(2),
+  countryName: z.string().min(1),
+  visaType: z.string().max(100).optional().nullable(),
+  documentNumber: z.string().max(100).optional().nullable(),
+  validUntil: z.string().max(20).optional().nullable(),
+});
+
+const updateProfileBody = z.object({
+  firstName: z.string().min(1).max(100).optional(),
+  lastName: z.string().min(1).max(100).optional(),
+  birthday: z.string().nullable().optional(),
+  countryOfResidenceCode: z.string().length(2).nullable().optional(),
+  countryOfResidenceName: z.string().min(1).nullable().optional(),
+  citizenships: z.array(z.object({
+    countryCode: z.string().length(2),
+    countryName: z.string().min(1),
+    documentNumber: z.string().optional().nullable(),
+    isPrimary: z.boolean().optional(),
+  })).max(2).optional(),
+  visas: z.array(visaInputSchema).max(20).optional(),
+});
+
 // ── Route plugin ──────────────────────────────────────────────────────────────
 
 export async function userAuthRoutes(app: FastifyInstance) {
@@ -141,7 +167,22 @@ export async function userAuthRoutes(app: FastifyInstance) {
     const existing = await db.user.findUnique({ where: { email: email.toLowerCase() } });
     if (existing) {
       if (!existing.emailVerified) {
-        // Re-issue OTP for unverified account
+        // Re-register: overwrite profile fields with the latest values so a corrected
+        // second attempt wins over the first (e.g. user mistyped their birthday before).
+        const passwordHash = await hashPassword(password);
+        await db.user.update({
+          where: { id: existing.id },
+          data: {
+            passwordHash,
+            firstName,
+            lastName,
+            birthday: birthday ?? null,
+            citizenships: {
+              deleteMany: {},
+              create: citizenships?.length ? citizenships.map((c, i) => ({ ...c, isPrimary: i === 0 })) : [],
+            },
+          },
+        });
         await db.oTP.updateMany({ where: { userId: existing.id, used: false }, data: { used: true } });
         const code = generateOtp();
         await db.oTP.create({ data: { userId: existing.id, code: await hashOtp(code), expiresAt: otpExpiresAt() } });
@@ -207,7 +248,7 @@ export async function userAuthRoutes(app: FastifyInstance) {
     const updated = await db.user.update({
       where: { id: user.id },
       data: { emailVerified: true },
-      include: { citizenships: true },
+      include: { citizenships: true, visas: true },
     });
 
     const token = signUserToken({ sub: updated.id, email: updated.email });
@@ -253,7 +294,7 @@ export async function userAuthRoutes(app: FastifyInstance) {
 
     const user = await db.user.findUnique({
       where: { email: email.toLowerCase() },
-      include: { citizenships: true },
+      include: { citizenships: true, visas: true },
     });
 
     if (!user || !(await verifyPassword(password, user.passwordHash))) {
@@ -283,10 +324,80 @@ export async function userAuthRoutes(app: FastifyInstance) {
   app.get('/auth/me', { preHandler: [requireAuth] }, async (req, reply) => {
     const user = await db.user.findUnique({
       where: { id: (req as any).userId },
-      include: { citizenships: true },
+      include: { citizenships: true, visas: true },
     });
     if (!user) return reply.status(404).send({ error: { message: 'User not found' } });
     return reply.send({ success: true, data: { user: safeUser(user) } });
+  });
+
+  // PATCH /auth/profile  (requires auth) — update name, birthday, country of residence,
+  // citizenships, and visas. Citizenships and visas are passed as full replacement arrays.
+  app.patch('/auth/profile', { preHandler: [requireAuth] }, async (req, reply) => {
+    const parsed = updateProfileBody.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send({ error: { message: 'Invalid input', details: parsed.error.flatten() } });
+    const userId = (req as any).userId as string;
+    const { firstName, lastName, birthday, countryOfResidenceCode, countryOfResidenceName, citizenships, visas } = parsed.data;
+
+    await db.user.update({
+      where: { id: userId },
+      data: {
+        ...(firstName !== undefined ? { firstName } : {}),
+        ...(lastName !== undefined ? { lastName } : {}),
+        ...(birthday !== undefined ? { birthday } : {}),
+        ...(countryOfResidenceCode !== undefined ? { countryOfResidenceCode } : {}),
+        ...(countryOfResidenceName !== undefined ? { countryOfResidenceName } : {}),
+      },
+    });
+
+    if (citizenships !== undefined) {
+      await db.userCitizenship.deleteMany({ where: { userId } });
+      for (let i = 0; i < citizenships.length; i++) {
+        const c = citizenships[i];
+        await db.userCitizenship.create({
+          data: {
+            userId,
+            countryCode: c.countryCode,
+            countryName: c.countryName,
+            documentNumber: c.documentNumber ?? null,
+            isPrimary: c.isPrimary ?? i === 0,
+          },
+        });
+      }
+    }
+
+    if (visas !== undefined) {
+      const existingCitizenships = await db.userCitizenship.findMany({ where: { userId } });
+      const byCountryCode = new Map<string, string>(
+        existingCitizenships.map((c: { id: string; countryCode: string }) => [c.countryCode, c.id]),
+      );
+      const byId = new Set<string>(existingCitizenships.map((c: { id: string }) => c.id));
+      await db.userVisa.deleteMany({ where: { userId } });
+      for (const v of visas) {
+        // Resolve which citizenship this visa attaches to. Accept either explicit citizenshipId
+        // or citizenshipCountryCode (e.g. "the visa is stamped in my AM passport").
+        let citizenshipId: string | undefined;
+        if (v.citizenshipId && byId.has(v.citizenshipId)) citizenshipId = v.citizenshipId;
+        if (!citizenshipId && v.citizenshipCountryCode) citizenshipId = byCountryCode.get(v.citizenshipCountryCode);
+        if (!citizenshipId) continue;
+        await db.userVisa.create({
+          data: {
+            userId,
+            citizenshipId,
+            countryCode: v.countryCode,
+            countryName: v.countryName,
+            visaType: v.visaType ?? null,
+            documentNumber: v.documentNumber ?? null,
+            validUntil: v.validUntil ?? null,
+          },
+        });
+      }
+    }
+
+    const fresh = await db.user.findUnique({
+      where: { id: userId },
+      include: { citizenships: true, visas: true },
+    });
+    return reply.send({ success: true, data: { user: safeUser(fresh) } });
   });
 
   // PATCH /auth/password  (requires auth)
