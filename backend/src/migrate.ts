@@ -48,7 +48,21 @@ async function main() {
 
     console.log(`[migrate] applying: ${dir}`);
     for (const stmt of statements) {
-      await client.execute(stmt + ';');
+      try {
+        await client.execute(stmt + ';');
+      } catch (err: any) {
+        const msg: string = err?.message ?? '';
+        // Ignore "already exists" errors — idempotent re-runs are safe.
+        if (
+          msg.includes('already exists') ||
+          msg.includes('duplicate column') ||
+          msg.includes('table already has a column')
+        ) {
+          console.log(`[migrate] skipped (already exists): ${stmt.slice(0, 60)}…`);
+          continue;
+        }
+        throw err;
+      }
     }
 
     await client.execute({

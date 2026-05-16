@@ -1,6 +1,6 @@
--- AlterTable: add country-of-residence fields to User (IF NOT EXISTS requires SQLite 3.37+/libSQL)
-ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "countryOfResidenceCode" TEXT;
-ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "countryOfResidenceName" TEXT;
+-- AlterTable: add country-of-residence fields to User
+ALTER TABLE "User" ADD COLUMN "countryOfResidenceCode" TEXT;
+ALTER TABLE "User" ADD COLUMN "countryOfResidenceName" TEXT;
 
 -- CreateTable: UserVisa
 CREATE TABLE IF NOT EXISTS "UserVisa" (
