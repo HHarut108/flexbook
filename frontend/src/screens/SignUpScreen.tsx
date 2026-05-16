@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Eye, EyeOff, Check } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Eye, EyeOff, Info } from 'lucide-react';
 import { authApi } from '../api/auth.api';
 import { CountrySelect } from '../components/CountrySelect';
 import type { Country } from '../data/countries';
@@ -244,31 +244,21 @@ export function SignUpScreen() {
 
         {/* Gender */}
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-text-muted uppercase tracking-wide">Sex *</label>
-          <div className="grid grid-cols-2 gap-2">
-            {GENDER_OPTIONS.map((opt) => {
-              const selected = gender === opt.value;
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => {
-                    setGender(opt.value);
-                    setFieldErrors((e) => ({ ...e, gender: '' }));
-                  }}
-                  className={`flex items-center justify-between gap-2 px-3 py-3 rounded-xl border text-sm transition-colors ${
-                    selected
-                      ? 'border-indigo bg-indigo/10 text-indigo font-medium'
-                      : 'border-border bg-surface text-text-primary hover:border-indigo/50'
-                  }`}
-                  aria-pressed={selected}
-                >
-                  <span>{opt.label}</span>
-                  {selected && <Check size={14} />}
-                </button>
-              );
-            })}
-          </div>
+          <label className="text-xs font-medium text-text-muted uppercase tracking-wide">Gender *</label>
+          <select
+            value={gender}
+            onChange={(e) => {
+              setGender(e.target.value as Gender | '');
+              setFieldErrors((er) => ({ ...er, gender: '' }));
+            }}
+            aria-invalid={!!fieldErrors.gender}
+            className={fieldErrors.gender ? inputErrCls : inputCls}
+          >
+            <option value="">Select gender</option>
+            {GENDER_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
           {fieldErrors.gender && <p className="text-[11px] text-red-500">{fieldErrors.gender}</p>}
         </div>
 
@@ -299,6 +289,10 @@ export function SignUpScreen() {
             onChange={(e) => {
               setBirthday(e.target.value);
               setFieldErrors((er) => ({ ...er, birthday: '' }));
+              // Blur immediately after selection — prevents iOS Safari from holding
+              // focus on the date input after the native picker is dismissed, which
+              // can make other form elements temporarily unresponsive.
+              e.target.blur();
             }}
             min={minBirthday}
             max={maxBirthday}
@@ -309,38 +303,38 @@ export function SignUpScreen() {
           {fieldErrors.birthday && <p className="text-[11px] text-red-500">{fieldErrors.birthday}</p>}
         </div>
 
-        {/* Citizenships + nested visas (visa block appears after a country is picked) */}
+        {/* Citizenship + nested visas (only primary shown; secondary available post-registration) */}
         <div className="space-y-3">
-          <label className="text-xs font-medium text-text-muted uppercase tracking-wide">Citizenship</label>
+          <div>
+            <label className="text-xs font-medium text-text-muted uppercase tracking-wide">Citizenship</label>
+            <div className="flex items-start gap-1.5 mt-1">
+              <Info size={11} className="text-text-muted mt-0.5 shrink-0" />
+              <p className="text-[11px] text-text-muted leading-relaxed">
+                Your passport details help us show visa requirements and personalise flight recommendations for you.
+              </p>
+            </div>
+          </div>
 
-          {citizenships.map((entry, i) => {
+          {citizenships.slice(0, 1).map((entry) => {
             const visasForThis = visas.map((v, idx) => ({ v, idx })).filter((x) => x.v.citizenshipKey === entry.key);
             return (
               <div key={entry.key} className="space-y-2 p-3 rounded-xl border border-border bg-surface/50">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-text-muted">{i === 0 ? 'Primary' : 'Secondary'} citizenship</span>
-                  {i > 0 && (
-                    <button type="button" onClick={() => removeCitizenship(i)} className="text-text-muted hover:text-red-500 transition-colors">
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
                 <CountrySelect
                   value={entry.country}
-                  onChange={(c) => updateCitizenship(i, { country: c })}
+                  onChange={(c) => updateCitizenship(0, { country: c })}
                   placeholder="Select country (optional)"
                 />
                 {entry.country && (
                   <>
                     <input
                       value={entry.documentNumber}
-                      onChange={(e) => updateCitizenship(i, { documentNumber: e.target.value })}
+                      onChange={(e) => updateCitizenship(0, { documentNumber: e.target.value })}
                       placeholder="Passport / ID number (optional)"
                       className={inputCls}
                       maxLength={50}
                     />
 
-                    {/* Visas tied to this passport — appears only once a country is chosen */}
+                    {/* Visas tied to this passport */}
                     <div className="space-y-2 mt-2">
                       {visasForThis.map(({ v, idx }) => (
                         <div key={idx} className="space-y-2 p-2.5 rounded-lg border border-border bg-bg/40">
@@ -389,15 +383,6 @@ export function SignUpScreen() {
                       </button>
                     </div>
                   </>
-                )}
-                {i === 0 && citizenships.length < 2 && (
-                  <button
-                    type="button"
-                    onClick={addCitizenship}
-                    className="flex items-center gap-1 text-xs text-indigo hover:underline mt-1"
-                  >
-                    <Plus size={13} /> Add second citizenship
-                  </button>
                 )}
               </div>
             );
