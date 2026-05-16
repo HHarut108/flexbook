@@ -41,10 +41,17 @@ async function main() {
     if (!existsSync(sqlPath)) continue;
 
     const sql = readFileSync(sqlPath, 'utf-8');
+    // Strip comment lines within each semicolon-delimited segment so that
+    // statements preceded by -- comments are not accidentally filtered out.
     const statements = sql
       .split(';')
-      .map(s => s.trim())
-      .filter(s => s.length > 0 && !s.startsWith('--'));
+      .map(s =>
+        s.split('\n')
+          .filter(line => !line.trim().startsWith('--'))
+          .join('\n')
+          .trim(),
+      )
+      .filter(s => s.length > 0);
 
     console.log(`[migrate] applying: ${dir}`);
     for (const stmt of statements) {
