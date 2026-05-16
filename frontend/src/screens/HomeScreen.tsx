@@ -286,7 +286,7 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
       <div className="mb-3">
         {!showResults && (
           <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold mb-1.5 ml-1">
-            Where from?
+            Flying from
           </p>
         )}
         <div className="relative">
@@ -384,7 +384,7 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
       <div className="flex items-center gap-2 mb-2.5 mt-2">
         <MapPin size={13} className="text-indigo-mid" />
         <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold">
-          Departing from
+          Nearby airports
         </p>
       </div>
       <div className="space-y-2">
