@@ -31,6 +31,9 @@ const GENDER_OPTIONS: { value: Gender; label: string }[] = [
 // Letters (including Unicode), space, hyphen, apostrophe. 1–50 chars.
 // Cap follows ICAO 9303 guidance — a single name line on a passport tops out at ~39 chars,
 // so 50 is generous without inviting abuse.
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
+
 const NAME_RE = /^[\p{L}][\p{L}\s'\-]{0,49}$/u;
 const NAME_MAX = 50;
 // RFC 5321: 254 is the realistic upper bound for an email address.
@@ -63,7 +66,9 @@ export function SignUpScreen() {
     confirmPassword: '',
   });
   const [gender, setGender] = useState<Gender | ''>('');
-  const [birthday, setBirthday] = useState('');
+  const [birthDay, setBirthDay] = useState('');
+  const [birthMonth, setBirthMonth] = useState('');
+  const [birthYear, setBirthYear] = useState('');
   const [citizenships, setCitizenships] = useState<CitizenshipDraft[]>([
     { key: 'c-0', country: null, documentNumber: '' },
   ]);
@@ -74,12 +79,9 @@ export function SignUpScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Constrain the native date picker: DOB can't be in the future and must put the
-  // user over 13. maxBirthday floors the picker at 13 years before today.
   const today = new Date();
-  const maxBirthday = new Date(today.getFullYear() - 13, today.getMonth(), today.getDate())
-    .toISOString().slice(0, 10);
-  const minBirthday = '1900-01-01';
+  const currentYear = today.getFullYear();
+  const YEARS = Array.from({ length: currentYear - 13 - 1899 }, (_, i) => currentYear - 13 - i);
 
   function setField(key: keyof typeof form, val: string) {
     setForm((f) => ({ ...f, [key]: val }));
@@ -132,20 +134,19 @@ export function SignUpScreen() {
     if (ln) errs.lastName = ln;
     if (em) errs.email = em;
     if (!gender) errs.gender = 'Please select an option';
-    if (!birthday) errs.birthday = 'Please enter your date of birth';
-    if (form.password.length < 8) errs.password = 'Password must be at least 8 characters';
-    if (form.password !== form.confirmPassword) errs.confirmPassword = 'Passwords do not match';
-
-    if (birthday) {
-      const parsed = new Date(birthday + 'T12:00:00');
-      if (isNaN(parsed.getTime())) {
-        errs.birthday = 'Please enter a valid date of birth';
-      } else {
-        const age = today.getFullYear() - parsed.getFullYear() -
-          (today < new Date(today.getFullYear(), parsed.getMonth(), parsed.getDate()) ? 1 : 0);
-        if (age < 13) errs.birthday = 'You must be at least 13 years old to register';
+    if (!birthDay || !birthMonth || !birthYear) {
+      errs.birthday = 'Please enter your date of birth';
+    } else {
+      const mm = String(MONTHS.indexOf(birthMonth) + 1).padStart(2, '0');
+      const dd = String(birthDay).padStart(2, '0');
+      const candidate = `${birthYear}-${mm}-${dd}`;
+      const parsed = new Date(candidate + 'T12:00:00');
+      if (isNaN(parsed.getTime()) || parsed.getDate() !== Number(dd)) {
+        errs.birthday = 'Invalid date of birth';
       }
     }
+    if (form.password.length < 8) errs.password = 'Password must be at least 8 characters';
+    if (form.password !== form.confirmPassword) errs.confirmPassword = 'Passwords do not match';
 
     if (Object.keys(errs).length > 0) {
       setFieldErrors(errs);
@@ -184,7 +185,7 @@ export function SignUpScreen() {
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         gender: gender as Gender,
-        birthday,
+        birthday: `${birthYear}-${String(MONTHS.indexOf(birthMonth) + 1).padStart(2, '0')}-${String(birthDay).padStart(2, '0')}`,
         citizenships: filledCitizenships.length > 0 ? filledCitizenships : undefined,
         visas: visaPayload.length > 0 ? visaPayload : undefined,
       });
@@ -280,21 +281,41 @@ export function SignUpScreen() {
           {fieldErrors.email && <p className="text-[11px] text-red-500">{fieldErrors.email}</p>}
         </div>
 
-        {/* Date of birth — native picker, bounded to a sensible range */}
+        {/* Date of birth — three dropdowns (avoids native date-picker focus issues on iOS Safari) */}
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-text-muted uppercase tracking-wide">Date of birth *</label>
-          <input
-            type="date"
-            value={birthday}
-            onChange={(e) => {
-              setBirthday(e.target.value);
-              setFieldErrors((er) => ({ ...er, birthday: '' }));
-            }}
-            min={minBirthday}
-            max={maxBirthday}
-            aria-invalid={!!fieldErrors.birthday}
-            className={fieldErrors.birthday ? inputErrCls : inputCls}
-          />
+          <div className="flex gap-2">
+            <select
+              value={birthDay}
+              onChange={(e) => { setBirthDay(e.target.value); setFieldErrors((er) => ({ ...er, birthday: '' })); }}
+              aria-invalid={!!fieldErrors.birthday}
+              className={fieldErrors.birthday ? inputErrCls : inputCls}
+              style={{ minWidth: 0, flex: 1 }}
+            >
+              <option value="">Day</option>
+              {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+            <select
+              value={birthMonth}
+              onChange={(e) => { setBirthMonth(e.target.value); setFieldErrors((er) => ({ ...er, birthday: '' })); }}
+              aria-invalid={!!fieldErrors.birthday}
+              className={fieldErrors.birthday ? inputErrCls : inputCls}
+              style={{ minWidth: 0, flex: 2 }}
+            >
+              <option value="">Month</option>
+              {MONTHS.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+            <select
+              value={birthYear}
+              onChange={(e) => { setBirthYear(e.target.value); setFieldErrors((er) => ({ ...er, birthday: '' })); }}
+              aria-invalid={!!fieldErrors.birthday}
+              className={fieldErrors.birthday ? inputErrCls : inputCls}
+              style={{ minWidth: 0, flex: 1.5 }}
+            >
+              <option value="">Year</option>
+              {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
           <p className="text-[11px] text-text-muted">You must be at least 13 to register.</p>
           {fieldErrors.birthday && <p className="text-[11px] text-red-500">{fieldErrors.birthday}</p>}
         </div>
