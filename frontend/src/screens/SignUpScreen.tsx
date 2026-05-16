@@ -289,10 +289,6 @@ export function SignUpScreen() {
             onChange={(e) => {
               setBirthday(e.target.value);
               setFieldErrors((er) => ({ ...er, birthday: '' }));
-              // Blur immediately after selection — prevents iOS Safari from holding
-              // focus on the date input after the native picker is dismissed, which
-              // can make other form elements temporarily unresponsive.
-              e.target.blur();
             }}
             min={minBirthday}
             max={maxBirthday}

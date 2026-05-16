@@ -108,6 +108,15 @@
         "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/musing-wing-fb3f15/admin && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5188"
       ],
       "port": 5188
+    },
+    {
+      "name": "Frontend-eloquent-hoover (Vite :5189)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/eloquent-hoover-601c97/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5189"
+      ],
+      "port": 5189
     }
   ]
 }
