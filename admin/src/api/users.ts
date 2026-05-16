@@ -54,6 +54,7 @@ export interface AdminUser {
   countryOfResidenceName: string | null;
   emailVerified: boolean;
   createdAt: string;
+  lastLoginAt: string | null;
   citizenships: AdminCitizenship[];
   visas: AdminVisa[];
 }

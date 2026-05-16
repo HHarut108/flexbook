@@ -1,3 +1,4 @@
+import '@fastify/cookie';
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import crypto from 'crypto';
@@ -5,6 +6,7 @@ import { TripLeg } from '@fast-travel/shared';
 import { requireAdminAuth } from '../middleware/requireAdminAuth';
 import { tripCache } from '../utils/tripCache';
 import { redis, recordRedisOk, recordRedisError } from '../utils/redisClient';
+import { COOKIE_NAME, verifyUserToken } from '../utils/userAuth';
 
 interface TripData {
   origin?: string;
@@ -21,6 +23,8 @@ interface AssistanceRequest {
   tripData: TripData;
   tripSlug: string;
   totalPrice: number;
+  userType: 'user' | 'guest';
+  userId: string | null;
 }
 
 const tripLegSchema = z.object({
@@ -58,6 +62,16 @@ async function saveRequest(req: AssistanceRequest): Promise<void> {
   memRequests.unshift(req); // newest first
 }
 
+function normalizeRequest(raw: unknown): AssistanceRequest {
+  const r = raw as AssistanceRequest & Partial<Record<string, unknown>>;
+  // Older entries (saved before User/Guest tracking landed) don't have userType set.
+  return {
+    ...r,
+    userType: r.userType === 'user' ? 'user' : 'guest',
+    userId: typeof r.userId === 'string' ? r.userId : null,
+  };
+}
+
 async function loadRequests(): Promise<AssistanceRequest[]> {
   if (redis) {
     try {
@@ -65,16 +79,17 @@ async function loadRequests(): Promise<AssistanceRequest[]> {
       recordRedisOk();
       return raw.map((item) => {
         try {
-          return typeof item === 'string' ? JSON.parse(item) : item;
+          const parsed = typeof item === 'string' ? JSON.parse(item) : item;
+          return normalizeRequest(parsed);
         } catch {
-          return item as unknown as AssistanceRequest;
+          return normalizeRequest(item);
         }
       });
     } catch (err) {
       recordRedisError(err);
     }
   }
-  return [...memRequests];
+  return memRequests.map(normalizeRequest);
 }
 
 function makeSlug(origin: string | undefined, legs: TripLeg[]): string {
@@ -133,6 +148,13 @@ export const assistanceRequestRoutes: FastifyPluginAsync = async (app) => {
       passengers: 1,
     });
 
+    // Detect logged-in users via their session cookie. Failure to verify falls back
+    // to "guest" so anonymous traffic and stale cookies both look the same to admins.
+    const sessionToken = req.cookies?.[COOKIE_NAME];
+    const sessionPayload = sessionToken ? verifyUserToken(sessionToken) : null;
+    const userType: 'user' | 'guest' = sessionPayload ? 'user' : 'guest';
+    const userId = sessionPayload?.sub ?? null;
+
     const request: AssistanceRequest = {
       id: `req_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
       createdAt: new Date().toISOString(),
@@ -142,6 +164,8 @@ export const assistanceRequestRoutes: FastifyPluginAsync = async (app) => {
       tripData: { origin, cities, legs },
       tripSlug,
       totalPrice,
+      userType,
+      userId,
     };
 
     await saveRequest(request);

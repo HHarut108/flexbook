@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { RefreshCw, AlertCircle, Inbox, Search, X, ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
 import { fetchUsers, AdminUser } from '../api/users';
 
-type SortKey = 'createdAt' | 'name' | 'email';
+type SortKey = 'createdAt' | 'name' | 'email' | 'lastLoginAt';
 type SortDir = 'asc' | 'desc';
 
 function formatBirthday(birthday: string | null): string {
@@ -20,6 +20,11 @@ function formatTimestamp(iso: string): string {
     month: 'short', day: 'numeric', year: 'numeric',
     hour: '2-digit', minute: '2-digit', hour12: true,
   });
+}
+
+function formatLastLogin(iso: string | null): string {
+  if (!iso) return 'Never';
+  return formatTimestamp(iso);
 }
 
 function formatGender(g?: string | null): string {
@@ -105,6 +110,12 @@ export function UsersPage() {
       let cmp = 0;
       if (sortKey === 'createdAt') cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       else if (sortKey === 'name') cmp = `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
+      else if (sortKey === 'lastLoginAt') {
+        // Users who never logged in sort to the very bottom regardless of direction.
+        const av = a.lastLoginAt ? new Date(a.lastLoginAt).getTime() : -Infinity;
+        const bv = b.lastLoginAt ? new Date(b.lastLoginAt).getTime() : -Infinity;
+        cmp = av - bv;
+      }
       else cmp = a.email.localeCompare(b.email);
       return sortDir === 'asc' ? cmp : -cmp;
     });
@@ -260,6 +271,12 @@ export function UsersPage() {
                 >
                   Joined {sortKey === 'createdAt' && (sortDir === 'asc' ? '↑' : '↓')}
                 </th>
+                <th
+                  className={`users-table__th users-table__th--sortable ${sortKey === 'lastLoginAt' ? 'is-sorted' : ''}`}
+                  onClick={() => toggleSort('lastLoginAt')}
+                >
+                  Last login {sortKey === 'lastLoginAt' && (sortDir === 'asc' ? '↑' : '↓')}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -297,10 +314,13 @@ export function UsersPage() {
                       <td className="users-table__td users-table__td--date">
                         {formatTimestamp(u.createdAt)}
                       </td>
+                      <td className={`users-table__td users-table__td--date ${!u.lastLoginAt ? 'users-table__td--muted' : ''}`}>
+                        {formatLastLogin(u.lastLoginAt)}
+                      </td>
                     </tr>
                     {open && (
                       <tr className="users-table__detail-row">
-                        <td colSpan={9}>
+                        <td colSpan={10}>
                           <div className="users-detail">
                             <div>
                               <p className="users-detail__label">Country of residence</p>
