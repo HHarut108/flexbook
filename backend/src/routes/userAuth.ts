@@ -285,7 +285,7 @@ export async function userAuthRoutes(app: FastifyInstance) {
     await db.oTP.update({ where: { id: matchedOtp.id }, data: { used: true } });
     const updated = await db.user.update({
       where: { id: user.id },
-      data: { emailVerified: true },
+      data: { emailVerified: true, lastLoginAt: new Date() },
       include: { citizenships: true, visas: true },
     });
 
@@ -345,10 +345,13 @@ export async function userAuthRoutes(app: FastifyInstance) {
     }
 
     await clearLoginAttempts(ip);
+    // Stamp the last successful login. Fire-and-forget; failure here shouldn't
+    // block the login response.
+    await db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     const token = signUserToken({ sub: user.id, email: user.email });
     return reply
       .setCookie(COOKIE_NAME, token, cookieOptions)
-      .send({ success: true, data: { user: safeUser(user) } });
+      .send({ success: true, data: { user: { ...safeUser(user), lastLoginAt: new Date().toISOString() } } });
   });
 
   // POST /auth/logout

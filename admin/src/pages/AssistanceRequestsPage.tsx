@@ -8,6 +8,7 @@ import {
   AlertCircle,
   Inbox,
   User,
+  UserCheck,
   Mail,
   Phone,
   MapPin,
@@ -19,7 +20,10 @@ import {
   TripLegSummary,
 } from '../api/assistanceRequests';
 
-const SHARE_BASE_URL = import.meta.env.VITE_FRONTEND_URL ?? 'https://flexbook.app';
+// Default to the live frontend host. Override per-env with VITE_FRONTEND_URL when needed.
+const SHARE_BASE_URL = (
+  import.meta.env.VITE_FRONTEND_URL ?? 'https://flexbook.space'
+).replace(/\/+$/, '');
 
 function tripShareUrl(slug: string): string {
   return `${SHARE_BASE_URL}/share/${slug}`;
@@ -86,12 +90,13 @@ function FlightLegRow({ leg, index }: { leg: TripLegSummary; index: number }) {
 }
 
 function RequestCard({ req }: { req: AssistanceRequestSummary }) {
-  const { tripData, tripSlug, totalPrice, createdAt, fullName, email, phone } = req;
+  const { tripData, tripSlug, totalPrice, createdAt, fullName, email, phone, userType } = req;
   const allLegs = [...(tripData.legs ?? [])].sort((a, b) => (a.stopIndex ?? 0) - (b.stopIndex ?? 0));
   const total = totalPrice > 0 ? totalPrice : totalFromLegs(allLegs);
   const shareUrl = tripShareUrl(tripSlug);
   const cities = tripData.cities?.length > 0 ? tripData.cities : [tripData.origin ?? '—'];
   const directCount = allLegs.filter(l => l.stops === 0).length;
+  const isLoggedIn = userType === 'user';
 
   return (
     <div className="req-card">
@@ -112,9 +117,18 @@ function RequestCard({ req }: { req: AssistanceRequestSummary }) {
               {allLegs.length} flight{allLegs.length !== 1 ? 's' : ''} · {directCount} direct
             </p>
           </div>
-          <div className="req-card__timestamp">
-            <Clock size={11} className="req-card__timestamp-icon" />
-            <span className="req-card__timestamp-text">{formatTimestamp(createdAt)}</span>
+          <div className="req-card__header-right">
+            <span
+              className={`req-card__usertype req-card__usertype--${isLoggedIn ? 'user' : 'guest'}`}
+              title={isLoggedIn ? 'Submitted by a signed-in user' : 'Submitted without signing in'}
+            >
+              {isLoggedIn ? <UserCheck size={11} /> : <User size={11} />}
+              {isLoggedIn ? 'User' : 'Guest'}
+            </span>
+            <div className="req-card__timestamp">
+              <Clock size={11} className="req-card__timestamp-icon" />
+              <span className="req-card__timestamp-text">{formatTimestamp(createdAt)}</span>
+            </div>
           </div>
         </div>
       </div>

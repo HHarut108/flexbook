@@ -51,6 +51,8 @@ export interface AssistanceRequestSummary {
   };
   tripSlug: string;
   totalPrice: number;
+  userType: 'user' | 'guest';
+  userId: string | null;
 }
 
 export async function fetchAssistanceRequests(): Promise<AssistanceRequestSummary[]> {

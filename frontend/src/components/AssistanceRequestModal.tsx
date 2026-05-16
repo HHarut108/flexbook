@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { X, Headphones, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Headphones, CheckCircle2, AlertCircle, Lock } from 'lucide-react';
 import { TripLeg } from '@fast-travel/shared';
 import { formatPrice } from '../utils/price.utils';
 import { submitAssistanceRequest } from '../api/assistanceRequests.api';
+import { useAuthStore } from '../store/auth.store';
 
 interface Props {
   onClose: () => void;
@@ -14,11 +15,15 @@ interface Props {
 type Status = 'idle' | 'submitting' | 'success' | 'error';
 
 export function AssistanceRequestModal({ onClose, origin, legs, total }: Props) {
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
+  const user = useAuthStore((s) => s.user);
+  const [fullName, setFullName] = useState(
+    user ? `${user.firstName} ${user.lastName}`.trim() : '',
+  );
+  const [email, setEmail] = useState(user?.email ?? '');
   const [phone, setPhone] = useState('');
   const [status, setStatus] = useState<Status>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+  const emailLocked = !!user;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -131,15 +136,28 @@ export function AssistanceRequestModal({ onClose, origin, legs, total }: Props) 
                   <label className="block text-xs font-semibold text-text-muted uppercase tracking-[0.14em] mb-1.5">
                     Email address
                   </label>
-                  <input
-                    type="email"
-                    required
-                    autoComplete="email"
-                    placeholder="jane@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="input-field w-full px-4 py-3 rounded-2xl text-sm"
-                  />
+                  <div className="relative">
+                    <input
+                      type="email"
+                      required
+                      autoComplete="email"
+                      placeholder="jane@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      readOnly={emailLocked}
+                      aria-readonly={emailLocked}
+                      title={emailLocked ? 'Signed-in email — managed in your account' : undefined}
+                      className={`input-field w-full px-4 py-3 rounded-2xl text-sm ${
+                        emailLocked ? 'bg-slate-50 text-text-muted cursor-not-allowed pr-10' : ''
+                      }`}
+                    />
+                    {emailLocked && (
+                      <Lock
+                        size={14}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
+                      />
+                    )}
+                  </div>
                 </div>
 
                 <div>

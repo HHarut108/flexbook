@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import Fastify, { FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import cookie from '@fastify/cookie';
@@ -6,6 +6,7 @@ import { config } from './config';
 import { db } from './db';
 import { setRedisLogger } from './utils/redisClient';
 import { setSharedLogger } from './utils/logger';
+import { verifyToken as verifyAdminToken } from './utils/adminAuth';
 import { healthRoutes } from './routes/health';
 import { airportRoutes } from './routes/airports';
 import { flightRoutes } from './routes/flights';
@@ -90,6 +91,7 @@ async function runMigrations() {
   const alters = [
     `ALTER TABLE "User" ADD COLUMN "countryOfResidenceCode" TEXT`,
     `ALTER TABLE "User" ADD COLUMN "countryOfResidenceName" TEXT`,
+    `ALTER TABLE "User" ADD COLUMN "lastLoginAt" DATETIME`,
   ];
   for (const sql of alters) {
     try {
@@ -121,7 +123,16 @@ async function start() {
     global: true,
     max: 120,
     timeWindow: '1 minute',
-    allowList: (request) => request.url === '/health',
+    allowList: (request: FastifyRequest) => {
+      if (request.url === '/health') return true;
+      // Bypass the per-IP global limit for authenticated admin-panel traffic.
+      // The admin dashboard loads several metric endpoints in parallel on every
+      // page switch and was hitting 120/min on its own when an end-user was
+      // browsing from the same NAT'd IP at the same time.
+      const auth = request.headers.authorization;
+      if (auth?.startsWith('Bearer ') && verifyAdminToken(auth.slice(7))) return true;
+      return false;
+    },
   });
 
   await app.register(healthRoutes);

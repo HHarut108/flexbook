@@ -33,6 +33,7 @@ export interface AuthUser {
   citizenships: UserCitizenship[];
   visas: UserVisa[];
   createdAt: string;
+  lastLoginAt?: string | null;
 }
 
 interface AuthState {
