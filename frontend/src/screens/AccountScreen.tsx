@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, NavigateFunction } from 'react-router-dom';
-import { ArrowLeft, LogOut, Trash2, Key, User, ChevronRight, Pencil, Plus, MapPin } from 'lucide-react';
+import { ArrowLeft, LogOut, Trash2, Key, User, ChevronRight, Pencil, Plus, MapPin, Loader2 } from 'lucide-react';
 import { authApi } from '../api/auth.api';
 import { useAuthStore, AuthUser, UserVisa } from '../store/auth.store';
 import { CountrySelect } from '../components/CountrySelect';
@@ -19,13 +19,20 @@ function formatBirthday(birthday: string): string {
 
 export function AccountScreen() {
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
+  const { user, loading: authLoading, logout } = useAuthStore();
   const [view, setView] = useState<View>('main');
 
   useEffect(() => {
-    if (!user) navigate('/login', { replace: true });
-  }, [user, navigate]);
+    if (!authLoading && !user) navigate('/login', { replace: true });
+  }, [user, authLoading, navigate]);
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center">
+        <Loader2 size={32} className="text-indigo animate-spin" />
+      </div>
+    );
+  }
   if (!user) return null;
 
   return (

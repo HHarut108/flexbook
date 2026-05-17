@@ -32,7 +32,10 @@ apiClient.interceptors.response.use(
       return Promise.reject(new Error('Flight search is temporarily unavailable. Please try again shortly.'));
     }
     const msg = error.response?.data?.error?.message ?? error.message ?? 'Unknown error';
-    return Promise.reject(new Error(msg));
+    const wrapped = new Error(msg) as Error & { status?: number; isCanceled?: boolean };
+    if (typeof status === 'number') wrapped.status = status;
+    if (axios.isCancel(error) || error.code === 'ERR_CANCELED') wrapped.isCanceled = true;
+    return Promise.reject(wrapped);
   },
 );
 

@@ -1,5 +1,6 @@
 import { apiClient } from './client';
 import type { AuthUser } from '../store/auth.store';
+import { setSessionHint, clearSessionHint } from '../utils/sessionHint';
 
 export interface CitizenshipInput {
   countryCode: string;
@@ -51,6 +52,7 @@ export const authApi = {
 
   verifyOtp: async (email: string, code: string): Promise<{ user: AuthUser }> => {
     const res = await apiClient.post('/auth/verify-otp', { email, code });
+    setSessionHint();
     return res.data;
   },
 
@@ -61,15 +63,20 @@ export const authApi = {
 
   login: async (email: string, password: string): Promise<{ user: AuthUser }> => {
     const res = await apiClient.post('/auth/login', { email, password });
+    setSessionHint();
     return res.data;
   },
 
   logout: async (): Promise<void> => {
-    await apiClient.post('/auth/logout');
+    try {
+      await apiClient.post('/auth/logout');
+    } finally {
+      clearSessionHint();
+    }
   },
 
-  getMe: async (): Promise<{ user: AuthUser }> => {
-    const res = await apiClient.get('/auth/me');
+  getMe: async (signal?: AbortSignal): Promise<{ user: AuthUser }> => {
+    const res = await apiClient.get('/auth/me', { signal });
     return res.data;
   },
 
@@ -85,6 +92,7 @@ export const authApi = {
 
   deleteAccount: async (password: string): Promise<{ message: string }> => {
     const res = await apiClient.delete('/auth/account', { data: { password } });
+    clearSessionHint();
     return res.data;
   },
 };
