@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
 import { useUrlSync } from './hooks/useUrlSync';
 import { ProgressBar } from './components/ProgressBar';
 import { Toast } from './components/Toast';
@@ -24,6 +23,9 @@ import { LoginScreen } from './screens/LoginScreen';
 import { AccountScreen } from './screens/AccountScreen';
 import { authApi } from './api/auth.api';
 import { useAuthStore } from './store/auth.store';
+import { hasSessionHint, clearSessionHint } from './utils/sessionHint';
+
+const ME_TIMEOUT_MS = 3000;
 
 // Flight results and return flights use a fixed-height two-panel layout;
 // all other screens are natural document flow.
@@ -32,26 +34,37 @@ const FIXED_HEIGHT_PATHS = new Set(['/flights', '/return']);
 export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { pathname } = useLocation();
-  const { setUser, setLoading, loading: authLoading } = useAuthStore();
+  const { setUser, setLoading } = useAuthStore();
   useUrlSync();
 
   useEffect(() => {
-    authApi.getMe()
+    // First-time visitors have no session hint → skip /me entirely so the UI
+    // never waits on a cold backend just to discover they're logged out.
+    if (!hasSessionHint()) {
+      setLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), ME_TIMEOUT_MS);
+
+    authApi.getMe(controller.signal)
       .then(({ user }) => setUser(user))
-      .catch(() => setLoading(false));
-  }, []);
+      .catch((err: Error & { status?: number }) => {
+        if (err.status === 401) clearSessionHint();
+        setLoading(false);
+      })
+      .finally(() => window.clearTimeout(timeoutId));
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [setUser, setLoading]);
 
   const rootClass = FIXED_HEIGHT_PATHS.has(pathname)
     ? 'h-screen bg-bg max-w-[448px] md:max-w-none mx-auto flex flex-col overflow-hidden'
     : 'min-h-screen bg-bg max-w-[448px] md:max-w-none mx-auto';
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-bg flex items-center justify-center">
-        <Loader2 size={32} className="text-indigo animate-spin" />
-      </div>
-    );
-  }
 
   return (
     <div className={rootClass}>

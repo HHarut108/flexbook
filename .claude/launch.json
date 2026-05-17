@@ -117,6 +117,15 @@
         "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/eloquent-hoover-601c97/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5189"
       ],
       "port": 5189
+    },
+    {
+      "name": "Frontend-vigorous-gagarin (Vite :5192)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/vigorous-gagarin-33a584/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5192 --strictPort"
+      ],
+      "port": 5192
     }
   ]
 }
