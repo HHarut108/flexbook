@@ -101,7 +101,10 @@ export async function fetchRapidApiKiwiFlights(
     sortBy: sortByMap[sort] ?? 'PRICE',
     sortOrder: 'ASCENDING',
     transportTypes: 'FLIGHT',
-    contentProviders: 'KIWI,KAYAK,FRESH',
+    // No `contentProviders` filter: Kiwi defaults to all providers. The previous
+    // `KIWI,KAYAK,FRESH` triple excluded routes that exist on kiwi.com (notably
+    // Wizz Air direct EVN→FMM on Jun 30 2026) — those itineraries live behind
+    // other content providers and were never reaching us.
     // 250: high enough that mid-priced destinations (e.g. EVN→DTM, EVN→FMM ~$77)
     // aren't pushed out by ultra-cheap CIS/Turkey routes on an "anywhere" search.
     limit: 250,
