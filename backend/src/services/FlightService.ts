@@ -127,10 +127,11 @@ export class FlightService {
     deduplicate = true,
     options: KiwiSearchOptions = {},
     apiMode?: 'real' | 'mock',
+    bypassCache = false,
   ): Promise<FlightSearchResult> {
     const chain = this.providerChain(apiMode);
 
-    const cachedSchedule = await getScheduleCache(originIata, date, destinationIata);
+    const cachedSchedule = bypassCache ? undefined : await getScheduleCache(originIata, date, destinationIata);
     if (cachedSchedule) {
       const { flights, hasStale, hasMissing } = await attachCachedPrices(cachedSchedule);
       // Fall through to a live fetch when no flights remain after dropping
