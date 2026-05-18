@@ -8,6 +8,9 @@ export interface KiwiSearchOptions {
   currency?: string;
   cabinClass?: 'M' | 'W' | 'C' | 'F';
   passengers?: number;
+  /** 2-letter ISO country code. When set (and destinationIata is not), Kiwi
+   *  searches for flights to any airport in that country via `destination=Country:XX`. */
+  country?: string;
 }
 
 export class RapidApiRateLimitError extends Error {
@@ -73,7 +76,7 @@ export async function fetchRapidApiKiwiFlights(
   destinationIata?: string,
   options: KiwiSearchOptions = {},
 ): Promise<FlightOption[]> {
-  const { sort = 'price', maxStopovers, currency = 'USD', cabinClass = 'M', passengers = 1 } = options;
+  const { sort = 'price', maxStopovers, currency = 'USD', cabinClass = 'M', passengers = 1, country } = options;
 
   const cabinClassMap: Record<string, string> = {
     M: 'ECONOMY',
@@ -114,6 +117,11 @@ export async function fetchRapidApiKiwiFlights(
 
   if (destinationIata) {
     params['destination'] = `Airport:${destinationIata}`;
+  } else if (country) {
+    // Country-scoped search: bypasses the "anywhere" endpoint's per-region quotas
+    // and surfaces low-cost-carrier routes (e.g. Wizz EVN→FMM) that the unfiltered
+    // search drops. ISO 3166 alpha-2, uppercased.
+    params['destination'] = `Country:${country.toUpperCase()}`;
   }
   if (maxStopovers !== undefined) {
     params['maxStopsCount'] = maxStopovers;

@@ -130,8 +130,9 @@ export class FlightService {
     bypassCache = false,
   ): Promise<FlightSearchResult> {
     const chain = this.providerChain(apiMode);
+    const country = options.country;
 
-    const cachedSchedule = bypassCache ? undefined : await getScheduleCache(originIata, date, destinationIata);
+    const cachedSchedule = bypassCache ? undefined : await getScheduleCache(originIata, date, destinationIata, country);
     if (cachedSchedule) {
       const { flights, hasStale, hasMissing } = await attachCachedPrices(cachedSchedule);
       // Fall through to a live fetch when no flights remain after dropping
@@ -149,7 +150,7 @@ export class FlightService {
     );
     const processed = this.processFlights(raw, originIata, deduplicate);
 
-    setScheduleCache(originIata, date, processed.map(toScheduleEntry), destinationIata);
+    setScheduleCache(originIata, date, processed.map(toScheduleEntry), destinationIata, country);
     const withPrices = storePricesAndAttach(processed, usedProvider, date);
 
     return { flights: withPrices, cacheStatus: 'live' };
@@ -241,7 +242,7 @@ export class FlightService {
           chain, originIata, originCity, date, destinationIata, options,
         );
         const processed = this.processFlights(raw, originIata, deduplicate);
-        setScheduleCache(originIata, date, processed.map(toScheduleEntry), destinationIata);
+        setScheduleCache(originIata, date, processed.map(toScheduleEntry), destinationIata, options.country);
         storePricesAndAttach(processed, usedProvider, date);
       } catch (err) {
         log().warn({ originIata, date, err }, 'flightCache background refresh failed');

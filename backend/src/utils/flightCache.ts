@@ -53,8 +53,16 @@ export const CACHE_TTL = {
 
 // ---------- Key builders ----------
 
-export function scheduleKey(originIata: string, date: string, destinationIata?: string): string {
-  const dest = destinationIata ? destinationIata.toUpperCase() : 'any';
+export function scheduleKey(
+  originIata: string,
+  date: string,
+  destinationIata?: string,
+  country?: string,
+): string {
+  let dest: string;
+  if (destinationIata) dest = destinationIata.toUpperCase();
+  else if (country) dest = `country:${country.toUpperCase()}`;
+  else dest = 'any';
   return `flights:schedule:${originIata.toUpperCase()}:${date}:${dest}`;
 }
 
@@ -96,8 +104,9 @@ export async function getScheduleCache(
   originIata: string,
   date: string,
   destinationIata?: string,
+  country?: string,
 ): Promise<ScheduleEntry[] | undefined> {
-  const key = scheduleKey(originIata, date, destinationIata);
+  const key = scheduleKey(originIata, date, destinationIata, country);
   try {
     const result = await getCacheAsync<ScheduleEntry[]>(key);
     log().debug({ key, hit: !!result }, 'flightCache schedule read');
@@ -113,8 +122,9 @@ export function setScheduleCache(
   date: string,
   entries: ScheduleEntry[],
   destinationIata?: string,
+  country?: string,
 ): void {
-  const key = scheduleKey(originIata, date, destinationIata);
+  const key = scheduleKey(originIata, date, destinationIata, country);
   const ttl = scheduleTtlSeconds(date);
   if (ttl === null) {
     log().debug({ key }, 'flightCache schedule SKIP (past date)');
