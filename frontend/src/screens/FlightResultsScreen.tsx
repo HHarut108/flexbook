@@ -33,16 +33,6 @@ export function FlightResultsScreen() {
 
   useWeatherBatch(pendingFlights, localDate);
 
-  // Trigger flight search whenever origin or date changes (debounced 400ms)
-  useEffect(() => {
-    if (!currentIata || !localDate) return;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      search(currentIata, localDate);
-    }, 400);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [currentIata, localDate, search]);
-
   // Clear stale results and reset filter when changing origin city
   useEffect(() => {
     resetFlights();
@@ -79,6 +69,24 @@ export function FlightResultsScreen() {
   const [selectedCountries, setSelectedCountries] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 10;
+
+  // When a single country chip is selected and its value looks like a 2-letter
+  // ISO code, send it to the backend so Kiwi runs a country-scoped search
+  // (which surfaces routes the "anywhere" endpoint silently drops — e.g.
+  // Wizz Air EVN→FMM). Anything else (zero or multi-select) falls back to the
+  // regular anywhere search + client-side filter.
+  const onlyCountry = selectedCountries.size === 1 ? Array.from(selectedCountries)[0] : undefined;
+  const backendCountry = onlyCountry && /^[A-Z]{2}$/i.test(onlyCountry) ? onlyCountry.toUpperCase() : undefined;
+
+  // Trigger flight search whenever origin, date, or country filter changes (debounced 400ms)
+  useEffect(() => {
+    if (!currentIata || !localDate) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      search(currentIata, localDate, backendCountry ? { country: backendCountry } : undefined);
+    }, 400);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [currentIata, localDate, search, backendCountry]);
 
   function toggleCountry(country: string) {
     setSelectedCountries((prev) => {
