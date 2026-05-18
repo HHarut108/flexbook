@@ -126,6 +126,16 @@
         "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/vigorous-gagarin-33a584/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5192 --strictPort"
       ],
       "port": 5192
+    },
+    {
+      "name": "Frontend-laughing-pasteur (Vite)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/laughing-pasteur-f18d70/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port ${PORT}"
+      ],
+      "port": 5194,
+      "autoPort": true
     }
   ]
 }
