@@ -102,7 +102,9 @@ export async function fetchRapidApiKiwiFlights(
     sortOrder: 'ASCENDING',
     transportTypes: 'FLIGHT',
     contentProviders: 'KIWI,KAYAK,FRESH',
-    limit: 50,
+    // 250: high enough that mid-priced destinations (e.g. EVN→DTM, EVN→FMM ~$77)
+    // aren't pushed out by ultra-cheap CIS/Turkey routes on an "anywhere" search.
+    limit: 250,
     outboundDepartureDateStart: `${date}T00:00:00`,
     outboundDepartureDateEnd: `${date}T23:59:59`,
   };

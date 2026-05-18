@@ -15,6 +15,8 @@ export interface FlightSearchOptions {
   cabinClass?: 'M' | 'W' | 'C' | 'F';
   /** Number of adult passengers (1–9). Default: 1 */
   passengers?: number;
+  /** Bypass the backend schedule cache and force a live provider call. Debug-only. */
+  fresh?: boolean;
 }
 
 export async function searchFlights(
@@ -25,7 +27,11 @@ export async function searchFlights(
   const mode = getApiMode();
 
   // Real API call - pass mode to backend
-  const { destination, deduplicate = true, sort, maxStopovers, currency, cabinClass, passengers } = options;
+  const { destination, deduplicate = true, sort, maxStopovers, currency, cabinClass, passengers, fresh } = options;
+  // Debug opt-in: `?fresh=1` anywhere in the app's URL forces a live provider call,
+  // bypassing the backend schedule cache. Useful when comparing against Kiwi.com.
+  const urlFresh = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('fresh') === '1';
+  const bypassCache = fresh || urlFresh;
   const { data } = await apiClient.get<{ origin: string; date: string; cacheStatus: 'live' | 'schedule_cached'; results: FlightOption[] }>(
     '/flights/search',
     {
@@ -39,6 +45,7 @@ export async function searchFlights(
         ...(currency && { currency }),
         ...(cabinClass && { cabinClass }),
         ...(passengers !== undefined && { passengers }),
+        ...(bypassCache && { fresh: true }),
         apiMode: mode,
       },
     },

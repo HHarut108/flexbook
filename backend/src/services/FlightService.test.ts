@@ -153,6 +153,19 @@ describe('FlightService.search — caching', () => {
     const result = await svc.search('LHR', 'London', '2030-09-02');
     expect(result.cacheStatus).toBe('schedule_cached');
   });
+
+  it('bypasses the schedule cache when bypassCache=true', async () => {
+    const svc = new FlightService();
+    mockFetch.mockResolvedValue([makeFlight({ destinationIata: 'BRU', priceUsd: 140 })]);
+
+    await svc.search('LHR', 'London', '2030-09-03');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    // Without bypass, the second call would hit cache. With bypass=true it must re-fetch.
+    const result = await svc.search('LHR', 'London', '2030-09-03', undefined, true, {}, undefined, true);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(result.cacheStatus).toBe('live');
+  });
 });
 
 describe('FlightService.search — priceInfo', () => {
