@@ -11,7 +11,7 @@ import { DatePickerOverlay } from '../components/DatePickerOverlay';
 import { TripTimeline } from '../components/TripTimeline';
 import { formatDate } from '../utils/date.utils';
 import { formatPrice, totalPrice } from '../utils/price.utils';
-import { ChevronLeft, ChevronRight, Calendar, RefreshCw, ArrowLeft, Home, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, RefreshCw, ArrowLeft, Home, Users, ChevronDown } from 'lucide-react';
 import { format, addDays, parseISO } from 'date-fns';
 
 export function FlightResultsScreen() {
@@ -47,15 +47,13 @@ export function FlightResultsScreen() {
   useEffect(() => {
     resetFlights();
     setStopsFilter(0);
-    setSelectedCountries(new Set());
-    setCurrentPage(1);
+    setCountryExpandOverrides({});
   }, [currentIata, resetFlights]);
 
-  // Reset filter and page when date changes
+  // Reset filter when date changes
   useEffect(() => {
     setStopsFilter(0);
-    setSelectedCountries(new Set());
-    setCurrentPage(1);
+    setCountryExpandOverrides({});
   }, [localDate]);
 
   function shiftDate(delta: number) {
@@ -76,24 +74,9 @@ export function FlightResultsScreen() {
   }
 
   const [stopsFilter, setStopsFilter] = useState<number | null>(0);
-  const [selectedCountries, setSelectedCountries] = useState<Set<string>>(new Set());
-  const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 10;
-
-  function toggleCountry(country: string) {
-    setSelectedCountries((prev) => {
-      const next = new Set(prev);
-      if (next.has(country)) next.delete(country);
-      else next.add(country);
-      return next;
-    });
-    setCurrentPage(1);
-  }
-
-  function clearCountries() {
-    setSelectedCountries(new Set());
-    setCurrentPage(1);
-  }
+  // Explicit per-country expansion overrides. Missing entries fall back to the
+  // default: only the cheapest country (first group) is expanded.
+  const [countryExpandOverrides, setCountryExpandOverrides] = useState<Record<string, boolean>>({});
 
   const outboundLegs = legs.filter((l) => !l.isReturn);
   const stopCount = outboundLegs.length;
@@ -116,27 +99,44 @@ export function FlightResultsScreen() {
     ? pendingFlights
     : pendingFlights.filter((f) => f.stops === stopsFilter);
 
-  // Country counts derived from current stops-filtered results, sorted by count desc
-  // (most options first), then alphabetical. Empty country strings are excluded from
-  // the chip row but still appear in results when no country filter is applied.
-  const countryEntries: [string, number][] = (() => {
-    const map = new Map<string, number>();
+  // Group flights by destination country. Each group is sorted internally by price
+  // (cheapest first), and the groups themselves are ordered by their cheapest flight
+  // ascending — so the country containing the overall best deal appears first.
+  // Flights without a country fall into a single "Other" bucket at the end.
+  const countryGroups: { country: string; flights: FlightOption[]; minPrice: number }[] = (() => {
+    const buckets = new Map<string, FlightOption[]>();
     for (const f of flightsAfterStopsFilter) {
-      const c = f.destinationCountry?.trim();
-      if (!c) continue;
-      map.set(c, (map.get(c) ?? 0) + 1);
+      const key = (f.destinationCountry?.trim() || 'Other');
+      const list = buckets.get(key) ?? [];
+      list.push(f);
+      buckets.set(key, list);
     }
-    return Array.from(map.entries()).sort(
-      (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
-    );
+    const groups = Array.from(buckets.entries()).map(([country, flights]) => {
+      const sorted = [...flights].sort((a, b) => a.priceUsd - b.priceUsd);
+      return { country, flights: sorted, minPrice: sorted[0].priceUsd };
+    });
+    return groups.sort((a, b) => {
+      if (a.country === 'Other' && b.country !== 'Other') return 1;
+      if (b.country === 'Other' && a.country !== 'Other') return -1;
+      return a.minPrice - b.minPrice;
+    });
   })();
 
-  const filteredFlights = selectedCountries.size === 0
-    ? flightsAfterStopsFilter
-    : flightsAfterStopsFilter.filter((f) => selectedCountries.has(f.destinationCountry));
+  const isCountryExpanded = (country: string, index: number) => {
+    if (Object.prototype.hasOwnProperty.call(countryExpandOverrides, country)) {
+      return countryExpandOverrides[country];
+    }
+    return index === 0;
+  };
 
-  const totalPages = Math.max(1, Math.ceil(filteredFlights.length / PAGE_SIZE));
-  const pagedFlights = filteredFlights.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const toggleCountryExpanded = (country: string, index: number) => {
+    setCountryExpandOverrides((prev) => ({
+      ...prev,
+      [country]: !isCountryExpanded(country, index),
+    }));
+  };
+
+  const totalFlights = flightsAfterStopsFilter.length;
 
   function handleBack() {
     navigate(isFirstStop ? '/' : '/review');
@@ -288,7 +288,7 @@ export function FlightResultsScreen() {
               tab.count === 0 ? null : (
                 <button
                   key={tab.label}
-                  onClick={() => { setStopsFilter(tab.value); setCurrentPage(1); }}
+                  onClick={() => setStopsFilter(tab.value)}
                   className={`shrink-0 flex items-center gap-1.5 rounded-2xl px-3.5 py-2 text-xs font-semibold transition-all border ${
                     stopsFilter === tab.value
                       ? 'bg-indigo text-white border-indigo shadow-[0_4px_12px_rgba(55,48,163,0.25)]'
@@ -308,49 +308,6 @@ export function FlightResultsScreen() {
         </div>
       )}
 
-      {/* Country filter chips */}
-      {!isSearchingFlights && countryEntries.length > 1 && (
-        <div className="px-4 pb-3 shrink-0">
-          <div className="flex items-center gap-2 mb-1.5">
-            <p className="text-[10px] text-text-muted uppercase tracking-wide">Destination country</p>
-            {selectedCountries.size > 0 && (
-              <button
-                onClick={clearCountries}
-                className="text-[10px] text-indigo font-medium hover:underline"
-                aria-label="Clear country filter"
-              >
-                Clear ({selectedCountries.size})
-              </button>
-            )}
-          </div>
-          <div
-            className="flex gap-2 overflow-x-auto scrollbar-none"
-            role="group"
-            aria-label="Filter by destination country"
-          >
-            {countryEntries.map(([country, count]) => {
-              const active = selectedCountries.has(country);
-              return (
-                <button
-                  key={country}
-                  onClick={() => toggleCountry(country)}
-                  aria-pressed={active}
-                  className={`shrink-0 flex items-center gap-1.5 rounded-2xl px-3.5 py-2 text-xs font-semibold transition-all border ${
-                    active
-                      ? 'bg-indigo text-white border-indigo shadow-[0_4px_12px_rgba(55,48,163,0.25)]'
-                      : 'bg-white/80 text-text-secondary border-border hover:border-indigo-border hover:text-indigo'
-                  }`}
-                >
-                  <span className="max-w-[140px] truncate">{country}</span>
-                  <span className={`font-mono text-[11px] ${active ? 'text-white/80' : 'text-text-muted'}`}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
       </div>{/* end left panel */}
 
       {/* Right panel: results */}
@@ -377,7 +334,7 @@ export function FlightResultsScreen() {
         )}
 
         {/* No results */}
-        {!isSearchingFlights && !flightError && filteredFlights.length === 0 && pendingFlights.length === 0 && (
+        {!isSearchingFlights && !flightError && pendingFlights.length === 0 && (
           <div className="card mb-4">
             <p className="text-text-primary font-semibold text-sm mb-1">No flights on this date — rare!</p>
             <p className="text-text-muted text-sm mb-4 leading-6">
@@ -394,27 +351,12 @@ export function FlightResultsScreen() {
           </div>
         )}
 
-        {/* Filter yields no results — country filter (takes precedence: easier to clear) */}
-        {!isSearchingFlights && filteredFlights.length === 0 && flightsAfterStopsFilter.length > 0 && selectedCountries.size > 0 && (
-          <div className="text-center py-6">
-            <p className="text-sm text-text-muted mb-2">
-              No flights to {Array.from(selectedCountries).join(', ')} on this date.
-            </p>
-            <button
-              onClick={clearCountries}
-              className="text-sm text-indigo font-medium hover:underline"
-            >
-              Clear country filter
-            </button>
-          </div>
-        )}
-
         {/* Filter yields no results — stops filter */}
-        {!isSearchingFlights && filteredFlights.length === 0 && pendingFlights.length > 0 && selectedCountries.size === 0 && (
+        {!isSearchingFlights && totalFlights === 0 && pendingFlights.length > 0 && (
           <div className="text-center py-6">
             <p className="text-sm text-text-muted mb-2">No {stopsFilter === 0 ? 'direct' : '1-stop'} flights on this date.</p>
             <button
-              onClick={() => { setStopsFilter(stopsFilter === 0 ? 1 : 0); setCurrentPage(1); }}
+              onClick={() => setStopsFilter(stopsFilter === 0 ? 1 : 0)}
               className="text-sm text-indigo font-medium hover:underline"
             >
               Try {stopsFilter === 0 ? '1-stop' : 'direct'} flights instead
@@ -423,9 +365,9 @@ export function FlightResultsScreen() {
         )}
 
         {/* Few results notice */}
-        {!isSearchingFlights && filteredFlights.length > 0 && filteredFlights.length < 3 && (
+        {!isSearchingFlights && totalFlights > 0 && totalFlights < 3 && (
           <p className="text-xs text-text-muted mb-3 px-1">
-            Only {filteredFlights.length} {selectedCountries.size > 0 ? '' : stopsFilter === 0 ? 'direct ' : '1-stop '}option{filteredFlights.length > 1 ? 's' : ''} on this date. Try a different day for more.
+            Only {totalFlights} {stopsFilter === 0 ? 'direct ' : '1-stop '}option{totalFlights > 1 ? 's' : ''} on this date. Try a different day for more.
           </p>
         )}
 
@@ -436,46 +378,78 @@ export function FlightResultsScreen() {
           </p>
         )}
 
-        {/* Cards — 1 col on mobile, 2 cols at md+, 3 cols at 2xl */}
-        <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3">
-          {isSearchingFlights
-            ? Array.from({ length: PAGE_SIZE }).map((_, i) => <FlightCardSkeleton key={i} />)
-            : pagedFlights.map((flight) => (
-                <FlightCard
-                  key={flight.flightId}
-                  flight={flight}
-                  weather={weatherMap[flight.destinationIata]}
-                  onSelect={handleSelect}
-                />
-              ))}
-        </div>
+        {/* Loading skeletons */}
+        {isSearchingFlights && (
+          <div className="space-y-2">
+            {Array.from({ length: 6 }).map((_, i) => <FlightCardSkeleton key={i} />)}
+          </div>
+        )}
 
-        {/* Pagination */}
-        {!isSearchingFlights && totalPages > 1 && (
-          <div className="flex items-center justify-between mt-5 px-1">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="w-10 h-10 flex items-center justify-center rounded-2xl border border-border bg-white/80 text-text-muted hover:border-indigo-border hover:text-indigo disabled:opacity-30 transition-all active:scale-95"
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <span className="text-xs text-text-muted tabular-nums">
-              Page <span className="font-semibold text-text-primary">{currentPage}</span> of <span className="font-semibold text-text-primary">{totalPages}</span>
-              <span className="ml-2 text-text-muted/60">· {filteredFlights.length} flights</span>
-            </span>
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="w-10 h-10 flex items-center justify-center rounded-2xl border border-border bg-white/80 text-text-muted hover:border-indigo-border hover:text-indigo disabled:opacity-30 transition-all active:scale-95"
-            >
-              <ChevronRight size={18} />
-            </button>
+        {/* Grouped results by country (cheapest country first, expanded by default) */}
+        {!isSearchingFlights && countryGroups.length > 0 && (
+          <div className="space-y-3">
+            {countryGroups.map((group, index) => {
+              const expanded = isCountryExpanded(group.country, index);
+              const headerId = `country-${group.country.replace(/\s+/g, '-')}-header`;
+              const panelId = `country-${group.country.replace(/\s+/g, '-')}-panel`;
+              return (
+                <section
+                  key={group.country}
+                  className="bg-surface border border-border rounded-2xl overflow-hidden shadow-[0_4px_12px_rgba(15,23,42,0.05)]"
+                >
+                  <button
+                    id={headerId}
+                    type="button"
+                    onClick={() => toggleCountryExpanded(group.country, index)}
+                    aria-expanded={expanded}
+                    aria-controls={panelId}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-indigo-soft/40 transition-colors"
+                  >
+                    <ChevronDown
+                      size={18}
+                      className={`text-text-muted shrink-0 transition-transform duration-200 ${expanded ? '' : '-rotate-90'}`}
+                    />
+                    <div className="flex-1 min-w-0 flex items-baseline gap-2 flex-wrap">
+                      <span className="text-base font-bold text-text-primary truncate">
+                        {group.country}
+                      </span>
+                      <span className="text-xs text-text-muted">
+                        {group.flights.length} flight{group.flights.length > 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="text-[10px] uppercase tracking-wide text-text-muted leading-none">from</div>
+                      <div className="font-mono text-orange font-bold text-base leading-tight">
+                        {formatPrice(group.minPrice)}
+                      </div>
+                    </div>
+                  </button>
+
+                  {expanded && (
+                    <div
+                      id={panelId}
+                      role="region"
+                      aria-labelledby={headerId}
+                      className="px-2 pb-2 pt-1 space-y-2 border-t border-border/60 bg-surface-2/30"
+                    >
+                      {group.flights.map((flight) => (
+                        <FlightCard
+                          key={flight.flightId}
+                          flight={flight}
+                          weather={weatherMap[flight.destinationIata]}
+                          onSelect={handleSelect}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </section>
+              );
+            })}
           </div>
         )}
 
         {/* "Try next day" nudge shown after results load */}
-        {!isSearchingFlights && filteredFlights.length > 0 && (
+        {!isSearchingFlights && totalFlights > 0 && (
           <button
             onClick={() => shiftDate(1)}
             className="w-full mt-4 py-3 flex items-center justify-center gap-2 text-text-muted text-sm hover:text-indigo transition-colors"
