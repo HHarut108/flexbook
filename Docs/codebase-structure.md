@@ -628,8 +628,10 @@ export class AirportService {
 
 ### `FlightCard` (frontend)
 
+> **Note:** The code below is the original scaffold sketch. The component has since been redesigned as a slim two-line row used **inside a country accordion** on `FlightResultsScreen`. See [`Docs/DESIGN.md` → `FlightCard` — compact row](DESIGN.md) and the live source at [`frontend/src/components/FlightCard.tsx`](../frontend/src/components/FlightCard.tsx) for the current implementation. The path is `components/FlightCard.tsx`, not `components/flights/FlightCard.tsx`.
+
 ```tsx
-// frontend/src/components/flights/FlightCard.tsx
+// frontend/src/components/flights/FlightCard.tsx (HISTORICAL — actual path: components/FlightCard.tsx)
 import type { FlightOption } from '@trip-planner/shared';
 import { WeatherWidget } from './WeatherWidget';
 import { formatDuration, formatTime, formatStops } from '../../utils/date.utils';

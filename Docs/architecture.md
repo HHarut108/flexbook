@@ -619,7 +619,7 @@ trip-planner/
 │   │   │
 │   │   ├── screens/                    # One file per screen (7 screens total)
 │   │   │   ├── HomeScreen.tsx          # S1 — origin search + geolocation nearby pills
-│   │   │   ├── FlightResultsScreen.tsx # S2 — date arrows, 10 cards, trip strip, head-home CTA
+│   │   │   ├── FlightResultsScreen.tsx # S2 — date arrows, stops filter, country accordion of compact rows, trip strip, head-home CTA
 │   │   │   ├── StayDurationScreen.tsx  # S3 — stay stepper, departure preview, trip strip
 │   │   │   ├── DecisionScreen.tsx      # S4 — always-visible TripTimeline + keep going / head home
 │   │   │   ├── ReturnFlightsScreen.tsx # S5 — ReturnFlightCards back to origin city

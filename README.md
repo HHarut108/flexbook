@@ -20,8 +20,9 @@ Start from your current city, discover the cheapest next places to fly, choose h
    - Nearby airport suggestions can be shown
 
 2. Flight results
-   - Shows the cheapest next-hop options from the current city
-   - Date can be adjusted
+   - Shows the cheapest next-hop options from the current city, grouped by destination country
+   - The country containing the cheapest deal is expanded by default; the rest collapse
+   - Date can be adjusted; stops filter (Direct / 1 stop) toggles which flights are grouped
    - Mid-trip back action returns to the previous decision step
 
 3. Stay duration

@@ -104,12 +104,14 @@ Total: **7 screens.** Linear flow with one loop (S2 → S3 → S4 → S2), then 
 │  Trip so far          $86       │  ← shown from 2nd stop onwards
 │  [●1 EVN→LIS Apr3-6] ✈ [...]   │  ← TripTimeline strip (horizontal scroll)
 │─────────────────────────────────│
-│  [FlightCard]                   │
-│  [FlightCard]                   │  ← scrollable list, 10 cards
-│  [FlightCard]                   │
+│  [▾ Cyprus  1 flight   $47]    │  ← cheapest country, expanded
+│  │  [Larnaca LCA · Direct]    │ │  ← compact row card (city · IATA · time · $)
+│  [▸ Italy   3 flights  $94]   │  ← collapsed; tap to expand
+│  [▸ France  2 flights  $114]  │
+│  [▸ Turkey  2 flights  $115]  │
 │  ...                            │
 │                                 │
-│  Nothing fitting?  Try next →   │  ← nudge below last card
+│  Nothing fitting?  Try next →   │  ← nudge below last group
 │─────────────────────────────────│
 │  ┌──────────────────────────┐  │
 │  │  Head home  ⌂  · $86    │  │  ← shown from 2nd stop; navigates to S5
@@ -121,7 +123,8 @@ Total: **7 screens.** Linear flow with one loop (S2 → S3 → S4 → S2), then 
 - `TripProgressBar` — sticky global header
 - Date nav row: `ChevronLeft` button · `Calendar` date button (opens `DatePickerOverlay`) · `ChevronRight` button
 - `TripTimeline` — horizontal scrollable strip (visible from 2nd stop); shows running total
-- `FlightCard` × 10 (or skeletons during load)
+- **Stops filter pills:** `Direct from $X` · `1 stop from $X` (mutually exclusive)
+- **Country accordion:** one section per destination country, sorted by min price ascending; cheapest country is expanded by default. Each section header shows country name, flight count, and "from $X" min price. Inside an expanded section: compact `FlightCard` rows sorted by price ascending.
 - "Nothing fitting? Try next day →" text button
 - "Head home" card-style CTA (visible from 2nd stop)
 - `DatePickerOverlay` — bottom-sheet calendar, opened on date bar tap
@@ -479,27 +482,42 @@ Trip so far                          $107
 
 ---
 
-## 8. How to Show the 10 Flight Options (FlightCard — S2)
+## 8. How to Show Flight Options — Grouped by Country (S2)
 
-### Flight Card Layout
+Results are grouped into a collapsible accordion **by destination country**. The country containing the cheapest deal sits at the top and is expanded by default; the rest are collapsed. This keeps the page short on mobile while still surfacing every destination on the date.
+
+### Group header
 
 ```
 ┌─────────────────────────────────────┐
-│  Ryanair  Direct                $34 │  ← airline + badge + price (accent)
-│                                     │
-│  Lisbon                             │  ← destination city (large)
-│  LIS                                │  ← IATA (muted mono)
-│─────────────────────────────────────│
-│  06:00 → 07:45   1h 45m            │  ← times + duration
-│  ☀  22°C                           │  ← weather (async)
+│  ▾  Cyprus    1 flight     from $47 │  ← caret · country · count · min price
 └─────────────────────────────────────┘
 ```
 
-**Card list behavior:**
-- 10 skeleton cards render immediately on screen mount
-- Real cards replace skeletons as data arrives
-- Weather fills into cards independently (never blocks card render)
-- "Nothing fitting? Try next day →" nudge appears below the last card
+- Tap anywhere on the header to expand/collapse.
+- Sort: groups sorted by `min(priceUsd)` ascending. Flights with no country fall into an "Other" bucket pinned to the end.
+- Default expansion: only the first (cheapest) group; user toggles are tracked as explicit overrides so re-renders don't fight the user.
+
+### Compact `FlightCard` row (inside an expanded group)
+
+```
+┌────────────────────────────────────────────┐
+│  Larnaca  LCA  Direct              $47   › │  ← city · IATA · stops · price · chevron
+│  Wizz Air · 14:05 ✈ 15:15 · 2h 10m · ☀22° │  ← airline · times · duration · weather
+└────────────────────────────────────────────┘
+```
+
+- Two lines, dense. Single tap selects the flight.
+- For 1-stop flights, top line shows `1 stop via BUD` instead of `Direct`.
+- Weather hidden under `md` breakpoint; duration hidden under `sm` — keeps mobile rows clean.
+
+**List behavior:**
+- 6 row skeletons render on screen mount while data loads.
+- Real groups replace skeletons as data arrives.
+- Weather fills into cards independently (never blocks card render).
+- Changing date or origin resets group expansion (cheapest reopens).
+- Stops filter (Direct / 1 stop) re-groups on the filtered subset.
+- "Nothing fitting? Try next day →" nudge appears below the last group.
 
 ---
 

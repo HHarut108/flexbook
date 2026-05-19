@@ -367,21 +367,50 @@ Animation: shimmer 1.6s ease-in-out infinite
 
 ## 8. Molecules
 
-### `FlightCard`
+### `FlightCard` — compact row
+
+Used inside the **country accordion** on S2 (grouped flight results). Designed for high information density on both mobile and desktop.
 
 ```
-┌──────────────────────────────────────────┐
-│  Ryanair · [Direct ●]  [Portugal ▸]      │  airline + pill-success + pill-brand
-│                                          │
-│  Lisbon                         $34      │  text-2xl bold + text-2xl mono orange
-│  [LIS]                       one way     │  mono pill-default + text-xmuted
-│──────────────────────────────────────────│
-│  06:00 ✈ 07:45 · 1h 45m       ☀ 22°C   │  font-mono text-secondary + weather
-└──────────────────────────────────────────┘
+┌────────────────────────────────────────────────┐
+│  Larnaca [LCA] Direct                  $47   › │  city · IATA pill · stops · price · chevron
+│  Wizz Air · 06:00 ✈ 07:45 · 1h 45m  ☀ 22°C    │  airline · times · duration · weather
+└────────────────────────────────────────────────┘
 ```
 
-Hover: `translateY(-2px)`, `border-indigo-border`, elevated shadow.
-Animate: `animate-fade-in` (fadeSlideUp 220ms).
+- For 1-stop flights, top line shows `1 stop via BUD` instead of `Direct`.
+- Country is **not** shown on the row itself — it's already conveyed by the enclosing group header.
+- Weather hides under `md`; duration hides under `sm` to keep mobile rows clean.
+
+**Design tokens:**
+- City: `text-base font-bold text-text-primary`
+- IATA pill: `font-mono text-[10px] bg-surface-2 px-1.5 py-0.5 rounded-md`
+- Direct label: `text-emerald-700 text-[10px] font-semibold`
+- Stop label: `text-sky-700 text-[10px] font-semibold`
+- Price: `text-lg font-mono font-bold text-orange`
+- Chevron: `ChevronRight` 16px, indigo on hover
+
+Hover: `border-indigo-border`, elevated shadow.
+Animate: `animate-fade-in` on each row.
+
+### `CountryGroup` (composition, not a standalone component)
+
+The accordion section that wraps a country's `FlightCard` rows.
+
+```
+┌────────────────────────────────────────────┐
+│  ▾  Cyprus   2 flights         FROM        │  caret · country · count · "from" label
+│                                $47         │  min price (orange mono)
+│  ──────────────────────────────────────    │
+│   [FlightCard]                             │
+│   [FlightCard]                             │  ← children sorted by price asc
+└────────────────────────────────────────────┘
+```
+
+- Header is a `<button>` with `aria-expanded` / `aria-controls`.
+- Caret: `ChevronDown` 18px; `-rotate-90` when collapsed; 200ms transition.
+- Sort: groups by `min(priceUsd)` asc; an "Other" bucket (empty country) pins to the end.
+- Default expansion: first group only; user toggles tracked as explicit overrides keyed by country name.
 
 ### `ReturnFlightCard`
 
@@ -571,11 +600,16 @@ px-5 pt-8 pb-12
 │   ├── "Trip so far" label  +  running total (text-orange mono)
 │   └── TripTimeline (highlightLast=true)
 │
+├── [shrink-0] Stops filter row
+│   └── pills: `Direct from $X` · `1 stop from $X` (mutually exclusive)
+│
 └── [flex-1 overflow-y-auto] Results
     ├── Error card (if flightError)
     ├── No-results card (if 0 flights)
-    ├── Few-results notice (if < 3 flights)
-    ├── FlightCard × 10 (or FlightCardSkeleton × 10)
+    ├── Few-results notice (if total < 3)
+    ├── FlightCardSkeleton × 6 (while loading)
+    ├── CountryGroup × N (sorted by min price asc; cheapest expanded)
+    │     └── FlightCard rows × M (sorted by price asc inside each group)
     ├── "Nothing fitting? Try next day →" nudge (text-orange)
     └── [IF stopCount > 0] "Head home" card button (indigo hover)
 ```
@@ -867,7 +901,7 @@ Skeleton shimmer → static `#EEF1F8` background.
 
 | Context | Treatment |
 |---|---|
-| Initial flight search (S2) | 10 × `FlightCardSkeleton` render immediately |
+| Initial flight search (S2) | 6 × `FlightCardSkeleton` (row variant) render immediately; replaced by country accordion as data arrives |
 | Return flight search (S5) | 3 × `ReturnFlightCardSkeleton` |
 | Date change (S2/S5) | Existing cards fade to 40% + blur(1px); new cards fade in |
 | Weather (per-card, S2) | Small pulse placeholder; disappears silently if unresolved |

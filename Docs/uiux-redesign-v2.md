@@ -390,29 +390,48 @@ border-radius: rounded-xl
 
 ## 7. Component Library — Molecules
 
-### 7.1 `FlightCard` — Redesigned
+### 7.1 `FlightCard` — Compact row (current)
 
-**Layout change:** The city name moves to a larger, more prominent position. Price is right-aligned and rendered larger. Weather is de-emphasized (smaller, below the time row).
+**Layout change:** S2 now groups results by country (see §7.1a). `FlightCard` is a slim two-line row used inside each country group, optimised for density on mobile and desktop. Country is omitted from the row itself (the group header carries it). Pagination and the standalone country chip filter are removed.
 
 ```
-┌──────────────────────────────────────────┐
-│  Ryanair · Direct ●  Portugal            │  ← airline · direct badge · country pill
-│                                          │
-│  Lisbon                         $34      │  ← city name (H2) + price (xl mono orange)
-│  LIS                         one way     │  ← IATA mono muted + "one way" label
-│──────────────────────────────────────────│
-│  06:00 ──✈── 07:45 · 1h 45m  ☀ 22°C    │  ← time row with inline weather
-└──────────────────────────────────────────┘
+┌────────────────────────────────────────────────┐
+│  Larnaca [LCA] Direct                  $47   › │  ← city · IATA · stops · price · chevron
+│  Wizz Air · 06:00 ✈ 07:45 · 1h 45m  ☀ 22°C    │  ← airline · times · duration · weather
+└────────────────────────────────────────────────┘
 ```
+
+For 1-stop flights, top line shows `1 stop via BUD` instead of `Direct`.
 
 **Design tokens:**
-- City name: `text-2xl font-bold text-primary tracking-tight`
-- Price: `text-2xl font-mono font-bold text-orange`
-- IATA: `text-sm font-mono text-muted bg-surface-2 px-2 py-0.5 rounded-full`
-- Time row: `text-sm font-mono text-secondary`
-- Card border on hover: `border-indigo-border`
-- Direct badge: `pill-success`
-- Stop badge: `pill-sky`
+- City: `text-base font-bold text-text-primary truncate`
+- IATA pill: `font-mono text-[10px] bg-surface-2 px-1.5 py-0.5 rounded-md`
+- Direct label: `text-[10px] font-semibold text-emerald-700`
+- Stop label: `text-[10px] font-semibold text-sky-700`
+- Price: `text-lg font-mono font-bold text-orange`
+- Meta row: `text-[11px] text-text-muted`
+- Chevron: `ChevronRight` 16px, indigo on hover
+- Hover: `border-indigo-border`, `shadow-[0_10px_24px_rgba(15,23,42,0.08)]`
+- Weather hidden under `md`; duration hidden under `sm` (responsive density)
+
+### 7.1a `CountryGroup` (composition) — New for S2
+
+Collapsible section that wraps `FlightCard` rows for one destination country.
+
+```
+┌────────────────────────────────────────────┐
+│  ▾  Cyprus    2 flights        FROM  $47   │  ← caret · country · count · min price
+│  ───────────────────────────────────────── │
+│   [FlightCard row]                         │  ← sorted by price asc
+│   [FlightCard row]                         │
+└────────────────────────────────────────────┘
+```
+
+- Groups sorted by `min(priceUsd)` ascending; the cheapest group is expanded by default.
+- Header is a `<button>` with `aria-expanded`, `aria-controls`, and `aria-labelledby` on the panel.
+- Caret rotates 90° between expanded/collapsed states with a 200ms transition.
+- User toggles persist as explicit overrides keyed by country name; date/origin change resets them.
+- An "Other" bucket (empty country) pins to the end if any flight has no `destinationCountry`.
 
 ### 7.2 `ReturnFlightCard` — Redesigned
 
