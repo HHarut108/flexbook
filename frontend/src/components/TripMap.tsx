@@ -196,10 +196,15 @@ export function TripMap({ origin, legs }: Props) {
       <MapContainer
         center={[origin.city.lat, origin.city.lng]}
         zoom={4}
+        minZoom={2}
+        maxZoom={8}
         style={{ height: '100%', width: '100%' }}
         zoomControl={true}
         attributionControl={false}
         scrollWheelZoom={true}
+        worldCopyJump={false}
+        maxBounds={[[-85, -180], [85, 180]]}
+        maxBoundsViscosity={1}
       >
         {/* CartoDB Voyager — clean, travel-appropriate tiles */}
         <TileLayer

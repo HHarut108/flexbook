@@ -118,7 +118,13 @@ function AutoFit({ coordsKey, bounds }: { coordsKey: string; bounds: L.LatLngBou
   const map = useMap();
   useEffect(() => {
     if (!bounds) return;
-    map.fitBounds(bounds, { padding: [50, 50], maxZoom: 5 });
+    // Tighter padding on narrow viewports — a 220px-tall mobile map loses too
+    // much area to 50px of inset, which then forces pins to bunch up.
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+    map.fitBounds(bounds, {
+      padding: isMobile ? [18, 22] : [50, 50],
+      maxZoom: isMobile ? 4 : 5,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, coordsKey]);
   return null;
@@ -198,11 +204,16 @@ export function FlightFanMap({ origin, destinations, onSelectDestination, onConf
       <MapContainer
         center={[origin.city.lat, origin.city.lng]}
         zoom={4}
+        minZoom={2}
+        maxZoom={8}
         style={{ height: '100%', width: '100%' }}
         zoomControl={true}
         attributionControl={false}
         scrollWheelZoom={true}
         doubleClickZoom={false}
+        worldCopyJump={false}
+        maxBounds={[[-85, -180], [85, 180]]}
+        maxBoundsViscosity={1}
       >
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
