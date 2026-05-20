@@ -463,7 +463,7 @@ export function SignUpScreen() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-3.5 rounded-xl bg-indigo text-white font-semibold text-sm hover:bg-indigo/90 transition-colors disabled:opacity-60"
+          className="btn-primary"
         >
           {loading ? 'Creating account…' : 'Create account'}
         </button>

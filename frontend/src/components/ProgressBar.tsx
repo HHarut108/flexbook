@@ -52,7 +52,7 @@ export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
   return (
     <div className="sticky top-0 z-50">
       <div
-        className="px-4 py-2.5 flex items-center gap-3"
+        className="px-5 py-2.5 md:px-8 lg:px-10 flex items-center gap-3"
         style={{
           background: 'rgba(55,48,163,0.97)',
           backdropFilter: 'blur(12px)',
@@ -112,12 +112,12 @@ export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
         {/* Account button */}
         <button
           onClick={onMenuOpen}
-          className="shrink-0 ml-1 w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-white hover:bg-white/25 transition-all active:scale-95"
+          className="shrink-0 ml-1 w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center text-white hover:bg-white/25 transition-all active:scale-95"
           aria-label="Account"
         >
           {initials
-            ? <span className="text-[11px] font-bold leading-none">{initials}</span>
-            : <User size={15} />
+            ? <span className="text-xs font-bold leading-none">{initials}</span>
+            : <User size={16} />
           }
         </button>
       </div>
