@@ -62,14 +62,6 @@ function CompactFlightRow({ flight, onSelect }: CompactFlightRowProps) {
   );
 }
 
-function countryMonogram(country: string): string {
-  const trimmed = country.trim();
-  if (!trimmed) return '·';
-  const words = trimmed.split(/\s+/);
-  if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
-  return trimmed.slice(0, 2).toUpperCase();
-}
-
 interface CountryGroupProps {
   country: string;
   flights: FlightOption[];
@@ -104,12 +96,6 @@ export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function 
         aria-controls={panelId}
         className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-indigo-soft/40 transition-colors min-h-[56px]"
       >
-        <span
-          className="w-9 h-9 shrink-0 rounded-lg bg-indigo-soft text-indigo font-mono font-bold text-xs flex items-center justify-center"
-          aria-hidden
-        >
-          {countryMonogram(country)}
-        </span>
         <div className="flex-1 min-w-0">
           <div className="text-base font-bold text-text-primary leading-tight truncate">
             {country}

@@ -531,20 +531,20 @@ html[data-theme="dark"] .min-h-screen { background-color: transparent; }
 .fan-popup__price-row {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: 6px;
   margin-top: 2px;
 }
-.fan-popup__from {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  color: #94A3B8;
-}
 .fan-popup__price {
   font-family: 'JetBrains Mono', 'Menlo', monospace;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 800;
   color: #EA580C;
+}
+.fan-popup__price-caption {
+  font-size: 10px;
+  color: #64748B;
+  line-height: 1.2;
 }
 .fan-popup__cta {
   margin-top: 6px;
@@ -605,6 +605,40 @@ html[data-theme="dark"] .min-h-screen { background-color: transparent; }
   font-family: 'Inter', sans-serif;
   display: flex;
   align-items: center;
+}
+
+/* ── Trip total pill (separate from legend so users don't mis-read it
+        as the return-flight price) ── */
+
+.trip-map-total {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  z-index: 1000;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(226,232,240,0.7);
+  border-radius: 10px;
+  padding: 5px 10px;
+  box-shadow: 0 2px 8px rgba(15,23,42,0.10);
+  font-family: 'Inter', sans-serif;
+}
+.trip-map-total__label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #64748B;
+}
+.trip-map-total__amount {
+  font-family: 'JetBrains Mono', 'Menlo', monospace;
+  font-size: 13px;
+  font-weight: 800;
+  color: #0F172A;
 }
 
 /* ── Attribution (minimal) ── */

@@ -3,7 +3,7 @@ import { FlightOption, TripLeg } from '@fast-travel/shared';
 import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
-import { useFlightResults } from '../hooks/useFlightResults';
+import { useReturnOptions } from '../hooks/useReturnOptions';
 import { DatePickerOverlay } from '../components/DatePickerOverlay';
 import { ReturnFlightCard, ReturnFlightCardSkeleton } from '../components/ReturnFlightCard';
 import { TripTimeline } from '../components/TripTimeline';
@@ -34,19 +34,20 @@ export function ReturnFlightsScreen() {
   const tripTotal = totalPrice(outboundLegs);
 
   const navigate = useNavigate();
-  const { flights: pendingFlights, isLoading: isSearchingFlights, error: flightError, search } = useFlightResults();
+  const { flights: pendingFlights, isLoading: isSearchingFlights, error: flightError, search } = useReturnOptions();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const [localDate, setLocalDate] = useState(
     nextDeparture ?? format(addDays(new Date(), 1), 'yyyy-MM-dd'),
   );
   const [showCalendar, setShowCalendar] = useState(false);
 
-  // Fetch return flights — not deduplicated (all on same route)
+  // Fetch 3 nearby days in parallel so the user sees real return-flight choices,
+  // not just whatever Kiwi happens to surface for a single date.
   useEffect(() => {
     if (!currentIata || !originIata || !localDate) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      search(currentIata, localDate, { destination: originIata, deduplicate: false });
+      search(currentIata, originIata, localDate);
     }, 400);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [currentIata, originIata, localDate, search]);
@@ -194,7 +195,7 @@ export function ReturnFlightsScreen() {
         {/* Sub-header */}
         {!isSearchingFlights && pendingFlights.length > 0 && (
           <p className="text-xs text-text-muted mb-3 px-1">
-            {pendingFlights.length} cheapest option{pendingFlights.length > 1 ? 's' : ''} back to {originCityName} ready to compare
+            {pendingFlights.length} cheapest option{pendingFlights.length > 1 ? 's' : ''} back to {originCityName} across the next few days
           </p>
         )}
 
@@ -203,7 +204,7 @@ export function ReturnFlightsScreen() {
           <div className="card mb-4 text-center">
             <p className="text-text-muted text-sm mb-3">Couldn&apos;t load return flights.</p>
             <button
-              onClick={() => search(currentIata, localDate, { destination: originIata, deduplicate: false })}
+              onClick={() => search(currentIata, originIata, localDate)}
               className="flex items-center gap-2 mx-auto text-indigo-mid text-sm hover:underline"
             >
               <RefreshCw size={14} /> Retry
@@ -215,7 +216,7 @@ export function ReturnFlightsScreen() {
         {!isSearchingFlights && !flightError && pendingFlights.length === 0 && (
           <div className="card mb-4 text-center">
             <p className="text-text-muted text-sm mb-3">
-              No good route home showed up on this date.
+              No good route home showed up in the next few days.
             </p>
             <div className="flex gap-2 justify-center">
               <button onClick={() => shiftDate(-1)} className="btn-outline py-2 px-4 text-sm w-auto">← Day before</button>

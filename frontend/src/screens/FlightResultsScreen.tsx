@@ -10,7 +10,6 @@ import { FlightCardSkeleton } from '../components/FlightCard';
 import { DatePickerOverlay } from '../components/DatePickerOverlay';
 import { MapErrorBoundary } from '../components/MapErrorBoundary';
 import { buildDirectDestinations, type DirectDestination } from '../components/FlightFanMap';
-import { DestinationConfirmModal } from '../components/DestinationConfirmModal';
 import { CountryGroup } from '../components/CountryGroup';
 import { formatDate } from '../utils/date.utils';
 import { formatPrice } from '../utils/price.utils';
@@ -50,13 +49,13 @@ export function FlightResultsScreen() {
   useEffect(() => {
     resetFlights();
     setExpandedCountry(null);
-    setPopupForCountry(null);
+    setPopupDest(null);
     userTouchedRef.current = false;
   }, [currentIata, resetFlights]);
 
   useEffect(() => {
     setExpandedCountry(null);
-    setPopupForCountry(null);
+    setPopupDest(null);
     userTouchedRef.current = false;
   }, [localDate]);
 
@@ -78,8 +77,7 @@ export function FlightResultsScreen() {
   }
 
   const [expandedCountry, setExpandedCountry] = useState<string | null>(null);
-  const [popupForCountry, setPopupForCountry] = useState<string | null>(null);
-  const [confirmingDest, setConfirmingDest] = useState<DirectDestination | null>(null);
+  const [popupDest, setPopupDest] = useState<DirectDestination | null>(null);
   const groupRefs = useRef<Record<string, HTMLElement | null>>({});
   const mainRef = useRef<HTMLElement | null>(null);
   // Track whether the user has manually toggled expansion. While untouched,
@@ -145,43 +143,36 @@ export function FlightResultsScreen() {
     main.scrollTo({ top: target, behavior: prefersReduce ? 'auto' : 'smooth' });
   }
 
-  function expandCountry(country: string) {
-    userTouchedRef.current = true;
-    setExpandedCountry(country);
-    setPopupForCountry(null);
-    requestAnimationFrame(() => scrollMainToCountry(country));
-  }
-
-  // 3-state cycle: collapsed → expanded+highlighted → expanded+popup → collapsed
+  // Country accordion cycle: collapsed → expanded+highlighted → expanded+popup → collapsed.
+  // Popup pin is the cheapest IATA within the country (lookup below).
   function toggleCountry(country: string) {
     userTouchedRef.current = true;
     if (expandedCountry !== country) {
       setExpandedCountry(country);
-      setPopupForCountry(null);
+      setPopupDest(null);
       return;
     }
-    if (popupForCountry !== country) {
-      setPopupForCountry(country);
+    if (!popupDest || popupDest.country !== country) {
+      const inCountry = directDestinations.filter((d) => d.country === country);
+      const cheapestInCountry = inCountry.length === 0
+        ? null
+        : inCountry.reduce((a, b) => (a.minPriceUsd <= b.minPriceUsd ? a : b));
+      setPopupDest(cheapestInCountry);
       return;
     }
     setExpandedCountry(null);
-    setPopupForCountry(null);
+    setPopupDest(null);
   }
 
   function handleSelectDestination(dest: DirectDestination) {
     const country = dest.country || 'Other';
     userTouchedRef.current = true;
     setExpandedCountry(country);
-    // Tapping a pin is a deliberate ask for that destination's info, so open
-    // the popup right away (instead of requiring a second tap as the country
-    // list does). This is especially important on mobile where the list sits
-    // below the fold.
-    setPopupForCountry(country);
+    // Tapping a pin shows the popup for THAT specific city — not the cheapest
+    // city in its country — so multi-city countries (Italy, Türkiye) don't
+    // mis-attribute the price.
+    setPopupDest(dest);
     requestAnimationFrame(() => scrollMainToCountry(country));
-  }
-
-  function handleConfirmDestination(dest: DirectDestination) {
-    setConfirmingDest(dest);
   }
 
   function cheapestDirectFor(iata: string): FlightOption | null {
@@ -194,11 +185,12 @@ export function FlightResultsScreen() {
     return best;
   }
 
-  function commitConfirmedDestination() {
-    if (!confirmingDest) return;
-    const flight = cheapestDirectFor(confirmingDest.iata);
+  // Popup CTA → commit directly. No intermediate confirm modal; the popup
+  // *is* the confirmation surface.
+  function handleChooseDestination(dest: DirectDestination) {
+    const flight = cheapestDirectFor(dest.iata);
     if (!flight) return;
-    setConfirmingDest(null);
+    setPopupDest(null);
     handleSelect(flight);
   }
 
@@ -270,6 +262,16 @@ export function FlightResultsScreen() {
             </div>
 
           </div>
+
+          {/* Direct-routes count for this (origin, date) pair. Lives next to
+              the date strip — same context, no longer floating over the map. */}
+          {directDestinations.length > 0 && (
+            <p className="mt-2 text-[11px] text-text-muted">
+              <span className="font-semibold text-indigo">{directDestinations.length}</span>{' '}
+              direct {directDestinations.length === 1 ? 'route' : 'routes'} on{' '}
+              <span className="text-text-secondary">{formatDate(localDate)}</span>
+            </p>
+          )}
         </div>
 
         {/* Map region */}
@@ -287,10 +289,10 @@ export function FlightResultsScreen() {
                   origin={{ ...origin, city: { ...origin.city, name: currentCityName } }}
                   destinations={directDestinations}
                   onSelectDestination={handleSelectDestination}
-                  onConfirmDestination={handleConfirmDestination}
+                  onChooseDestination={handleChooseDestination}
                   highlightedCountry={expandedCountry}
-                  popupForCountry={popupForCountry}
-                  onPopupClose={() => setPopupForCountry(null)}
+                  popupDest={popupDest}
+                  onPopupClose={() => setPopupDest(null)}
                 />
               </Suspense>
             </MapErrorBoundary>
@@ -414,16 +416,6 @@ export function FlightResultsScreen() {
           legs={legs}
           onConfirm={handleDateConfirm}
           onClose={() => setShowCalendar(false)}
-        />
-      )}
-
-      {/* Map double-tap → confirm destination */}
-      {confirmingDest && (
-        <DestinationConfirmModal
-          destination={confirmingDest}
-          cheapestFlight={cheapestDirectFor(confirmingDest.iata)}
-          onConfirm={commitConfirmedDestination}
-          onCancel={() => setConfirmingDest(null)}
         />
       )}
     </div>

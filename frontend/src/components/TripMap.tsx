@@ -140,10 +140,9 @@ function SizeWatcher() {
   return null;
 }
 
-/* ── Route legend overlay ── */
+/* ── Route legend overlay (line-type swatches only) ── */
 
 function RouteLegend({ legs }: { origin: Airport; legs: TripLeg[] }) {
-  const totalPrice = legs.reduce((sum, l) => sum + l.priceUsd, 0);
   const hasReturn = legs.some((l) => l.isReturn);
 
   return (
@@ -159,8 +158,20 @@ function RouteLegend({ legs }: { origin: Airport; legs: TripLeg[] }) {
             <span className="text-[10px] text-text-muted">return</span>
           </span>
         )}
-        <span className="text-[10px] font-bold text-orange ml-1">{formatPrice(totalPrice)}</span>
       </div>
+    </div>
+  );
+}
+
+/* ── Trip-total pill (separate corner, clearly labelled) ── */
+
+function TripTotalPill({ legs }: { legs: TripLeg[] }) {
+  const totalPrice = legs.reduce((sum, l) => sum + l.priceUsd, 0);
+  if (totalPrice <= 0) return null;
+  return (
+    <div className="trip-map-total">
+      <span className="trip-map-total__label">Trip total</span>
+      <span className="trip-map-total__amount">{formatPrice(totalPrice)}</span>
     </div>
   );
 }
@@ -271,8 +282,11 @@ export function TripMap({ origin, legs }: Props) {
         &copy; OpenStreetMap &copy; CARTO
       </div>
 
-      {/* Route legend overlay */}
+      {/* Route legend overlay (line-types only) */}
       <RouteLegend origin={origin} legs={legs} />
+
+      {/* Trip total — separate corner so it doesn't read as "return = $X" */}
+      <TripTotalPill legs={legs} />
     </div>
   );
 }
