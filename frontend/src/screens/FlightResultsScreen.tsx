@@ -488,7 +488,7 @@ export function FlightResultsScreen() {
                       id={panelId}
                       role="region"
                       aria-labelledby={headerId}
-                      className="px-2 pb-2 pt-1 space-y-2 border-t border-border/60 bg-surface-2/30"
+                      className="px-3 pb-3 pt-2 space-y-2 border-t border-border/60 bg-surface-2/30"
                     >
                       {group.flights.map((flight) => (
                         <FlightCard

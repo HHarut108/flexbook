@@ -436,13 +436,13 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
         <GoHomeLogo size="lg" variant="light" />
         <button
           onClick={onMenuOpen}
-          className="w-11 h-11 rounded-2xl bg-surface border border-border flex items-center justify-center text-indigo-mid transition-all hover:bg-indigo-soft hover:border-indigo-border"
+          className="w-10 h-10 rounded-2xl bg-surface border border-border flex items-center justify-center text-indigo-mid transition-all hover:bg-indigo-soft hover:border-indigo-border"
           style={{ boxShadow: '0 4px 12px rgba(15,23,42,0.08)' }}
           aria-label="Account"
         >
           {initials
             ? <span className="text-xs font-bold text-indigo leading-none">{initials}</span>
-            : <User size={20} />
+            : <User size={16} />
           }
         </button>
       </div>

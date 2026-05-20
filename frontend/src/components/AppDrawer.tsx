@@ -167,15 +167,14 @@ export function AppDrawer({ open, onClose }: Props) {
           ${open ? 'md:translate-x-0' : 'md:translate-x-full'}`}
       >
         <div
-          className="bg-white rounded-b-3xl overflow-hidden md:rounded-none md:h-full md:flex md:flex-col"
+          className="bg-white overflow-hidden h-[100dvh] flex flex-col"
           style={{
-            maxHeight: '85vh',
             boxShadow: '0 24px 48px rgba(15,23,42,0.15)',
           }}
         >
           {/* Header */}
           <div
-            className="px-5 pt-5 pb-4 flex items-center justify-between"
+            className="px-5 pt-5 pb-4 flex items-center justify-between shrink-0"
             style={{
               background: 'linear-gradient(135deg, rgba(55,48,163,0.97) 0%, rgba(79,70,229,0.97) 100%)',
             }}
@@ -184,13 +183,14 @@ export function AppDrawer({ open, onClose }: Props) {
             <button
               onClick={onClose}
               className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center text-white hover:bg-white/25 transition-all active:scale-95"
+              aria-label="Close"
             >
               <X size={18} />
             </button>
           </div>
 
           {/* Content — scrollable */}
-          <div className="overflow-y-auto md:flex-1 md:max-h-none" style={{ maxHeight: 'calc(85vh - 72px)' }}>
+          <div className="flex-1 min-h-0 overflow-y-auto">
 
             {/* Account section */}
             <div className="px-5 pt-5 pb-4 border-b border-border">
@@ -238,13 +238,13 @@ export function AppDrawer({ open, onClose }: Props) {
                   <div className="flex gap-2">
                     <button
                       onClick={() => goTo('/login')}
-                      className="flex-1 py-2.5 rounded-xl border border-border text-xs font-semibold text-text-primary hover:bg-surface-2 transition-all"
+                      className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold text-text-primary hover:bg-surface-2 transition-all"
                     >
                       Log in
                     </button>
                     <button
                       onClick={() => goTo('/signup')}
-                      className="flex-1 py-2.5 rounded-xl bg-indigo text-white text-xs font-semibold hover:bg-indigo/90 transition-all"
+                      className="flex-1 py-3 rounded-xl bg-indigo text-white text-sm font-semibold hover:bg-indigo/90 transition-all"
                       style={{ boxShadow: '0 4px 12px rgba(55,48,163,0.2)' }}
                     >
                       Sign up
