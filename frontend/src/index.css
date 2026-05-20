@@ -398,6 +398,17 @@ html[data-theme="dark"] .min-h-screen { background-color: transparent; }
   white-space: nowrap;
 }
 
+/* Mobile: shrink price chips so the cluster of pins doesn't overlap on a 220px map. */
+@media (max-width: 640px) {
+  .flight-fan-pin {
+    min-width: 36px;
+    height: 20px;
+    padding: 0 5px;
+    font-size: 11px;
+    box-shadow: 0 2px 8px rgba(15,23,42,0.18), 0 0 0 1px #C7D2FE;
+  }
+}
+
 .flight-fan-pin:hover {
   transform: scale(1.08);
   box-shadow: 0 6px 16px rgba(15,23,42,0.22), 0 0 0 1.5px #4F46E5;
