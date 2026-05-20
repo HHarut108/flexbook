@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
@@ -9,11 +9,17 @@ import { formatDate } from '../utils/date.utils';
 import { TripTimeline } from '../components/TripTimeline';
 import { PlanStayNudge } from '../components/PlanStayNudge';
 import { DestinationGuideCard } from '../components/DestinationGuideCard';
+import { MapErrorBoundary } from '../components/MapErrorBoundary';
 import { ArrowLeft, Ticket } from 'lucide-react';
 import { getDecisionHeadline } from '../utils/copy.utils';
 
+const TripMap = lazy(() =>
+  import('../components/TripMap').then((m) => ({ default: m.TripMap })),
+);
+
 export function DecisionScreen() {
   const navigate = useNavigate();
+  const origin = useTripStore((s) => s.origin);
   const legs = useTripStore((s) => s.legs);
   const passengers = useTripStore((s) => s.passengers);
   const canContinue = useTripStore((s) => s.canContinue());
@@ -79,6 +85,26 @@ export function DecisionScreen() {
           </div>
           <TripTimeline legs={legs} highlightLast />
         </div>
+
+        {/* Desktop-only trip route map */}
+        {origin && nonReturnLegs.length > 0 && (
+          <div className="hidden md:block mb-5">
+            <p className="text-[10px] text-text-muted uppercase tracking-wide mb-2">Route so far</p>
+            <div className="relative h-[280px] lg:h-[340px] rounded-2xl overflow-hidden border border-border bg-surface-2/30 shadow-[0_4px_16px_rgba(15,23,42,0.08)]">
+              <MapErrorBoundary>
+                <Suspense
+                  fallback={
+                    <div className="h-full flex items-center justify-center text-text-muted text-xs animate-pulse">
+                      Loading map…
+                    </div>
+                  }
+                >
+                  <TripMap origin={origin} legs={nonReturnLegs} />
+                </Suspense>
+              </MapErrorBoundary>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Right: nudge / inline guide + action buttons */}
