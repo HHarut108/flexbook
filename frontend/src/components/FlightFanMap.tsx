@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Polyline, Popup, ZoomControl, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Airport, FlightOption } from '@fast-travel/shared';
@@ -63,13 +63,16 @@ function createOriginIcon() {
   });
 }
 
-function createPricePin(price: string, highlighted: boolean) {
+function createPricePin(price: string, highlighted: boolean, selected: boolean) {
+  const classes = [
+    'flight-fan-pin',
+    highlighted ? 'flight-fan-pin--hot' : '',
+    selected ? 'flight-fan-pin--selected' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
   return L.divIcon({
-    html: `
-      <div class="flight-fan-pin ${highlighted ? 'flight-fan-pin--hot' : ''}">
-        <span>${price}</span>
-      </div>
-    `,
+    html: `<div class="${classes}"><span>${price}</span></div>`,
     className: '',
     iconSize: [52, 26],
     iconAnchor: [26, 13],
@@ -155,13 +158,33 @@ interface Props {
   destinations: DirectDestination[];
   onSelectDestination?: (dest: DirectDestination) => void;
   onConfirmDestination?: (dest: DirectDestination) => void;
+  highlightedCountry?: string | null;
+  popupForCountry?: string | null;
+  onPopupClose?: () => void;
 }
 
-export function FlightFanMap({ origin, destinations, onSelectDestination, onConfirmDestination }: Props) {
+export function FlightFanMap({
+  origin,
+  destinations,
+  onSelectDestination,
+  onConfirmDestination,
+  highlightedCountry,
+  popupForCountry,
+  onPopupClose,
+}: Props) {
   const cheapest = useMemo(() => {
     if (destinations.length === 0) return null;
     return destinations.reduce((a, b) => (a.minPriceUsd <= b.minPriceUsd ? a : b));
   }, [destinations]);
+
+  // Cheapest destination inside the popup-target country — popup shows on this
+  // pin only, so multi-city countries don't sprout overlapping popups.
+  const popupDest = useMemo(() => {
+    if (!popupForCountry) return null;
+    const inCountry = destinations.filter((d) => d.country === popupForCountry);
+    if (inCountry.length === 0) return null;
+    return inCountry.reduce((a, b) => (a.minPriceUsd <= b.minPriceUsd ? a : b));
+  }, [popupForCountry, destinations]);
 
   const arcs = useMemo(
     () =>
@@ -207,7 +230,7 @@ export function FlightFanMap({ origin, destinations, onSelectDestination, onConf
         minZoom={2}
         maxZoom={8}
         style={{ height: '100%', width: '100%' }}
-        zoomControl={true}
+        zoomControl={false}
         attributionControl={false}
         scrollWheelZoom={true}
         doubleClickZoom={false}
@@ -221,6 +244,7 @@ export function FlightFanMap({ origin, destinations, onSelectDestination, onConf
         />
         <SizeWatcher />
         <AutoFit coordsKey={coordsKey} bounds={bounds} />
+        <ZoomControl position="topright" />
 
         {arcs.map((arc, i) => (
           <Polyline
@@ -262,13 +286,51 @@ export function FlightFanMap({ origin, destinations, onSelectDestination, onConf
           <Marker
             key={`pin-${d.iata}`}
             position={[d.lat, d.lng]}
-            icon={createPricePin(formatPrice(d.minPriceUsd), cheapest?.iata === d.iata)}
+            icon={createPricePin(
+              formatPrice(d.minPriceUsd),
+              cheapest?.iata === d.iata,
+              !!highlightedCountry && d.country === highlightedCountry,
+            )}
+            zIndexOffset={!!highlightedCountry && d.country === highlightedCountry ? 1000 : 0}
             eventHandlers={{
               click: () => onSelectDestination?.(d),
               dblclick: () => onConfirmDestination?.(d),
             }}
           />
         ))}
+
+        {popupDest && (
+          <Popup
+            key={`popup-${popupDest.iata}`}
+            position={[popupDest.lat, popupDest.lng]}
+            closeOnClick={false}
+            autoClose={false}
+            className="fan-popup-wrapper"
+            eventHandlers={{ remove: () => onPopupClose?.() }}
+          >
+            <div className="fan-popup">
+              <div className="fan-popup__head">
+                <span className="fan-popup__city">{popupDest.city}</span>
+                <span className="fan-popup__iata">{popupDest.iata}</span>
+              </div>
+              <div className="fan-popup__sub">
+                {popupDest.country} · {popupDest.flightCount} direct{' '}
+                {popupDest.flightCount === 1 ? 'flight' : 'flights'}
+              </div>
+              <div className="fan-popup__price-row">
+                <span className="fan-popup__from">FROM</span>
+                <span className="fan-popup__price">{formatPrice(popupDest.minPriceUsd)}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => onConfirmDestination?.(popupDest)}
+                className="fan-popup__cta"
+              >
+                Plan this trip →
+              </button>
+            </div>
+          </Popup>
+        )}
       </MapContainer>
 
       <div className="trip-map-attribution">&copy; OpenStreetMap &copy; CARTO</div>

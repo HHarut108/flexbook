@@ -15,7 +15,7 @@ import { CountryGroup } from '../components/CountryGroup';
 import { formatDate } from '../utils/date.utils';
 import { formatPrice } from '../utils/price.utils';
 import { countryDisplayName } from '../utils/country.utils';
-import { ChevronLeft, ChevronRight, RefreshCw, ArrowLeft, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw, ArrowLeft } from 'lucide-react';
 import { format, addDays, parseISO } from 'date-fns';
 
 const FlightFanMap = lazy(() =>
@@ -26,8 +26,6 @@ export function FlightResultsScreen() {
   const navigate = useNavigate();
   const origin = useTripStore((s) => s.origin);
   const legs = useTripStore((s) => s.legs);
-  const passengers = useTripStore((s) => s.passengers);
-  const setPassengers = useTripStore((s) => s.setPassengers);
   const { selectedDate, setSelectedDate, setSelectedFlight } = useSessionStore();
   const { flights: pendingFlights, isLoading: isSearchingFlights, error: flightError, search, reset: resetFlights } = useFlightResults();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
@@ -52,11 +50,13 @@ export function FlightResultsScreen() {
   useEffect(() => {
     resetFlights();
     setExpandedCountry(null);
+    setPopupForCountry(null);
     userTouchedRef.current = false;
   }, [currentIata, resetFlights]);
 
   useEffect(() => {
     setExpandedCountry(null);
+    setPopupForCountry(null);
     userTouchedRef.current = false;
   }, [localDate]);
 
@@ -78,6 +78,7 @@ export function FlightResultsScreen() {
   }
 
   const [expandedCountry, setExpandedCountry] = useState<string | null>(null);
+  const [popupForCountry, setPopupForCountry] = useState<string | null>(null);
   const [confirmingDest, setConfirmingDest] = useState<DirectDestination | null>(null);
   const groupRefs = useRef<Record<string, HTMLElement | null>>({});
   const mainRef = useRef<HTMLElement | null>(null);
@@ -147,17 +148,36 @@ export function FlightResultsScreen() {
   function expandCountry(country: string) {
     userTouchedRef.current = true;
     setExpandedCountry(country);
+    setPopupForCountry(null);
     requestAnimationFrame(() => scrollMainToCountry(country));
   }
 
+  // 3-state cycle: collapsed → expanded+highlighted → expanded+popup → collapsed
   function toggleCountry(country: string) {
     userTouchedRef.current = true;
-    setExpandedCountry((prev) => (prev === country ? null : country));
+    if (expandedCountry !== country) {
+      setExpandedCountry(country);
+      setPopupForCountry(null);
+      return;
+    }
+    if (popupForCountry !== country) {
+      setPopupForCountry(country);
+      return;
+    }
+    setExpandedCountry(null);
+    setPopupForCountry(null);
   }
 
   function handleSelectDestination(dest: DirectDestination) {
     const country = dest.country || 'Other';
-    expandCountry(country);
+    userTouchedRef.current = true;
+    setExpandedCountry(country);
+    // Tapping a pin is a deliberate ask for that destination's info, so open
+    // the popup right away (instead of requiring a second tap as the country
+    // list does). This is especially important on mobile where the list sits
+    // below the fold.
+    setPopupForCountry(country);
+    requestAnimationFrame(() => scrollMainToCountry(country));
   }
 
   function handleConfirmDestination(dest: DirectDestination) {
@@ -249,31 +269,6 @@ export function FlightResultsScreen() {
               </button>
             </div>
 
-            <div className="shrink-0 hidden sm:inline-flex items-stretch rounded-xl border border-border bg-white overflow-hidden">
-              <button
-                onClick={() => setPassengers(passengers - 1)}
-                disabled={passengers <= 1}
-                className="w-11 sm:w-9 flex items-center justify-center text-text-muted hover:text-indigo hover:bg-indigo-soft disabled:opacity-25 disabled:hover:bg-white transition-colors min-h-[44px] text-base font-light"
-                aria-label="Remove traveler"
-              >
-                −
-              </button>
-              <div className="px-2 flex flex-col items-center justify-center border-x border-border min-h-[44px]">
-                <span className="text-[9px] uppercase tracking-[0.16em] text-text-muted leading-none">Pax</span>
-                <span className="text-xs font-semibold text-text-primary mt-0.5 inline-flex items-center gap-1">
-                  <Users size={11} className="text-text-muted" />
-                  {passengers}
-                </span>
-              </div>
-              <button
-                onClick={() => setPassengers(passengers + 1)}
-                disabled={passengers >= 9}
-                className="w-11 sm:w-9 flex items-center justify-center text-text-muted hover:text-indigo hover:bg-indigo-soft disabled:opacity-25 disabled:hover:bg-white transition-colors min-h-[44px] text-base font-light"
-                aria-label="Add traveler"
-              >
-                +
-              </button>
-            </div>
           </div>
         </div>
 
@@ -293,6 +288,9 @@ export function FlightResultsScreen() {
                   destinations={directDestinations}
                   onSelectDestination={handleSelectDestination}
                   onConfirmDestination={handleConfirmDestination}
+                  highlightedCountry={expandedCountry}
+                  popupForCountry={popupForCountry}
+                  onPopupClose={() => setPopupForCountry(null)}
                 />
               </Suspense>
             </MapErrorBoundary>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Polyline, ZoomControl, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Airport, TripLeg } from '@fast-travel/shared';
@@ -199,7 +199,7 @@ export function TripMap({ origin, legs }: Props) {
         minZoom={2}
         maxZoom={8}
         style={{ height: '100%', width: '100%' }}
-        zoomControl={true}
+        zoomControl={false}
         attributionControl={false}
         scrollWheelZoom={true}
         worldCopyJump={false}
@@ -213,6 +213,7 @@ export function TripMap({ origin, legs }: Props) {
         />
         <SizeWatcher />
         <AutoFit pins={pins} />
+        <ZoomControl position="topright" />
 
         {/* Glow underline for arcs (rendered first, behind) */}
         {arcs.map((arc, i) => (

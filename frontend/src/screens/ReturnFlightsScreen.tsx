@@ -10,7 +10,7 @@ import { TripTimeline } from '../components/TripTimeline';
 import { MapErrorBoundary } from '../components/MapErrorBoundary';
 import { formatDate } from '../utils/date.utils';
 import { formatPrice, totalPrice } from '../utils/price.utils';
-import { ArrowLeft, ChevronLeft, ChevronRight, Calendar, RefreshCw, Home } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Calendar, RefreshCw } from 'lucide-react';
 import { format, addDays, parseISO } from 'date-fns';
 
 const TripMap = lazy(() =>
@@ -90,52 +90,27 @@ export function ReturnFlightsScreen() {
       <Helmet><title>Fly home from {currentCityName} · FlexBook</title></Helmet>
       {/* Left panel: controls */}
       <div className="px-4 pt-4 pb-3 md:w-[340px] lg:w-[380px] md:flex-shrink-0 md:border-r md:border-border/50 md:overflow-y-auto md:pb-8">
-        <div className="hero-panel-return mb-4">
-          <div className="flex items-center gap-3 mb-3">
-            <button
-              onClick={() => navigate('/review')}
-              className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white border border-border hover:bg-indigo-soft hover:border-indigo-border transition-all text-text-muted shrink-0"
-              aria-label="Back to trip decisions"
-            >
-              <ArrowLeft size={18} />
-            </button>
-            <span className="pill-warning">Way home</span>
-          </div>
-          <h2 className="text-2xl font-bold text-text-primary leading-tight mb-1">
-            Ready to close the loop?
-          </h2>
-          <p className="text-sm leading-6 text-text-muted mb-4">
-            Here are the cheapest ways to fly from {currentCityName} back to {originCityName} and
-            finish the adventure.
-          </p>
-          <div className="rounded-2xl bg-orange-soft/70 border border-orange/20 px-4 py-3">
-            <p className="text-[11px] uppercase tracking-[0.16em] text-text-muted mb-1">
-              Route back
-            </p>
-            <p className="text-text-primary font-semibold">
-              {currentCityName} to {originCityName}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 mb-1">
-          <div className="w-9 h-9 rounded-xl bg-surface-2 flex items-center justify-center shrink-0">
-            <Home size={16} className="text-indigo" />
-          </div>
-          <div>
-            <h2 className="text-lg font-bold text-text-primary leading-tight">Return options</h2>
-            <p className="text-text-muted text-sm">
-              {currentCityName} → {originCityName}
-            </p>
-          </div>
-        </div>
-
-        {/* Outbound trip timeline + total */}
-        <div className="mt-3 mb-4 pb-3 border-b border-border/50">
-          <div className="flex items-center justify-between mb-1.5">
-            <p className="text-[10px] text-text-muted uppercase tracking-wide">Outbound trip</p>
+        {/* Minimal header: back + pill + tight route line */}
+        <div className="flex items-center gap-2.5 mb-3">
+          <button
+            onClick={() => navigate('/review')}
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-white border border-border hover:bg-indigo-soft hover:border-indigo-border transition-all text-text-muted shrink-0"
+            aria-label="Back to trip decisions"
+          >
+            <ArrowLeft size={16} />
+          </button>
+          <span className="pill-warning">Way home</span>
+          <div className="min-w-0 flex-1 text-right">
             <span className="font-mono text-orange text-xs font-bold">{formatPrice(tripTotal)}</span>
           </div>
+        </div>
+
+        <h1 className="text-xl md:text-2xl font-bold text-text-primary leading-tight mb-3">
+          {currentCityName} <span className="text-text-muted font-normal">→</span> {originCityName}
+        </h1>
+
+        {/* Outbound trip timeline (compact) */}
+        <div className="mb-4 pb-3 border-b border-border/50">
           <TripTimeline legs={legs} highlightLast={false} />
         </div>
 
