@@ -5,6 +5,7 @@ import { useSessionStore } from '../store/session.store';
 import { useTripStore } from '../store/trip.store';
 import { computeNextDeparture, formatDateLong } from '../utils/date.utils';
 import { formatPrice, totalPrice } from '../utils/price.utils';
+import { countryDisplayName } from '../utils/country.utils';
 import { ArrowLeft, Minus, Plus } from 'lucide-react';
 import { TripTimeline } from '../components/TripTimeline';
 import { getStayDurationHint } from '../utils/copy.utils';
@@ -72,7 +73,7 @@ export function StayDurationScreen() {
           {getStayDurationHint(selectedFlight.flightId)}
         </p>
         <p className="text-text-muted text-sm mt-3">
-          {selectedFlight.destinationCity}, {selectedFlight.destinationCountry}
+          {selectedFlight.destinationCity}, {countryDisplayName(selectedFlight.destinationCountry)}
         </p>
         {recommendation && (
           <div className="mt-3 rounded-2xl bg-indigo-soft border border-indigo-border px-4 py-3">

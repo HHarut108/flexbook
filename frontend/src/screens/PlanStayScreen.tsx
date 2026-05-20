@@ -5,6 +5,7 @@ import { useTripStore } from '../store/trip.store';
 import { apiClient } from '../api/client';
 import { StickyReturnBar } from '../components/StickyReturnBar';
 import { formatShortDate } from '../utils/date.utils';
+import { countryDisplayName } from '../utils/country.utils';
 import {
   ArrowLeft,
   BedDouble,
@@ -153,8 +154,11 @@ export function PlanStayScreen() {
 
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
   const lastLeg = nonReturnLegs.at(-1)!;
-  const { destinationIata, destinationCity, destinationCountry, arrivalDatetime, nextDepartureDate, stayDurationDays } =
+  const { destinationIata, destinationCity, arrivalDatetime, nextDepartureDate, stayDurationDays } =
     lastLeg;
+  // Normalize so 2-letter codes returned by some providers become real names
+  // before they're rendered, used to call RestCountries, or passed to other APIs.
+  const destinationCountry = countryDisplayName(lastLeg.destinationCountry);
 
   const crumbs = [origin?.iata ?? '?', ...nonReturnLegs.map((l) => l.destinationIata)];
   const nights = stayDurationDays ?? 1;

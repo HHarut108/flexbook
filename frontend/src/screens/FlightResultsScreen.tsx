@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { FlightOption } from '@fast-travel/shared';
 import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
@@ -9,10 +9,18 @@ import { useWeatherBatch } from '../hooks/useWeatherBatch';
 import { FlightCard, FlightCardSkeleton } from '../components/FlightCard';
 import { DatePickerOverlay } from '../components/DatePickerOverlay';
 import { TripTimeline } from '../components/TripTimeline';
+import { MapErrorBoundary } from '../components/MapErrorBoundary';
+import { buildDirectDestinations, type DirectDestination } from '../components/FlightFanMap';
+import { DestinationConfirmModal } from '../components/DestinationConfirmModal';
 import { formatDate } from '../utils/date.utils';
 import { formatPrice, totalPrice } from '../utils/price.utils';
-import { ChevronLeft, ChevronRight, Calendar, RefreshCw, ArrowLeft, Home, Users, ChevronDown } from 'lucide-react';
+import { countryDisplayName } from '../utils/country.utils';
+import { ChevronLeft, ChevronRight, Calendar, RefreshCw, ArrowLeft, Home, Users, ChevronDown, Map as MapIcon, EyeOff } from 'lucide-react';
 import { format, addDays, parseISO } from 'date-fns';
+
+const FlightFanMap = lazy(() =>
+  import('../components/FlightFanMap').then((m) => ({ default: m.FlightFanMap })),
+);
 
 export function FlightResultsScreen() {
   const navigate = useNavigate();
@@ -77,6 +85,9 @@ export function FlightResultsScreen() {
   // Explicit per-country expansion overrides. Missing entries fall back to the
   // default: only the cheapest country (first group) is expanded.
   const [countryExpandOverrides, setCountryExpandOverrides] = useState<Record<string, boolean>>({});
+  const [showMap, setShowMap] = useState(true);
+  const [confirmingDest, setConfirmingDest] = useState<DirectDestination | null>(null);
+  const groupRefs = useRef<Record<string, HTMLElement | null>>({});
 
   const outboundLegs = legs.filter((l) => !l.isReturn);
   const stopCount = outboundLegs.length;
@@ -86,6 +97,45 @@ export function FlightResultsScreen() {
   // Stops-based filter buckets
   const directFlights = pendingFlights.filter((f) => f.stops === 0);
   const oneStopFlights = pendingFlights.filter((f) => f.stops === 1);
+
+  // Direct destinations (one pin per IATA) for the map. Always derived from the
+  // direct subset regardless of the stops tab — the map's purpose is to answer
+  // "where can I fly direct from here?".
+  const directDestinations = useMemo<DirectDestination[]>(
+    () => buildDirectDestinations(directFlights),
+    [directFlights],
+  );
+
+  function handleSelectDestination(dest: DirectDestination) {
+    const country = dest.country || 'Other';
+    setCountryExpandOverrides((prev) => ({ ...prev, [country]: true }));
+    requestAnimationFrame(() => {
+      const node = groupRefs.current[country];
+      if (node) node.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  // Double-tap a pin → ask for confirmation in a modal.
+  function handleConfirmDestination(dest: DirectDestination) {
+    setConfirmingDest(dest);
+  }
+
+  function cheapestDirectFor(iata: string): FlightOption | null {
+    let best: FlightOption | null = null;
+    for (const f of directFlights) {
+      if (f.destinationIata !== iata) continue;
+      if (!best || f.priceUsd < best.priceUsd) best = f;
+    }
+    return best;
+  }
+
+  function commitConfirmedDestination() {
+    if (!confirmingDest) return;
+    const flight = cheapestDirectFor(confirmingDest.iata);
+    if (!flight) return;
+    setConfirmingDest(null);
+    handleSelect(flight);
+  }
 
   const minPrice = (list: FlightOption[]) =>
     list.length > 0 ? Math.min(...list.map((f) => f.priceUsd)) : null;
@@ -106,7 +156,9 @@ export function FlightResultsScreen() {
   const countryGroups: { country: string; flights: FlightOption[]; minPrice: number }[] = (() => {
     const buckets = new Map<string, FlightOption[]>();
     for (const f of flightsAfterStopsFilter) {
-      const key = (f.destinationCountry?.trim() || 'Other');
+      // Normalize the bucket key to the display name so "HU" and "Hungary"
+      // collapse into a single group instead of splitting across two cards.
+      const key = countryDisplayName(f.destinationCountry?.trim() || '') || 'Other';
       const list = buckets.get(key) ?? [];
       list.push(f);
       buckets.set(key, list);
@@ -150,131 +202,88 @@ export function FlightResultsScreen() {
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden lg:flex-row">
       <Helmet><title>{title}</title></Helmet>
       {/* Left panel: controls */}
-      <div className="px-4 pt-4 pb-3 shrink-0 lg:w-[380px] lg:flex-shrink-0 lg:border-r lg:border-border/50 lg:overflow-y-auto lg:pb-8">
-        <div className="hero-panel mb-4">
-        <div className="flex items-center gap-3 mb-4">
-          <button
-            onClick={handleBack}
-            className="w-11 h-11 flex items-center justify-center rounded-2xl bg-white border border-border hover:bg-indigo-soft hover:border-indigo-border transition-all text-text-muted"
-          >
-            <ArrowLeft size={18} />
-          </button>
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-indigo-mid font-mono mb-1">
-              {isFirstStop ? 'First stop' : 'Keep the trip going'}
-            </p>
-            <h2 className="text-xl font-bold text-text-primary leading-tight">
-              {isFirstStop ? 'Cheapest flights from' : 'Cheapest next hop from'}
-            </h2>
-            <div className="flex items-center gap-2">
-              <span className="pill-brand font-mono text-xs font-bold">{currentIata}</span>
-              <span className="text-text-muted text-sm">{currentCityName}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Date navigation row — arrows are primary actions, calendar tap for exact date */}
-        <div className="flex items-center gap-1.5 min-w-0">
-          {/* ← Previous day */}
-          <button
-            onClick={() => shiftDate(-1)}
-            className="w-10 h-11 flex items-center justify-center rounded-2xl bg-white/75 border border-white/80 hover:border-indigo-mid hover:text-indigo-mid text-text-muted transition-colors active:scale-95 shrink-0 shadow-[0_4px_12px_rgba(23,50,77,0.05)]"
-            aria-label="Previous day"
-          >
-            <ChevronLeft size={18} />
-          </button>
-
-          {/* Mobile: single date button */}
-          <button
-            onClick={() => setShowCalendar(true)}
-            className="flex-1 min-w-0 flex items-center gap-3 bg-white/75 border border-white/80 rounded-2xl px-4 py-3 hover:border-indigo-mid transition-colors group shadow-[0_10px_20px_rgba(23,50,77,0.05)] lg:hidden"
-          >
-            <Calendar size={15} className="text-text-muted group-hover:text-indigo transition-colors shrink-0" />
-            <div className="text-left min-w-0">
-              <div className="text-xs text-text-muted">Departing</div>
-              <div className="text-text-primary font-medium truncate">
-                {localDate ? formatDate(localDate) : 'Pick a date'}
+      <div className="px-3 pt-3 pb-2 shrink-0 lg:w-[340px] lg:flex-shrink-0 lg:border-r lg:border-border/50 lg:overflow-y-auto lg:pb-6">
+        <div className="hero-panel hero-panel--compact mb-2">
+          {/* Title row — single line: back + label + IATA + city */}
+          <div className="flex items-center gap-2 mb-2.5 min-w-0">
+            <button
+              onClick={handleBack}
+              className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-border hover:bg-indigo-soft hover:border-indigo-border transition-all text-text-muted shrink-0"
+              aria-label="Back"
+            >
+              <ArrowLeft size={15} />
+            </button>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] text-text-muted leading-none mb-0.5">
+                {isFirstStop ? 'Cheapest flights from' : 'Next hop from'}
+              </p>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="pill-brand font-mono text-[11px] font-bold py-0.5">{currentIata}</span>
+                <span className="text-text-primary text-sm font-semibold truncate">{currentCityName}</span>
               </div>
             </div>
-          </button>
-
-          {/* Desktop: 3-day ribbon centred on the active date — fits the narrow panel */}
-          <div className="hidden lg:flex flex-1 min-w-0 gap-1.5">
-            {[-1, 0, 1].map((offset) => {
-              const d = format(addDays(parseISO(localDate), offset), 'yyyy-MM-dd');
-              const isActive = offset === 0;
-              return (
-                <button
-                  key={offset}
-                  onClick={() => { setLocalDate(d); setSelectedDate(d); }}
-                  className={`flex-1 min-w-0 rounded-2xl px-1.5 py-2 transition-all shadow-[0_4px_12px_rgba(23,50,77,0.05)] flex flex-col items-center justify-center leading-tight ${
-                    isActive
-                      ? 'bg-indigo text-white border border-indigo'
-                      : 'bg-white/75 border border-white/80 text-text-muted hover:border-indigo-mid hover:text-indigo-mid'
-                  }`}
-                  aria-label={format(addDays(parseISO(localDate), offset), 'EEEE, MMM d')}
-                >
-                  <span className={`text-[10px] uppercase tracking-wide ${isActive ? 'text-white/80' : 'text-text-muted'}`}>
-                    {format(addDays(parseISO(localDate), offset), 'EEE')}
-                  </span>
-                  <span className="text-sm font-bold tabular-nums">
-                    {format(addDays(parseISO(localDate), offset), 'd')}
-                  </span>
-                </button>
-              );
-            })}
           </div>
 
-          {/* Calendar shortcut — desktop only, opens overlay */}
-          <button
-            onClick={() => setShowCalendar(true)}
-            className="hidden lg:flex w-10 h-11 items-center justify-center rounded-2xl bg-white/75 border border-white/80 hover:border-indigo-mid hover:text-indigo-mid text-text-muted transition-colors active:scale-95 shrink-0 shadow-[0_4px_12px_rgba(23,50,77,0.05)]"
-            aria-label="Pick a different date"
-          >
-            <Calendar size={16} />
-          </button>
-
-          {/* → Next day */}
-          <button
-            onClick={() => shiftDate(1)}
-            className="w-10 h-11 flex items-center justify-center rounded-2xl bg-white/75 border border-white/80 hover:border-indigo-mid hover:text-indigo-mid text-text-muted transition-colors active:scale-95 shrink-0 shadow-[0_4px_12px_rgba(23,50,77,0.05)]"
-            aria-label="Next day"
-          >
-            <ChevronRight size={18} />
-          </button>
-        </div>
-
-        {/* Traveler count stepper */}
-        <div className="mt-3 flex items-center gap-2">
-          <Users size={13} className="shrink-0 text-text-muted" />
-          <div className="flex items-center rounded-2xl border border-border bg-white/75 shadow-[0_4px_12px_rgba(23,50,77,0.06)] overflow-hidden">
+          {/* Date + Traveler row — single compact line */}
+          <div className="flex items-center gap-1.5 min-w-0">
             <button
-              onClick={() => setPassengers(passengers - 1)}
-              disabled={passengers <= 1}
-              className="w-11 h-10 flex items-center justify-center text-text-muted hover:text-indigo hover:bg-indigo-soft disabled:opacity-25 transition-colors active:scale-95 text-lg font-light"
+              onClick={() => shiftDate(-1)}
+              className="w-8 h-9 flex items-center justify-center rounded-xl bg-white/75 border border-white/80 hover:border-indigo-mid hover:text-indigo-mid text-text-muted transition-colors active:scale-95 shrink-0"
+              aria-label="Previous day"
             >
-              −
+              <ChevronLeft size={15} />
             </button>
-            <span className="px-3 text-sm font-medium text-text-primary tabular-nums select-none border-x border-border">
-              {passengers} {passengers === 1 ? 'traveler' : 'travelers'}
-            </span>
+
             <button
-              onClick={() => setPassengers(passengers + 1)}
-              disabled={passengers >= 9}
-              className="w-11 h-10 flex items-center justify-center text-text-muted hover:text-indigo hover:bg-indigo-soft disabled:opacity-25 transition-colors active:scale-95 text-lg font-light"
+              onClick={() => setShowCalendar(true)}
+              className="flex-1 min-w-0 flex items-center justify-center gap-1.5 h-9 bg-white/75 border border-white/80 rounded-xl px-2 hover:border-indigo-mid transition-colors group"
             >
-              +
+              <Calendar size={12} className="text-text-muted group-hover:text-indigo transition-colors shrink-0" />
+              <span className="text-text-primary text-xs font-medium truncate">
+                {localDate ? formatDate(localDate) : 'Pick a date'}
+              </span>
             </button>
+
+            <button
+              onClick={() => shiftDate(1)}
+              className="w-8 h-9 flex items-center justify-center rounded-xl bg-white/75 border border-white/80 hover:border-indigo-mid hover:text-indigo-mid text-text-muted transition-colors active:scale-95 shrink-0"
+              aria-label="Next day"
+            >
+              <ChevronRight size={15} />
+            </button>
+
+            {/* Traveler stepper inline */}
+            <div className="flex items-center rounded-xl border border-white/80 bg-white/75 overflow-hidden h-9 shrink-0">
+              <button
+                onClick={() => setPassengers(passengers - 1)}
+                disabled={passengers <= 1}
+                className="w-7 h-9 flex items-center justify-center text-text-muted hover:text-indigo hover:bg-indigo-soft disabled:opacity-25 transition-colors active:scale-95 text-base font-light"
+                aria-label="Remove traveler"
+              >
+                −
+              </button>
+              <span className="flex items-center gap-1 px-1.5 text-[11px] font-medium text-text-primary tabular-nums select-none border-x border-white/80 h-9">
+                <Users size={11} className="text-text-muted" />
+                {passengers}
+              </span>
+              <button
+                onClick={() => setPassengers(passengers + 1)}
+                disabled={passengers >= 9}
+                className="w-7 h-9 flex items-center justify-center text-text-muted hover:text-indigo hover:bg-indigo-soft disabled:opacity-25 transition-colors active:scale-95 text-base font-light"
+                aria-label="Add traveler"
+              >
+                +
+              </button>
+            </div>
           </div>
-        </div>
         </div>
 
       {/* Trip progress strip — visible once the user has at least 1 leg */}
       {stopCount > 0 && (
-        <div className="px-4 pb-3 border-b border-border/50 shrink-0">
-          <div className="flex items-center justify-between mb-1.5">
-            <p className="text-[10px] text-text-muted uppercase tracking-wide">Trip so far</p>
-            <span className="font-mono text-orange text-xs font-bold">{formatPrice(tripTotal)}</span>
+        <div className="px-1 pb-2 mb-2 border-b border-border/50 shrink-0">
+          <div className="flex items-center gap-2 mb-1">
+            <p className="text-[10px] text-text-muted uppercase tracking-wide shrink-0">Trip</p>
+            <span className="font-mono text-orange text-[11px] font-bold ml-auto">{formatPrice(tripTotal)}</span>
           </div>
           <TripTimeline legs={legs} highlightLast />
         </div>
@@ -385,6 +394,54 @@ export function FlightResultsScreen() {
           </div>
         )}
 
+        {/* Direct-routes map — sticky at top of the scroll column so it stays visible
+            while the list scrolls underneath. Double-tap a pin to pick that destination. */}
+        {!isSearchingFlights && origin && directDestinations.length > 0 && (
+          <div className="sticky top-0 z-20 -mx-4 px-4 pt-2 pb-3 lg:-mx-6 lg:px-6 bg-bg/95 backdrop-blur-sm">
+            {showMap ? (
+              <div className="relative h-[200px] sm:h-[240px] lg:h-[280px] rounded-2xl overflow-hidden border border-border bg-surface-2/30 shadow-[0_4px_16px_rgba(15,23,42,0.08)]">
+                <MapErrorBoundary>
+                  <Suspense
+                    fallback={
+                      <div className="h-full flex items-center justify-center text-text-muted text-xs animate-pulse">
+                        Loading map…
+                      </div>
+                    }
+                  >
+                    <FlightFanMap
+                      origin={{ ...origin, city: { ...origin.city, name: currentCityName } }}
+                      destinations={directDestinations}
+                      onSelectDestination={handleSelectDestination}
+                      onConfirmDestination={handleConfirmDestination}
+                    />
+                  </Suspense>
+                </MapErrorBoundary>
+                <button
+                  type="button"
+                  onClick={() => setShowMap(false)}
+                  className="absolute top-2 right-2 z-[1000] flex items-center gap-1 rounded-full bg-white/90 backdrop-blur border border-border px-2.5 py-1 text-[11px] font-medium text-text-secondary hover:text-indigo hover:border-indigo-border shadow-[0_2px_8px_rgba(15,23,42,0.1)]"
+                  aria-label="Hide map"
+                >
+                  <EyeOff size={12} />
+                  <span>Hide</span>
+                </button>
+                <div className="absolute bottom-2 left-2 z-[1000] flex items-center gap-1 rounded-full bg-white/85 backdrop-blur border border-border px-2.5 py-1 text-[10px] font-medium text-text-muted shadow-[0_2px_8px_rgba(15,23,42,0.08)] pointer-events-none">
+                  Double-tap a pin to fly there
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowMap(true)}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-2xl border border-dashed border-border text-xs font-medium text-text-muted hover:text-indigo hover:border-indigo-border transition-colors bg-bg/80"
+              >
+                <MapIcon size={14} />
+                <span>Show map · {directDestinations.length} direct {directDestinations.length === 1 ? 'destination' : 'destinations'}</span>
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Grouped results by country (cheapest country first, expanded by default) */}
         {!isSearchingFlights && countryGroups.length > 0 && (
           <div className="space-y-3">
@@ -395,7 +452,8 @@ export function FlightResultsScreen() {
               return (
                 <section
                   key={group.country}
-                  className="bg-surface border border-border rounded-2xl overflow-hidden shadow-[0_4px_12px_rgba(15,23,42,0.05)]"
+                  ref={(el) => { groupRefs.current[group.country] = el; }}
+                  className="bg-surface border border-border rounded-2xl overflow-hidden shadow-[0_4px_12px_rgba(15,23,42,0.05)] scroll-mt-[230px] sm:scroll-mt-[270px] lg:scroll-mt-[310px]"
                 >
                   <button
                     id={headerId}
@@ -487,6 +545,16 @@ export function FlightResultsScreen() {
           legs={legs}
           onConfirm={handleDateConfirm}
           onClose={() => setShowCalendar(false)}
+        />
+      )}
+
+      {/* Map double-tap → confirm destination */}
+      {confirmingDest && (
+        <DestinationConfirmModal
+          destination={confirmingDest}
+          cheapestFlight={cheapestDirectFor(confirmingDest.iata)}
+          onConfirm={commitConfirmedDestination}
+          onCancel={() => setConfirmingDest(null)}
         />
       )}
     </div>

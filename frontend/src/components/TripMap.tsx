@@ -197,8 +197,9 @@ export function TripMap({ origin, legs }: Props) {
         center={[origin.city.lat, origin.city.lng]}
         zoom={4}
         style={{ height: '100%', width: '100%' }}
-        zoomControl={false}
+        zoomControl={true}
         attributionControl={false}
+        scrollWheelZoom={true}
       >
         {/* CartoDB Voyager — clean, travel-appropriate tiles */}
         <TileLayer

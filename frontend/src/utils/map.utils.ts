@@ -1,5 +1,6 @@
 import { TripLeg } from '@fast-travel/shared';
 import { Airport } from '@fast-travel/shared';
+import { countryDisplayName } from './country.utils';
 
 export interface MapPin {
   lat: number;
@@ -66,7 +67,7 @@ export function buildMapData(origin: Airport, legs: TripLeg[]): { pins: MapPin[]
         lat: destLat,
         lng: destLng,
         label: String(leg.stopIndex),
-        tooltip: `${leg.destinationCity}, ${leg.destinationCountry}`,
+        tooltip: `${leg.destinationCity}, ${countryDisplayName(leg.destinationCountry)}`,
         isOrigin: false,
         isReturn: leg.isReturn,
       });

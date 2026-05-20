@@ -136,6 +136,16 @@
       ],
       "port": 5194,
       "autoPort": true
+    },
+    {
+      "name": "Frontend-dazzling-ramanujan (Vite)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/dazzling-ramanujan-df93d5/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port ${PORT}"
+      ],
+      "port": 5196,
+      "autoPort": true
     }
   ]
 }
