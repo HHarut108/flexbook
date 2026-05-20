@@ -94,6 +94,16 @@ export function FlightResultsScreen() {
     [pendingFlights],
   );
 
+  // Total unique destination cities across *all* flights (direct + indirect).
+  // This is what the user sees in the accordion list, so the counter near the
+  // date strip uses this — not directDestinations.length — to avoid the
+  // mismatch where the map plots 7 pins but the list has 10 countries.
+  const totalCities = useMemo(() => {
+    const set = new Set<string>();
+    for (const f of pendingFlights) set.add(f.destinationIata);
+    return set.size;
+  }, [pendingFlights]);
+
   // Group flights by destination country; sort each group by price; sort groups
   // by their cheapest flight ascending so the overall best deal leads.
   const countryGroups = useMemo(() => {
@@ -263,13 +273,23 @@ export function FlightResultsScreen() {
 
           </div>
 
-          {/* Direct-routes count for this (origin, date) pair. Lives next to
-              the date strip — same context, no longer floating over the map. */}
-          {directDestinations.length > 0 && (
+          {/* Destinations count for this (origin, date) pair. Counts unique
+              cities across *all* results — direct + indirect — so it matches
+              the accordion list below (the map plots only the direct subset,
+              but the counter describes the search results, not the map). */}
+          {totalCities > 0 && (
             <p className="mt-2 text-[11px] text-text-muted">
-              <span className="font-semibold text-indigo">{directDestinations.length}</span>{' '}
-              direct {directDestinations.length === 1 ? 'route' : 'routes'} on{' '}
-              <span className="text-text-secondary">{formatDate(localDate)}</span>
+              <span className="font-semibold text-indigo">{totalCities}</span>{' '}
+              {totalCities === 1 ? 'destination' : 'destinations'}
+              {countryGroups.length > 0 && (
+                <>
+                  {' '}in{' '}
+                  <span className="text-text-secondary">
+                    {countryGroups.length} {countryGroups.length === 1 ? 'country' : 'countries'}
+                  </span>
+                </>
+              )}{' '}
+              · <span className="text-text-secondary">{formatDate(localDate)}</span>
             </p>
           )}
         </div>
@@ -308,20 +328,16 @@ export function FlightResultsScreen() {
         ref={mainRef}
         className="flex-1 min-w-0 overflow-y-auto px-4 lg:px-6 py-4 lg:py-6"
       >
-        {/* Sub-header captions */}
-        {!isSearchingFlights && countryGroups.length > 0 && (
-          <div className="flex items-baseline justify-between mb-3 px-0.5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Destinations · {countryGroups.length} countr{countryGroups.length === 1 ? 'y' : 'ies'}
+        {/* Sub-header: cheapest summary only — the destinations/countries count
+            now lives next to the date strip in the aside. */}
+        {!isSearchingFlights && countryGroups.length > 0 && globalMinPrice != null && (
+          <div className="flex items-baseline justify-end mb-3 px-0.5">
+            <p className="text-[11px] text-text-muted">
+              From{' '}
+              <span className="font-mono text-orange font-bold">
+                {formatPrice(globalMinPrice)}
+              </span>
             </p>
-            {globalMinPrice != null && (
-              <p className="text-[11px] text-text-muted">
-                From{' '}
-                <span className="font-mono text-orange font-bold">
-                  {formatPrice(globalMinPrice)}
-                </span>
-              </p>
-            )}
           </div>
         )}
 
