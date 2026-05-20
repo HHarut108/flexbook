@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
 import { formatPrice, totalPrice } from '../utils/price.utils';
+import { countryDisplayName } from '../utils/country.utils';
 import { formatDate } from '../utils/date.utils';
 import { TripTimeline } from '../components/TripTimeline';
 import { PlanStayNudge } from '../components/PlanStayNudge';
@@ -102,7 +103,7 @@ export function DecisionScreen() {
           <div className="hidden md:block mb-5">
             <DestinationGuideCard
               city={lastLeg.destinationCity}
-              country={lastLeg.destinationCountry}
+              country={countryDisplayName(lastLeg.destinationCountry)}
               nights={stayNights}
               checkin={checkin}
               checkout={checkout}

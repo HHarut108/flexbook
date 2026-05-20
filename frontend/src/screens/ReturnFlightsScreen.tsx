@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { FlightOption } from '@fast-travel/shared';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { FlightOption, TripLeg } from '@fast-travel/shared';
 import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
@@ -7,10 +7,15 @@ import { useFlightResults } from '../hooks/useFlightResults';
 import { DatePickerOverlay } from '../components/DatePickerOverlay';
 import { ReturnFlightCard, ReturnFlightCardSkeleton } from '../components/ReturnFlightCard';
 import { TripTimeline } from '../components/TripTimeline';
+import { MapErrorBoundary } from '../components/MapErrorBoundary';
 import { formatDate } from '../utils/date.utils';
 import { formatPrice, totalPrice } from '../utils/price.utils';
 import { ArrowLeft, ChevronLeft, ChevronRight, Calendar, RefreshCw, Home } from 'lucide-react';
 import { format, addDays, parseISO } from 'date-fns';
+
+const TripMap = lazy(() =>
+  import('../components/TripMap').then((m) => ({ default: m.TripMap })),
+);
 
 export function ReturnFlightsScreen() {
   const origin = useTripStore((s) => s.origin);
@@ -63,6 +68,22 @@ export function ReturnFlightsScreen() {
     finalize();
     navigate('/itinerary');
   }
+
+  // Preview the cheapest return option as a dashed arc back to origin so the user
+  // sees the "loop closing" visually on the map. Falls back to outbound-only if
+  // results haven't loaded yet.
+  const mapLegs = useMemo<TripLeg[]>(() => {
+    const cheapestReturn = pendingFlights[0];
+    if (!cheapestReturn) return outboundLegs;
+    const previewLeg: TripLeg = {
+      ...cheapestReturn,
+      stopIndex: outboundLegs.length + 1,
+      stayDurationDays: 0,
+      nextDepartureDate: '',
+      isReturn: true,
+    };
+    return [...outboundLegs, previewLeg];
+  }, [outboundLegs, pendingFlights]);
 
   return (
     <div className="flex flex-col min-h-screen md:flex-row md:min-h-0 md:flex-1">
@@ -176,6 +197,25 @@ export function ReturnFlightsScreen() {
       {/* Right panel: results */}
       <div className="flex-1 flex flex-col min-h-0 md:overflow-y-auto">
       <div className="flex-1 px-4 pb-8 pt-3 md:pt-4">
+        {/* Trip map — outbound chain + dashed preview arc back to origin */}
+        {origin && outboundLegs.length > 0 && (
+          <div className="md:sticky md:top-0 md:z-20 -mx-4 px-4 pb-3 md:bg-bg/95 md:backdrop-blur-sm">
+            <div className="relative h-[200px] sm:h-[240px] md:h-[280px] rounded-2xl overflow-hidden border border-border bg-surface-2/30 shadow-[0_4px_16px_rgba(15,23,42,0.08)]">
+              <MapErrorBoundary>
+                <Suspense
+                  fallback={
+                    <div className="h-full flex items-center justify-center text-text-muted text-xs animate-pulse">
+                      Loading map…
+                    </div>
+                  }
+                >
+                  <TripMap origin={origin} legs={mapLegs} />
+                </Suspense>
+              </MapErrorBoundary>
+            </div>
+          </div>
+        )}
+
         {/* Sub-header */}
         {!isSearchingFlights && pendingFlights.length > 0 && (
           <p className="text-xs text-text-muted mb-3 px-1">

@@ -251,6 +251,10 @@
     border: 1px solid rgb(var(--c-indigo-border));
     box-shadow: 0 16px 40px rgba(55,48,163,0.08), 0 2px 0 rgba(255,255,255,0.9) inset;
   }
+  .hero-panel.hero-panel--compact {
+    @apply rounded-2xl px-3 py-2.5;
+    box-shadow: 0 6px 18px rgba(55,48,163,0.06), 0 1px 0 rgba(255,255,255,0.9) inset;
+  }
   html[data-theme="dark"] .hero-panel {
     background: linear-gradient(135deg, rgba(30,27,75,0.85) 0%, rgba(15,23,42,0.85) 100%);
     border-color: rgba(99,102,241,0.35);
@@ -371,6 +375,42 @@ html[data-theme="dark"] .min-h-screen { background-color: transparent; }
 
 .trip-map-pin--stop span {
   line-height: 1;
+}
+
+/* ── Price-chip pin used by FlightFanMap ── */
+
+.flight-fan-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #3730A3;
+  font-family: 'JetBrains Mono', 'Menlo', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(15,23,42,0.16), 0 0 0 1.5px #C7D2FE;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  white-space: nowrap;
+}
+
+.flight-fan-pin:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 16px rgba(15,23,42,0.22), 0 0 0 1.5px #4F46E5;
+}
+
+.flight-fan-pin--hot {
+  background: linear-gradient(135deg, #F97316 0%, #EA580C 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(249,115,22,0.4), 0 0 0 2px rgba(249,115,22,0.25);
+}
+
+.flight-fan-pin--hot:hover {
+  box-shadow: 0 6px 18px rgba(249,115,22,0.5), 0 0 0 2px rgba(249,115,22,0.4);
 }
 
 /* ── City labels ── */
