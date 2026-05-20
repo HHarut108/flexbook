@@ -157,9 +157,11 @@ interface Props {
   origin: Airport;
   destinations: DirectDestination[];
   onSelectDestination?: (dest: DirectDestination) => void;
-  onConfirmDestination?: (dest: DirectDestination) => void;
+  /** Fires when the popup CTA is pressed — caller should commit to that destination. */
+  onChooseDestination?: (dest: DirectDestination) => void;
   highlightedCountry?: string | null;
-  popupForCountry?: string | null;
+  /** Specific destination the popup is open on. */
+  popupDest?: DirectDestination | null;
   onPopupClose?: () => void;
 }
 
@@ -167,24 +169,15 @@ export function FlightFanMap({
   origin,
   destinations,
   onSelectDestination,
-  onConfirmDestination,
+  onChooseDestination,
   highlightedCountry,
-  popupForCountry,
+  popupDest,
   onPopupClose,
 }: Props) {
   const cheapest = useMemo(() => {
     if (destinations.length === 0) return null;
     return destinations.reduce((a, b) => (a.minPriceUsd <= b.minPriceUsd ? a : b));
   }, [destinations]);
-
-  // Cheapest destination inside the popup-target country — popup shows on this
-  // pin only, so multi-city countries don't sprout overlapping popups.
-  const popupDest = useMemo(() => {
-    if (!popupForCountry) return null;
-    const inCountry = destinations.filter((d) => d.country === popupForCountry);
-    if (inCountry.length === 0) return null;
-    return inCountry.reduce((a, b) => (a.minPriceUsd <= b.minPriceUsd ? a : b));
-  }, [popupForCountry, destinations]);
 
   const arcs = useMemo(
     () =>
@@ -294,7 +287,6 @@ export function FlightFanMap({
             zIndexOffset={!!highlightedCountry && d.country === highlightedCountry ? 1000 : 0}
             eventHandlers={{
               click: () => onSelectDestination?.(d),
-              dblclick: () => onConfirmDestination?.(d),
             }}
           />
         ))}
@@ -313,20 +305,19 @@ export function FlightFanMap({
                 <span className="fan-popup__city">{popupDest.city}</span>
                 <span className="fan-popup__iata">{popupDest.iata}</span>
               </div>
-              <div className="fan-popup__sub">
-                {popupDest.country} · {popupDest.flightCount} direct{' '}
-                {popupDest.flightCount === 1 ? 'flight' : 'flights'}
-              </div>
+              <div className="fan-popup__sub">{popupDest.country}</div>
               <div className="fan-popup__price-row">
-                <span className="fan-popup__from">FROM</span>
                 <span className="fan-popup__price">{formatPrice(popupDest.minPriceUsd)}</span>
+                <span className="fan-popup__price-caption">
+                  cheapest direct flight{popupDest.flightCount > 1 ? ` (${popupDest.flightCount} options)` : ''}
+                </span>
               </div>
               <button
                 type="button"
-                onClick={() => onConfirmDestination?.(popupDest)}
+                onClick={() => onChooseDestination?.(popupDest)}
                 className="fan-popup__cta"
               >
-                Plan this trip →
+                Fly to {popupDest.city} →
               </button>
             </div>
           </Popup>
@@ -334,13 +325,6 @@ export function FlightFanMap({
       </MapContainer>
 
       <div className="trip-map-attribution">&copy; OpenStreetMap &copy; CARTO</div>
-
-      <div className="trip-map-legend">
-        <span className="text-[10px] font-semibold text-indigo">
-          Direct routes
-          <span className="text-text-muted font-normal"> · {destinations.length} {destinations.length === 1 ? 'destination' : 'destinations'}</span>
-        </span>
-      </div>
     </div>
   );
 }

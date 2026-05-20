@@ -1,5 +1,5 @@
 import { FlightOption } from '@fast-travel/shared';
-import { formatTime, durationLabel } from '../utils/date.utils';
+import { formatTime, durationLabel, formatDate } from '../utils/date.utils';
 import { formatPrice } from '../utils/price.utils';
 
 interface Props {
@@ -11,16 +11,20 @@ export function ReturnFlightCard({ flight, onSelect }: Props) {
   const isDirect = flight.stops === 0;
   const via = flight.viaIatas ?? [];
   const iataStops = [flight.originIata, ...via, flight.destinationIata];
+  const departDate = flight.departureDatetime?.slice(0, 10);
 
   return (
     <button
       className="card w-full text-left transition-all duration-150 animate-fade-in active:scale-[0.98] hover:-translate-y-0.5 hover:border-indigo-border hover:shadow-[0_16px_40px_rgba(15,23,42,0.12)]"
       onClick={() => onSelect(flight)}
     >
-      {/* Top: airline · badge · price */}
+      {/* Top: date · airline · badge · price */}
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-text-muted text-xs truncate">{flight.airlineName}</span>
+          {departDate && (
+            <span className="text-text-primary text-xs font-semibold shrink-0">{formatDate(departDate)}</span>
+          )}
+          <span className="text-text-muted text-xs truncate">· {flight.airlineName}</span>
           {isDirect ? (
             <span className="pill-success">Non-stop</span>
           ) : (
