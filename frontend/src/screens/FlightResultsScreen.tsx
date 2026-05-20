@@ -96,6 +96,8 @@ export function FlightResultsScreen() {
 
   // Group flights by destination country; sort each group by price; sort groups
   // by their cheapest flight ascending so the overall best deal leads.
+  // Cities are keyed by normalized name (a city can have multiple airports —
+  // Istanbul = IST + SAW, Rome = FCO + CIA — and we don't want to double-count).
   const countryGroups = useMemo(() => {
     const buckets = new Map<string, FlightOption[]>();
     for (const f of pendingFlights) {
@@ -106,12 +108,14 @@ export function FlightResultsScreen() {
     }
     const groups = Array.from(buckets.entries()).map(([country, flights]) => {
       const sorted = [...flights].sort((a, b) => a.priceUsd - b.priceUsd);
-      const cities = new Set(sorted.map((f) => f.destinationIata));
+      const cities = new Set(sorted.map((f) => f.destinationCity.trim().toLowerCase()));
+      const airports = new Set(sorted.map((f) => f.destinationIata));
       return {
         country,
         flights: sorted,
         minPrice: sorted[0].priceUsd,
         cityCount: cities.size,
+        airportCount: airports.size,
       };
     });
     return groups.sort((a, b) => {
@@ -119,6 +123,22 @@ export function FlightResultsScreen() {
       if (b.country === 'Other' && a.country !== 'Other') return -1;
       return a.minPrice - b.minPrice;
     });
+  }, [pendingFlights]);
+
+  // Top-level totals across the whole results page. Cities are scoped by
+  // country so that same-name cities in different countries (e.g. Springfield
+  // US vs UK) don't accidentally merge.
+  const totals = useMemo(() => {
+    const cities = new Set<string>();
+    const airports = new Set<string>();
+    const countries = new Set<string>();
+    for (const f of pendingFlights) {
+      const country = countryDisplayName(f.destinationCountry?.trim() || '') || 'Other';
+      cities.add(`${country}|${f.destinationCity.trim().toLowerCase()}`);
+      airports.add(f.destinationIata);
+      countries.add(country);
+    }
+    return { cityCount: cities.size, airportCount: airports.size, countryCount: countries.size };
   }, [pendingFlights]);
 
   const cheapestCountry = countryGroups[0]?.country ?? null;
@@ -308,11 +328,18 @@ export function FlightResultsScreen() {
         ref={mainRef}
         className="flex-1 min-w-0 overflow-y-auto px-4 lg:px-6 py-4 lg:py-6"
       >
-        {/* Sub-header captions */}
+        {/* Sub-header captions. Cities ≠ airports: Istanbul has IST + SAW,
+            Rome has FCO + CIA — call them out separately so the count never
+            looks inflated. */}
         {!isSearchingFlights && countryGroups.length > 0 && (
           <div className="flex items-baseline justify-between mb-3 px-0.5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
-              Destinations · {countryGroups.length} countr{countryGroups.length === 1 ? 'y' : 'ies'}
+            <p className="text-[11px] text-text-muted">
+              <span className="font-semibold text-text-secondary">{totals.cityCount}</span>{' '}
+              {totals.cityCount === 1 ? 'city' : 'cities'} ·{' '}
+              <span className="font-semibold text-text-secondary">{totals.airportCount}</span>{' '}
+              {totals.airportCount === 1 ? 'airport' : 'airports'} ·{' '}
+              <span className="font-semibold text-text-secondary">{totals.countryCount}</span>{' '}
+              {totals.countryCount === 1 ? 'country' : 'countries'}
             </p>
             {globalMinPrice != null && (
               <p className="text-[11px] text-text-muted">
@@ -387,6 +414,7 @@ export function FlightResultsScreen() {
                 flights={group.flights}
                 minPrice={group.minPrice}
                 cityCount={group.cityCount}
+                airportCount={group.airportCount}
                 expanded={expandedCountry === group.country}
                 onToggle={() => toggleCountry(group.country)}
                 onSelectFlight={handleSelect}

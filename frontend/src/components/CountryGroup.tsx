@@ -67,13 +67,14 @@ interface CountryGroupProps {
   flights: FlightOption[];
   minPrice: number;
   cityCount: number;
+  airportCount: number;
   expanded: boolean;
   onToggle: () => void;
   onSelectFlight: (flight: FlightOption) => void;
 }
 
 export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function CountryGroup(
-  { country, flights, minPrice, cityCount, expanded, onToggle, onSelectFlight },
+  { country, flights, minPrice, cityCount, airportCount, expanded, onToggle, onSelectFlight },
   ref,
 ) {
   const safe = country.replace(/\s+/g, '-');
@@ -103,6 +104,9 @@ export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function 
           <div className="text-[11px] text-text-muted leading-tight mt-0.5">
             {flights.length} flight{flights.length > 1 ? 's' : ''} · {cityCount}{' '}
             {cityCount === 1 ? 'city' : 'cities'}
+            {airportCount > cityCount && (
+              <> · {airportCount} airports</>
+            )}
           </div>
         </div>
         <div className="shrink-0 text-right">
