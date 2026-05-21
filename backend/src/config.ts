@@ -19,6 +19,9 @@ const envSchema = z.object({
   USER_JWT_SECRET: z.string().default('dev-user-jwt-secret-change-in-prod'),
   PII_ENCRYPTION_KEY: z.string().default(''), // base64-encoded 32-byte key for AES-256-GCM
   DATABASE_URL: z.string().default('file:./dev.db'),
+  // URL of the standalone visa-requirements microservice (services/visa-service).
+  // Empty string disables the /visa proxy — the frontend then hides visa chips.
+  VISA_SERVICE_URL: z.string().default(''),
 });
 
 const parsed = envSchema.safeParse(process.env);
