@@ -3,6 +3,8 @@ import { FlightOption } from '@fast-travel/shared';
 import { formatTime, durationLabel } from '../utils/date.utils';
 import { formatPrice } from '../utils/price.utils';
 import { ChevronDown, ChevronRight, Plane } from 'lucide-react';
+import { VisaPill } from './visa/VisaPill';
+import type { VisaRequirement } from '../api/visa.api';
 
 interface CompactFlightRowProps {
   flight: FlightOption;
@@ -71,10 +73,23 @@ interface CountryGroupProps {
   expanded: boolean;
   onToggle: () => void;
   onSelectFlight: (flight: FlightOption) => void;
+  visa?: VisaRequirement;
+  visaLoading?: boolean;
 }
 
 export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function CountryGroup(
-  { country, flights, minPrice, cityCount, airportCount, expanded, onToggle, onSelectFlight },
+  {
+    country,
+    flights,
+    minPrice,
+    cityCount,
+    airportCount,
+    expanded,
+    onToggle,
+    onSelectFlight,
+    visa,
+    visaLoading,
+  },
   ref,
 ) {
   const safe = country.replace(/\s+/g, '-');
@@ -98,8 +113,13 @@ export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function 
         className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-indigo-soft/40 transition-colors min-h-[56px]"
       >
         <div className="flex-1 min-w-0">
-          <div className="text-base font-bold text-text-primary leading-tight truncate">
-            {country}
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="text-base font-bold text-text-primary leading-tight truncate">
+              {country}
+            </div>
+            {(visa || visaLoading) && (
+              <VisaPill requirement={visa} loading={visaLoading && !visa} />
+            )}
           </div>
           <div className="text-[11px] text-text-muted leading-tight mt-0.5">
             {flights.length} flight{flights.length > 1 ? 's' : ''} · {cityCount}{' '}

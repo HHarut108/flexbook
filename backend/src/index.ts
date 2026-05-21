@@ -22,6 +22,7 @@ import { cronRoutes } from './routes/cron';
 import { countryInfoRoutes } from './routes/countryInfo';
 import { userAuthRoutes } from './routes/userAuth';
 import { adminUsersRoutes } from './routes/adminUsers';
+import { visaRoutes } from './routes/visa';
 
 const app = Fastify({
   logger: {
@@ -150,6 +151,7 @@ async function start() {
   await app.register(countryInfoRoutes);
   await app.register(userAuthRoutes);
   await app.register(adminUsersRoutes);
+  await app.register(visaRoutes);
 
   app.setErrorHandler((err, req, reply) => {
     app.log.error({ err, url: req.url, method: req.method }, 'Unhandled route error');

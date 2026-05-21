@@ -12,6 +12,10 @@ import { DatePickerOverlay } from '../components/DatePickerOverlay';
 import { MapErrorBoundary } from '../components/MapErrorBoundary';
 import { buildDirectDestinations, type DirectDestination } from '../components/FlightFanMap';
 import { CountryGroup } from '../components/CountryGroup';
+import { PassportIndicator } from '../components/visa/PassportIndicator';
+import { useCurrentPassport } from '../hooks/useCurrentPassport';
+import { useVisaCountries, resolveCountryCode } from '../hooks/useVisaCountries';
+import { useVisaRequirements } from '../hooks/useVisaRequirements';
 import { formatDate } from '../utils/date.utils';
 import { formatPrice } from '../utils/price.utils';
 import { countryDisplayName } from '../utils/country.utils';
@@ -146,6 +150,21 @@ export function FlightResultsScreen() {
 
   const cheapestCountry = countryGroups[0]?.country ?? null;
   const globalMinPrice = countryGroups[0]?.minPrice ?? null;
+
+  // Visa requirements: load the supported-countries list once (so we can map
+  // each accordion's display name back to an ISO-2 code), then fetch the
+  // requirement per (passport, destination). Both the proxy and this hook
+  // cache, so repeated renders are cheap.
+  const { loaded: visaCountriesLoaded } = useVisaCountries();
+  const { passport } = useCurrentPassport();
+  const countryCodes = useMemo(
+    () =>
+      visaCountriesLoaded
+        ? countryGroups.map((g) => (g.country === 'Other' ? null : resolveCountryCode(g.country)))
+        : countryGroups.map(() => null),
+    [countryGroups, visaCountriesLoaded],
+  );
+  const visaResults = useVisaRequirements(passport, countryCodes);
 
   // Track the cheapest country until the user manually toggles. Re-anchors
   // when new data shifts which country is cheapest.
@@ -335,16 +354,19 @@ export function FlightResultsScreen() {
         ref={mainRef}
         className="flex-1 min-w-0 overflow-y-auto px-4 lg:px-6 py-4 lg:py-6"
       >
-        {/* Sub-header: cheapest summary only — the cities/airports/countries
-            count now lives next to the date strip in the aside. */}
-        {!isSearchingFlights && countryGroups.length > 0 && globalMinPrice != null && (
-          <div className="flex items-baseline justify-end mb-3 px-0.5">
-            <p className="text-[11px] text-text-muted">
-              From{' '}
-              <span className="font-mono text-orange font-bold">
-                {formatPrice(globalMinPrice)}
-              </span>
-            </p>
+        {/* Sub-header: cheapest summary + passport indicator. The cities/
+            airports/countries count lives next to the date strip in the aside. */}
+        {!isSearchingFlights && countryGroups.length > 0 && (
+          <div className="flex items-center justify-between gap-3 mb-3 px-0.5">
+            <PassportIndicator />
+            {globalMinPrice != null && (
+              <p className="text-[11px] text-text-muted shrink-0">
+                From{' '}
+                <span className="font-mono text-orange font-bold">
+                  {formatPrice(globalMinPrice)}
+                </span>
+              </p>
+            )}
           </div>
         )}
 
@@ -402,20 +424,30 @@ export function FlightResultsScreen() {
         {/* Country accordions */}
         {!isSearchingFlights && countryGroups.length > 0 && (
           <div className="space-y-3">
-            {countryGroups.map((group) => (
-              <CountryGroup
-                key={group.country}
-                ref={(el) => { groupRefs.current[group.country] = el; }}
-                country={group.country}
-                flights={group.flights}
-                minPrice={group.minPrice}
-                cityCount={group.cityCount}
-                airportCount={group.airportCount}
-                expanded={expandedCountry === group.country}
-                onToggle={() => toggleCountry(group.country)}
-                onSelectFlight={handleSelect}
-              />
-            ))}
+            {countryGroups.map((group, idx) => {
+              const code = countryCodes[idx];
+              const entry = code ? visaResults[code] : undefined;
+              const visa = entry?.status === 'ok' ? entry.data : undefined;
+              const visaLoading = !!passport && entry?.status === 'loading';
+              return (
+                <CountryGroup
+                  key={group.country}
+                  ref={(el) => {
+                    groupRefs.current[group.country] = el;
+                  }}
+                  country={group.country}
+                  flights={group.flights}
+                  minPrice={group.minPrice}
+                  cityCount={group.cityCount}
+                  airportCount={group.airportCount}
+                  expanded={expandedCountry === group.country}
+                  onToggle={() => toggleCountry(group.country)}
+                  onSelectFlight={handleSelect}
+                  visa={visa}
+                  visaLoading={visaLoading}
+                />
+              );
+            })}
           </div>
         )}
 
