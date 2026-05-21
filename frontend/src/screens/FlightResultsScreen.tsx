@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
+import { useFlightsStore, flightsUiKey, DEFAULT_UI } from '../store/flights.store';
 import { useFlightResults } from '../hooks/useFlightResults';
 import { useWeatherBatch } from '../hooks/useWeatherBatch';
 import { FlightCardSkeleton } from '../components/FlightCard';
@@ -26,7 +27,7 @@ export function FlightResultsScreen() {
   const origin = useTripStore((s) => s.origin);
   const legs = useTripStore((s) => s.legs);
   const { selectedDate, setSelectedDate, setSelectedFlight } = useSessionStore();
-  const { flights: pendingFlights, isLoading: isSearchingFlights, error: flightError, search, reset: resetFlights } = useFlightResults();
+  const { flights: pendingFlights, isLoading: isSearchingFlights, error: flightError, search, refetch } = useFlightResults();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const [localDate, setLocalDate] = useState(selectedDate ?? format(addDays(new Date(), 1), 'yyyy-MM-dd'));
   const [showCalendar, setShowCalendar] = useState(false);
@@ -46,19 +47,6 @@ export function FlightResultsScreen() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [currentIata, localDate, search]);
 
-  useEffect(() => {
-    resetFlights();
-    setExpandedCountry(null);
-    setPopupDest(null);
-    userTouchedRef.current = false;
-  }, [currentIata, resetFlights]);
-
-  useEffect(() => {
-    setExpandedCountry(null);
-    setPopupDest(null);
-    userTouchedRef.current = false;
-  }, [localDate]);
-
   function shiftDate(delta: number) {
     const newDate = format(addDays(parseISO(localDate), delta), 'yyyy-MM-dd');
     setLocalDate(newDate);
@@ -76,13 +64,19 @@ export function FlightResultsScreen() {
     navigate('/stay');
   }
 
-  const [expandedCountry, setExpandedCountry] = useState<string | null>(null);
-  const [popupDest, setPopupDest] = useState<DirectDestination | null>(null);
   const groupRefs = useRef<Record<string, HTMLElement | null>>({});
   const mainRef = useRef<HTMLElement | null>(null);
-  // Track whether the user has manually toggled expansion. While untouched,
-  // expansion follows the current cheapest country (re-anchors as data arrives).
-  const userTouchedRef = useRef(false);
+
+  // UI state (expanded country, popup pin, "user touched" flag) lives in the
+  // store keyed by (iata, date) so it survives screen remounts and date
+  // toggles back to a previously-visited combination.
+  const uiKey = currentIata && localDate ? flightsUiKey(currentIata, localDate) : null;
+  const ui = useFlightsStore((s) => (uiKey ? s.ui[uiKey] ?? DEFAULT_UI : DEFAULT_UI));
+  const updateUi = useFlightsStore((s) => s.updateUi);
+  const setUi = (patch: Partial<typeof DEFAULT_UI>) => {
+    if (uiKey) updateUi(uiKey, patch);
+  };
+  const expandedCountry = ui.expandedCountry;
 
   const outboundLegs = legs.filter((l) => !l.isReturn);
   const stopCount = outboundLegs.length;
@@ -93,6 +87,15 @@ export function FlightResultsScreen() {
     () => buildDirectDestinations(pendingFlights.filter((f) => f.stops === 0)),
     [pendingFlights],
   );
+
+  // Resolve the popup pin from the stored IATA against the current dataset.
+  // Stale entries (e.g. iata not in the new direct list) gracefully resolve to null.
+  const popupDest = useMemo<DirectDestination | null>(() => {
+    if (!ui.popupDestIata) return null;
+    return directDestinations.find((d) => d.iata === ui.popupDestIata) ?? null;
+  }, [ui.popupDestIata, directDestinations]);
+  const setPopupDest = (d: DirectDestination | null) =>
+    setUi({ popupDestIata: d?.iata ?? null });
 
   // Group flights by destination country; sort each group by price; sort groups
   // by their cheapest flight ascending so the overall best deal leads.
@@ -127,10 +130,12 @@ export function FlightResultsScreen() {
   // Track the cheapest country until the user manually toggles. Re-anchors
   // when new data shifts which country is cheapest.
   useEffect(() => {
-    if (!userTouchedRef.current && cheapestCountry) {
-      setExpandedCountry(cheapestCountry);
-    }
-  }, [cheapestCountry]);
+    if (!uiKey) return;
+    if (ui.userTouched) return;
+    if (!cheapestCountry) return;
+    if (ui.expandedCountry === cheapestCountry) return;
+    updateUi(uiKey, { expandedCountry: cheapestCountry });
+  }, [cheapestCountry, uiKey, ui.userTouched, ui.expandedCountry, updateUi]);
 
   function scrollMainToCountry(country: string) {
     const node = groupRefs.current[country];
@@ -146,10 +151,8 @@ export function FlightResultsScreen() {
   // Country accordion cycle: collapsed → expanded+highlighted → expanded+popup → collapsed.
   // Popup pin is the cheapest IATA within the country (lookup below).
   function toggleCountry(country: string) {
-    userTouchedRef.current = true;
     if (expandedCountry !== country) {
-      setExpandedCountry(country);
-      setPopupDest(null);
+      setUi({ expandedCountry: country, popupDestIata: null, userTouched: true });
       return;
     }
     if (!popupDest || popupDest.country !== country) {
@@ -157,21 +160,18 @@ export function FlightResultsScreen() {
       const cheapestInCountry = inCountry.length === 0
         ? null
         : inCountry.reduce((a, b) => (a.minPriceUsd <= b.minPriceUsd ? a : b));
-      setPopupDest(cheapestInCountry);
+      setUi({ popupDestIata: cheapestInCountry?.iata ?? null, userTouched: true });
       return;
     }
-    setExpandedCountry(null);
-    setPopupDest(null);
+    setUi({ expandedCountry: null, popupDestIata: null, userTouched: true });
   }
 
   function handleSelectDestination(dest: DirectDestination) {
     const country = dest.country || 'Other';
-    userTouchedRef.current = true;
-    setExpandedCountry(country);
     // Tapping a pin shows the popup for THAT specific city — not the cheapest
     // city in its country — so multi-city countries (Italy, Türkiye) don't
     // mis-attribute the price.
-    setPopupDest(dest);
+    setUi({ expandedCountry: country, popupDestIata: dest.iata, userTouched: true });
     requestAnimationFrame(() => scrollMainToCountry(country));
   }
 
@@ -334,7 +334,7 @@ export function FlightResultsScreen() {
             </p>
             <div className="flex gap-2">
               <button
-                onClick={() => currentIata && search(currentIata, localDate)}
+                onClick={() => currentIata && refetch(currentIata, localDate)}
                 className="btn-primary py-2.5 px-4 text-sm flex items-center justify-center gap-2"
               >
                 <RefreshCw size={14} /> Try again
