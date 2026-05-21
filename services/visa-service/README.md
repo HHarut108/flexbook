@@ -134,6 +134,29 @@ curl -L \
 
 Then commit the file. `last_updated` reflects when the in-memory data was loaded (or last refreshed), not the upstream commit timestamp.
 
+## Deploying to Render
+
+The repo ships with a [`render.yaml`](../../render.yaml) Blueprint at the root. To stand up production:
+
+1. **Connect the repo as a Blueprint.** In Render → **New +** → **Blueprint** → pick this repo. Render reads `render.yaml` and creates the `flexbook-visa-service` web service.
+2. **Set the bearer token.** The Blueprint marks `REFRESH_TOKEN` as `sync: false` so it's never committed. After the first deploy, open the service → **Environment** → add a random secret as `REFRESH_TOKEN`. Required for `POST /refresh` in production.
+3. **Note the public URL** Render assigns (e.g. `https://flexbook-visa-service.onrender.com`). Hit `/health` to confirm:
+   ```bash
+   curl https://flexbook-visa-service.onrender.com/health
+   # {"status":"ok","countries":199,...}
+   ```
+4. **Wire the backend.** On the Vercel backend project (and any preview environments), add:
+   ```
+   VISA_SERVICE_URL=https://flexbook-visa-service.onrender.com
+   ```
+   Redeploy the backend so it picks up the env. Visa chips should appear on the next FE page load.
+
+### Notes
+
+- The Blueprint uses Render's **free** plan, which spins the service down after 15 minutes of inactivity (~30s cold start on the next request). Upgrade the service to a paid instance from the dashboard when traffic warrants it — no YAML change needed.
+- `AUTO_REFRESH=true` is set in the Blueprint so the in-memory dataset auto-refreshes every 24h. The bundled snapshot at `src/data/passport-index.json` still loads on every cold start, so the service is fully functional even if upstream GitHub is down at boot.
+- The Blueprint pins the build to `npm ci && npm run build`. The `build` script copies `src/data/` into `dist/data/` (see [the CI fix](https://github.com/HHarut108/flexbook/pull/101)) — without that copy step the service silently fetches from GitHub on every cold start.
+
 ## Project layout
 
 ```
