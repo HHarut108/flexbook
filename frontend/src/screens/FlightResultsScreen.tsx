@@ -94,18 +94,10 @@ export function FlightResultsScreen() {
     [pendingFlights],
   );
 
-  // Total unique destination cities across *all* flights (direct + indirect).
-  // This is what the user sees in the accordion list, so the counter near the
-  // date strip uses this — not directDestinations.length — to avoid the
-  // mismatch where the map plots 7 pins but the list has 10 countries.
-  const totalCities = useMemo(() => {
-    const set = new Set<string>();
-    for (const f of pendingFlights) set.add(f.destinationIata);
-    return set.size;
-  }, [pendingFlights]);
-
   // Group flights by destination country; sort each group by price; sort groups
   // by their cheapest flight ascending so the overall best deal leads.
+  // Cities are keyed by normalized name (a city can have multiple airports —
+  // Istanbul = IST + SAW, Rome = FCO + CIA — and we don't want to double-count).
   const countryGroups = useMemo(() => {
     const buckets = new Map<string, FlightOption[]>();
     for (const f of pendingFlights) {
@@ -116,12 +108,14 @@ export function FlightResultsScreen() {
     }
     const groups = Array.from(buckets.entries()).map(([country, flights]) => {
       const sorted = [...flights].sort((a, b) => a.priceUsd - b.priceUsd);
-      const cities = new Set(sorted.map((f) => f.destinationIata));
+      const cities = new Set(sorted.map((f) => f.destinationCity.trim().toLowerCase()));
+      const airports = new Set(sorted.map((f) => f.destinationIata));
       return {
         country,
         flights: sorted,
         minPrice: sorted[0].priceUsd,
         cityCount: cities.size,
+        airportCount: airports.size,
       };
     });
     return groups.sort((a, b) => {
@@ -129,6 +123,22 @@ export function FlightResultsScreen() {
       if (b.country === 'Other' && a.country !== 'Other') return -1;
       return a.minPrice - b.minPrice;
     });
+  }, [pendingFlights]);
+
+  // Top-level totals across the whole results page. Cities are scoped by
+  // country so that same-name cities in different countries (e.g. Springfield
+  // US vs UK) don't accidentally merge.
+  const totals = useMemo(() => {
+    const cities = new Set<string>();
+    const airports = new Set<string>();
+    const countries = new Set<string>();
+    for (const f of pendingFlights) {
+      const country = countryDisplayName(f.destinationCountry?.trim() || '') || 'Other';
+      cities.add(`${country}|${f.destinationCity.trim().toLowerCase()}`);
+      airports.add(f.destinationIata);
+      countries.add(country);
+    }
+    return { cityCount: cities.size, airportCount: airports.size, countryCount: countries.size };
   }, [pendingFlights]);
 
   const cheapestCountry = countryGroups[0]?.country ?? null;
@@ -273,23 +283,20 @@ export function FlightResultsScreen() {
 
           </div>
 
-          {/* Destinations count for this (origin, date) pair. Counts unique
-              cities across *all* results — direct + indirect — so it matches
-              the accordion list below (the map plots only the direct subset,
-              but the counter describes the search results, not the map). */}
-          {totalCities > 0 && (
+          {/* Destinations count for this (origin, date) pair. Cities and
+              airports are tracked separately because a single city can have
+              multiple airports (Istanbul = IST + SAW) — collapsing them into
+              one "destinations" number inflates the count whenever a route is
+              served by two airports. */}
+          {totals.cityCount > 0 && (
             <p className="mt-2 text-[11px] text-text-muted">
-              <span className="font-semibold text-indigo">{totalCities}</span>{' '}
-              {totalCities === 1 ? 'destination' : 'destinations'}
-              {countryGroups.length > 0 && (
-                <>
-                  {' '}in{' '}
-                  <span className="text-text-secondary">
-                    {countryGroups.length} {countryGroups.length === 1 ? 'country' : 'countries'}
-                  </span>
-                </>
-              )}{' '}
-              · <span className="text-text-secondary">{formatDate(localDate)}</span>
+              <span className="font-semibold text-indigo">{totals.cityCount}</span>{' '}
+              {totals.cityCount === 1 ? 'city' : 'cities'} ·{' '}
+              <span className="text-text-secondary">{totals.airportCount}</span>{' '}
+              {totals.airportCount === 1 ? 'airport' : 'airports'} ·{' '}
+              <span className="text-text-secondary">{totals.countryCount}</span>{' '}
+              {totals.countryCount === 1 ? 'country' : 'countries'} ·{' '}
+              <span className="text-text-secondary">{formatDate(localDate)}</span>
             </p>
           )}
         </div>
@@ -328,8 +335,8 @@ export function FlightResultsScreen() {
         ref={mainRef}
         className="flex-1 min-w-0 overflow-y-auto px-4 lg:px-6 py-4 lg:py-6"
       >
-        {/* Sub-header: cheapest summary only — the destinations/countries count
-            now lives next to the date strip in the aside. */}
+        {/* Sub-header: cheapest summary only — the cities/airports/countries
+            count now lives next to the date strip in the aside. */}
         {!isSearchingFlights && countryGroups.length > 0 && globalMinPrice != null && (
           <div className="flex items-baseline justify-end mb-3 px-0.5">
             <p className="text-[11px] text-text-muted">
@@ -403,6 +410,7 @@ export function FlightResultsScreen() {
                 flights={group.flights}
                 minPrice={group.minPrice}
                 cityCount={group.cityCount}
+                airportCount={group.airportCount}
                 expanded={expandedCountry === group.country}
                 onToggle={() => toggleCountry(group.country)}
                 onSelectFlight={handleSelect}

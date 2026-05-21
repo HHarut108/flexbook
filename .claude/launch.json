@@ -146,6 +146,16 @@
       ],
       "port": 5196,
       "autoPort": true
+    },
+    {
+      "name": "Frontend-dreamy-dijkstra (Vite)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/dreamy-dijkstra-5750fa/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port ${PORT}"
+      ],
+      "port": 5198,
+      "autoPort": true
     }
   ]
 }
