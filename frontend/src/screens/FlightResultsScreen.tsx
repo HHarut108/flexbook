@@ -283,12 +283,19 @@ export function FlightResultsScreen() {
 
           </div>
 
-          {/* Direct-routes count for this (origin, date) pair. Lives next to
-              the date strip — same context, no longer floating over the map. */}
-          {directDestinations.length > 0 && (
+          {/* Destinations count for this (origin, date) pair. Cities and
+              airports are tracked separately because a single city can have
+              multiple airports (Istanbul = IST + SAW) — collapsing them into
+              one "destinations" number inflates the count whenever a route is
+              served by two airports. */}
+          {totals.cityCount > 0 && (
             <p className="mt-2 text-[11px] text-text-muted">
-              <span className="font-semibold text-indigo">{directDestinations.length}</span>{' '}
-              direct {directDestinations.length === 1 ? 'route' : 'routes'} on{' '}
+              <span className="font-semibold text-indigo">{totals.cityCount}</span>{' '}
+              {totals.cityCount === 1 ? 'city' : 'cities'} ·{' '}
+              <span className="text-text-secondary">{totals.airportCount}</span>{' '}
+              {totals.airportCount === 1 ? 'airport' : 'airports'} ·{' '}
+              <span className="text-text-secondary">{totals.countryCount}</span>{' '}
+              {totals.countryCount === 1 ? 'country' : 'countries'} ·{' '}
               <span className="text-text-secondary">{formatDate(localDate)}</span>
             </p>
           )}
@@ -328,27 +335,16 @@ export function FlightResultsScreen() {
         ref={mainRef}
         className="flex-1 min-w-0 overflow-y-auto px-4 lg:px-6 py-4 lg:py-6"
       >
-        {/* Sub-header captions. Cities ≠ airports: Istanbul has IST + SAW,
-            Rome has FCO + CIA — call them out separately so the count never
-            looks inflated. */}
-        {!isSearchingFlights && countryGroups.length > 0 && (
-          <div className="flex items-baseline justify-between mb-3 px-0.5">
+        {/* Sub-header: cheapest summary only — the cities/airports/countries
+            count now lives next to the date strip in the aside. */}
+        {!isSearchingFlights && countryGroups.length > 0 && globalMinPrice != null && (
+          <div className="flex items-baseline justify-end mb-3 px-0.5">
             <p className="text-[11px] text-text-muted">
-              <span className="font-semibold text-text-secondary">{totals.cityCount}</span>{' '}
-              {totals.cityCount === 1 ? 'city' : 'cities'} ·{' '}
-              <span className="font-semibold text-text-secondary">{totals.airportCount}</span>{' '}
-              {totals.airportCount === 1 ? 'airport' : 'airports'} ·{' '}
-              <span className="font-semibold text-text-secondary">{totals.countryCount}</span>{' '}
-              {totals.countryCount === 1 ? 'country' : 'countries'}
+              From{' '}
+              <span className="font-mono text-orange font-bold">
+                {formatPrice(globalMinPrice)}
+              </span>
             </p>
-            {globalMinPrice != null && (
-              <p className="text-[11px] text-text-muted">
-                From{' '}
-                <span className="font-mono text-orange font-bold">
-                  {formatPrice(globalMinPrice)}
-                </span>
-              </p>
-            )}
           </div>
         )}
 
