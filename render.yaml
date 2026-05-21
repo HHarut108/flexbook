@@ -20,8 +20,14 @@ services:
     plan: free
     region: oregon
     branch: main
-    buildCommand: npm ci && npm run build
-    startCommand: node dist/index.js
+    # No tsc step: the service runs TypeScript directly via tsx. We were
+    # hitting a TS deprecation diagnostic on Render that couldn't be
+    # reproduced or pinned away locally — likely workspace-root hoisting
+    # winning over services/visa-service/node_modules. Skipping the compile
+    # step entirely sidesteps the whole class of issues. tsx is now a
+    # production dependency.
+    buildCommand: npm ci
+    startCommand: npm start
     healthCheckPath: /health
     autoDeploy: true
     envVars:
