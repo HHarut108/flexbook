@@ -1,0 +1,98 @@
+name: visa-service
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/visa-service/**'
+      - '.github/workflows/visa-service.yml'
+  pull_request:
+    paths:
+      - 'services/visa-service/**'
+      - '.github/workflows/visa-service.yml'
+
+jobs:
+  build-and-smoke-test:
+    name: build + smoke test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/visa-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: services/visa-service/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Smoke test (compiled output)
+        env:
+          PORT: '4199'
+          NODE_ENV: development
+        run: |
+          set -euo pipefail
+          node dist/index.js > /tmp/visa-service.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+
+          # Wait up to ~10s for /health to respond
+          for i in $(seq 1 20); do
+            if curl -sf "http://localhost:$PORT/health" > /dev/null; then
+              break
+            fi
+            sleep 0.5
+          done
+
+          echo "--- server log ---"
+          cat /tmp/visa-service.log
+
+          # The whole point of bundling the JSON is to avoid a network round-trip
+          # to GitHub on cold start. If the bundled load failed and the service
+          # silently fell back to the remote dataset, the data file was not
+          # included in the build artifact — fail loudly.
+          if grep -q "bundled load failed" /tmp/visa-service.log; then
+            echo "ERROR: bundled load failed; dataset was not packaged into dist/"
+            exit 1
+          fi
+
+          echo "--- /health ---"
+          HEALTH=$(curl -sf "http://localhost:$PORT/health")
+          echo "$HEALTH"
+          COUNTRIES=$(echo "$HEALTH" | jq -r .countries)
+          STATUS=$(echo "$HEALTH" | jq -r .status)
+          test "$STATUS" = "ok"
+          test "$COUNTRIES" = "199"
+
+          echo "--- /visa?passport=am&destination=fr ---"
+          VISA=$(curl -sf "http://localhost:$PORT/visa?passport=am&destination=fr")
+          echo "$VISA"
+          test "$(echo "$VISA" | jq -r .status)" = "visa required"
+          test "$(echo "$VISA" | jq -r .label)" = "Visa Required"
+
+          echo "--- /visa?passport=US&destination=AM (days field) ---"
+          VISA2=$(curl -sf "http://localhost:$PORT/visa?passport=US&destination=AM")
+          echo "$VISA2"
+          test "$(echo "$VISA2" | jq -r .status)" = "visa free"
+          test "$(echo "$VISA2" | jq -r .days)" = "180"
+
+          echo "--- /countries (count) ---"
+          COUNT=$(curl -sf "http://localhost:$PORT/countries" | jq -r '.countries | length')
+          echo "countries returned: $COUNT"
+          test "$COUNT" = "199"
+
+          echo "--- 400 on unknown country ---"
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$PORT/visa?passport=US&destination=ZZ")
+          test "$CODE" = "400"
+
+          echo "All smoke checks passed."
