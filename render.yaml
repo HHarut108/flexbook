@@ -1,0 +1,42 @@
+# Render Blueprint — declarative deploy for services in this repo.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Connect this repo as a Blueprint in Render and the visa-service comes
+# up automatically on every push to main. After the first deploy:
+#   1. Note the public URL Render assigns (e.g. https://flexbook-visa.onrender.com).
+#   2. Set REFRESH_TOKEN to a random secret via the Render dashboard
+#      (marked sync: false below, so it's never committed).
+#   3. On the Vercel backend, set VISA_SERVICE_URL to that public URL.
+#
+# Plan note: the free Render plan spins the service down after 15min of
+# inactivity (cold-start ~30s). For real user traffic, upgrade to a paid
+# instance via the dashboard — no YAML change needed.
+
+services:
+  - type: web
+    name: flexbook-visa-service
+    runtime: node
+    rootDir: services/visa-service
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: npm ci && npm run build
+    startCommand: node dist/index.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # PORT is injected by Render at runtime; the service reads it via env.
+      # Do NOT set PORT here — overriding it will break the health check.
+      - key: ALLOWED_ORIGIN
+        # The Flexbook backend is the only legitimate caller. CORS isn't a
+        # security boundary here (the proxy hides the service URL from the
+        # browser), but restricting it costs nothing.
+        value: https://flexbook-frontend.vercel.app
+      - key: AUTO_REFRESH
+        value: "true"
+      - key: REFRESH_TOKEN
+        # Set via dashboard, not committed. Required in production — the
+        # /refresh endpoint returns 503 if unset.
+        sync: false
