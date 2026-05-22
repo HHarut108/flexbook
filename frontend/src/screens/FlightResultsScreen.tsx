@@ -84,7 +84,10 @@ export function FlightResultsScreen() {
   const [localDate, setLocalDate] = useState(selectedDate ?? format(addDays(new Date(), 1), 'yyyy-MM-dd'));
   const [showCalendar, setShowCalendar] = useState(false);
   const [view, setView] = useState<ViewTab>(() => readStoredView());
-  const [visaPopupOpen, setVisaPopupOpen] = useState(false);
+  // null = closed; otherwise the initial step to open the popup on. The
+  // expiry-reminder's "Create an account" link jumps straight into 'signup',
+  // the rest start at 'pick'.
+  const [visaPopupMode, setVisaPopupMode] = useState<'pick' | 'signup' | null>(null);
 
   function switchView(next: ViewTab) {
     setView(next);
@@ -211,9 +214,30 @@ export function FlightResultsScreen() {
   // requirement per (passport, destination). Both the proxy and this hook
   // cache, so repeated renders are cheap.
   const { loaded: visaCountriesLoaded } = useVisaCountries();
-  const { passport, source: passportSource } = useCurrentPassport();
+  const { passport, source: passportSource, sessionExpiresAt } = useCurrentPassport();
+  const user = useAuthStore((s) => s.user);
   const isAuthLoading = useAuthStore((s) => s.loading);
   const hasPassport = !!passport && passportSource !== 'none';
+  // Guest with a live session passport → show the "saved for Xh, sign up to
+  // keep it" nudge below the tabs/CTA row. Use a dummy tick to force a
+  // re-render every minute; reading Date.now() directly during render keeps
+  // the displayed hour count in sync with the actual remaining time without
+  // depending on a stale captured-at-mount timestamp.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!sessionExpiresAt) return;
+    const id = window.setInterval(() => setTick((t) => t + 1), 60_000);
+    return () => window.clearInterval(id);
+  }, [sessionExpiresAt]);
+  const sessionHoursLeft = sessionExpiresAt
+    ? Math.max(0, Math.ceil((sessionExpiresAt - Date.now()) / 3_600_000))
+    : null;
+  const showGuestExpiryNote =
+    !isAuthLoading &&
+    !user &&
+    passportSource === 'session' &&
+    sessionHoursLeft !== null &&
+    sessionHoursLeft > 0;
   const countryCodes = useMemo(
     () =>
       visaCountriesLoaded
@@ -521,7 +545,7 @@ export function FlightResultsScreen() {
         {showVisaCta && (
           <button
             type="button"
-            onClick={() => setVisaPopupOpen(true)}
+            onClick={() => setVisaPopupMode('pick')}
             className="w-full mb-3 inline-flex items-center justify-between gap-3 rounded-2xl border border-indigo-border bg-indigo-soft/40 hover:bg-indigo-soft/60 transition-colors px-3.5 py-2.5 text-left"
           >
             <span className="inline-flex items-center gap-2 min-w-0">
@@ -539,6 +563,43 @@ export function FlightResultsScreen() {
             </span>
             <ChevronRight size={16} className="text-indigo shrink-0" />
           </button>
+        )}
+
+        {/* Guest expiry reminder — the session passport TTL is the conversion
+            hook. We surface how much time is left and pair it with a sign-up
+            link framed around personalisation, not "keeping" anything (the
+            user obviously doesn't lose their actual citizenship). Signed-in
+            users never see this (their profile is the source of truth). */}
+        {showGuestExpiryNote && (
+          <div className="w-full mb-3 inline-flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 dark:bg-amber-900/20 dark:border-amber-700/40">
+            <span className="inline-flex items-center gap-2 min-w-0">
+              <span className="w-7 h-7 rounded-full bg-amber-100 dark:bg-amber-800/40 flex items-center justify-center shrink-0">
+                <ShieldCheck size={14} className="text-amber-700 dark:text-amber-300" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-xs font-semibold text-text-primary leading-tight">
+                  Saved for {sessionHoursLeft}h
+                </span>
+                <span className="block text-[11px] text-text-muted leading-tight">
+                  <button
+                    type="button"
+                    onClick={() => setVisaPopupMode('signup')}
+                    className="text-indigo font-semibold hover:underline"
+                  >
+                    Sign up
+                  </button>
+                  {' '}for personalized recommendations.
+                </span>
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setVisaPopupMode('pick')}
+              className="text-[11px] font-semibold text-text-muted hover:text-indigo shrink-0"
+            >
+              change
+            </button>
+          </div>
         )}
 
         {/* Error */}
@@ -655,8 +716,11 @@ export function FlightResultsScreen() {
       )}
 
       {/* Visa-requirements popup */}
-      {visaPopupOpen && (
-        <VisaCheckPopup onClose={() => setVisaPopupOpen(false)} />
+      {visaPopupMode && (
+        <VisaCheckPopup
+          onClose={() => setVisaPopupMode(null)}
+          initialMode={visaPopupMode}
+        />
       )}
     </div>
   );
