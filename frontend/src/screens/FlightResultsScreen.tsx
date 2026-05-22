@@ -448,14 +448,25 @@ export function FlightResultsScreen() {
 
           </div>
 
-          {/* Destinations count for this (origin, date) pair. Cities and
-              airports are tracked separately because a single city can have
-              multiple airports (Istanbul = IST + SAW) — collapsing them into
-              one "destinations" number inflates the count whenever a route is
-              served by two airports. The selected date is already shown in
-              the stepper above, so we don't repeat it here. */}
+          {/* Single dynamic sentence summarising what's on offer for this
+              (origin, date) pair: lowest price, plus city / airport / country
+              coverage. Cities and airports are tracked separately because a
+              single city can have multiple airports (Istanbul = IST + SAW) —
+              collapsing them into one "destinations" number inflates the
+              count whenever a route is served by two airports. Reads cleanly
+              at mobile widths (one short line) and on desktop (sits under
+              the date stepper), so we don't repeat "From $X" elsewhere. */}
           {totals.cityCount > 0 && (
             <p className="mt-2 text-[11px] text-text-muted">
+              {globalMinPrice != null && (
+                <>
+                  From{' '}
+                  <span className="font-mono text-orange font-bold text-sm">
+                    {formatPrice(globalMinPrice)}
+                  </span>
+                  {' · '}
+                </>
+              )}
               <span className="font-semibold text-indigo">{totals.cityCount}</span>{' '}
               {totals.cityCount === 1 ? 'city' : 'cities'} ·{' '}
               <span className="text-text-secondary">{totals.airportCount}</span>{' '}
@@ -480,9 +491,10 @@ export function FlightResultsScreen() {
       >
         {/* Tabs row: mobile-only. Desktop shows the map in the aside, so the
             list is the only thing in <main> and the toggle is unnecessary.
-            "From $X" rides along on mobile and gets its own row on desktop. */}
+            Price + coverage now live in the single aside sentence, so no
+            "From $X" duplicate rides along here. */}
         {!isSearchingFlights && countryGroups.length > 0 && (
-          <div className="lg:hidden flex items-center justify-between gap-3 mb-3 px-0.5">
+          <div className="lg:hidden flex items-center justify-start gap-3 mb-3 px-0.5">
             <div
               role="tablist"
               aria-label="Result view"
@@ -515,27 +527,6 @@ export function FlightResultsScreen() {
                 <MapIcon size={13} /> Map view
               </button>
             </div>
-            {globalMinPrice != null && (
-              <p className="text-[11px] text-text-muted shrink-0">
-                From{' '}
-                <span className="font-mono text-orange font-bold text-sm">
-                  {formatPrice(globalMinPrice)}
-                </span>
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Desktop-only "From $X" row. The tab toggle isn't needed here so
-            this stands alone, right-aligned above the list. */}
-        {!isSearchingFlights && countryGroups.length > 0 && globalMinPrice != null && (
-          <div className="hidden lg:flex items-center justify-end mb-3 px-0.5">
-            <p className="text-[11px] text-text-muted shrink-0">
-              From{' '}
-              <span className="font-mono text-orange font-bold text-sm">
-                {formatPrice(globalMinPrice)}
-              </span>
-            </p>
           </div>
         )}
 

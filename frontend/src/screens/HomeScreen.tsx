@@ -467,7 +467,7 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
             )}
             <h1
               className="leading-[0.92] font-black text-text-primary"
-              style={{ fontSize: 'clamp(2.8rem, 6vw, 7rem)', letterSpacing: '-0.06em' }}
+              style={{ fontSize: 'clamp(2.8rem, 5.2vw, 5.5rem)', letterSpacing: '-0.06em' }}
             >
               Plan your
               <br />
@@ -499,7 +499,13 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
         </div>
 
         {/* ── Right panel: search form + airports ── */}
-        <div className="px-5 pb-10 md:w-[400px] md:flex-shrink-0 md:border-l md:border-border/60 md:bg-white/60 md:backdrop-blur-sm md:px-6 md:py-8 lg:w-[440px] lg:px-8 xl:w-[480px]">
+        {/* md+: floating "card" treatment rather than a full-height wall — the
+            panel is inset with margin, rounded, softly shadowed, and bordered
+            on all sides so it reads as a dedicated search widget instead of
+            a hard rectangle running edge to edge. Content stays vertically
+            centered (justify-center) to mirror the hero on the left. Mobile
+            keeps the natural top-down flow (no card chrome). */}
+        <div className="px-5 pb-10 md:w-[400px] md:flex-shrink-0 md:bg-white/70 md:backdrop-blur-sm md:px-6 md:py-8 md:flex md:flex-col md:justify-center md:my-8 md:mr-6 md:rounded-[28px] md:border md:border-border/60 md:shadow-[0_18px_50px_-20px_rgba(15,23,42,0.18)] lg:w-[440px] lg:px-8 lg:my-10 lg:mr-8 xl:w-[480px]">
           {searchForm}
           {searchResults}
           {airportList}

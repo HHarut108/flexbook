@@ -156,6 +156,16 @@
       ],
       "port": 5198,
       "autoPort": true
+    },
+    {
+      "name": "Frontend-jolly-williams (Vite)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/jolly-williams-fb508a/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port ${PORT}"
+      ],
+      "port": 5200,
+      "autoPort": true
     }
   ]
 }
