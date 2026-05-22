@@ -6,16 +6,14 @@ import { User } from 'lucide-react';
 
 const MAX_STOPS = 15;
 
-function stepLabel(pathname: string, stopCount: number): string {
+// Pathnames that render a step label outside of /flights — those already
+// render the per-leg note inline (see FlightResultsScreen).
+function stepLabel(pathname: string): string {
   switch (pathname) {
-    case '/flights':
-      return stopCount === 0 ? 'Choosing your first destination' : `Adding stop ${stopCount + 1}`;
     case '/stay':
       return 'Picking your stay duration';
     case '/review':
       return "What's next for your trip?";
-    case '/return':
-      return 'Finding your way home';
     case '/itinerary':
       return 'Your trip is ready!';
     case '/plan':
@@ -47,7 +45,7 @@ export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
     ...nonReturnLegs.map((l) => l.destinationIata),
   ];
 
-  const label = stepLabel(pathname, stopCount);
+  const label = stepLabel(pathname);
 
   return (
     <div className="sticky top-0 z-50">
@@ -84,9 +82,10 @@ export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
           </div>
         </div>
 
-        {/* Stops remaining pill */}
+        {/* Stops remaining pill — desktop only. The 15-stop limit still applies;
+            we just don't surface the counter on mobile to keep the header tight. */}
         {pathname !== '/itinerary' && pathname !== '/return' && pathname !== '/plan' && (
-          <div className="shrink-0 flex items-center gap-1.5">
+          <div className="shrink-0 hidden md:flex items-center gap-1.5">
             <div className="flex flex-col items-end">
               <span className={`text-[9px] leading-none mb-0.5 ${slotsRemaining <= 3 ? 'text-amber-300' : 'text-white/40'}`}>
                 stops left
