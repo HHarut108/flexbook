@@ -10,6 +10,10 @@ interface Props {
   onClose: () => void;
   /** Fires after a citizenship has been committed (session or profile). */
   onCommitted?: (code: string) => void;
+  /** Initial step. Default 'pick'. Use 'signup' when the entry point is the
+      "Create an account to keep it" nudge so the user lands directly on the
+      signup form (guest-only — ignored when a user is signed in). */
+  initialMode?: 'pick' | 'signup';
 }
 
 type Mode = 'pick' | 'signup';
@@ -28,12 +32,13 @@ type Mode = 'pick' | 'signup';
  * In all branches the chosen passport is written to the session store, which
  * unblocks visa-requirement lookups everywhere else in the app.
  */
-export function VisaCheckPopup({ onClose, onCommitted }: Props) {
+export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: Props) {
   const user = useAuthStore((s) => s.user);
   const { passport, setPassport } = useCurrentPassport();
   const [selected, setSelected] = useState<string | null>(passport);
   const [saveToProfile, setSaveToProfile] = useState(!!user);
-  const [mode, setMode] = useState<Mode>('pick');
+  // Honor initialMode only for guests — signed-in users have no signup path.
+  const [mode, setMode] = useState<Mode>(!user && initialMode === 'signup' ? 'signup' : 'pick');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
