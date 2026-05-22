@@ -69,7 +69,11 @@ function buildHtml(title: string, subtitle: string, body: string): string {
     </html>`;
 }
 
+// Temporary kill-switch — flip to false to re-enable API usage emails.
+const EMAIL_REPORTS_DISABLED = true;
+
 export async function sendDailyReport(date?: string): Promise<{ sent: boolean; error?: string }> {
+  if (EMAIL_REPORTS_DISABLED) return { sent: false, error: 'Email reports are disabled' };
   if (!config.RESEND_API_KEY) return { sent: false, error: 'RESEND_API_KEY not configured' };
 
   const d = date ?? new Date().toISOString().slice(0, 10);
@@ -106,6 +110,7 @@ export async function sendDailyReport(date?: string): Promise<{ sent: boolean; e
 }
 
 export async function sendHistoryReport(from: string, to: string): Promise<{ sent: boolean; error?: string }> {
+  if (EMAIL_REPORTS_DISABLED) return { sent: false, error: 'Email reports are disabled' };
   if (!config.RESEND_API_KEY) return { sent: false, error: 'RESEND_API_KEY not configured' };
 
   const history = await getMetricsHistory(from, to);
