@@ -12,15 +12,63 @@ import { DatePickerOverlay } from '../components/DatePickerOverlay';
 import { MapErrorBoundary } from '../components/MapErrorBoundary';
 import { buildDirectDestinations, type DirectDestination } from '../components/FlightFanMap';
 import { CountryGroup } from '../components/CountryGroup';
-import { PassportIndicator } from '../components/visa/PassportIndicator';
+import { VisaCheckPopup } from '../components/visa/VisaCheckPopup';
 import { useCurrentPassport } from '../hooks/useCurrentPassport';
 import { useVisaCountries, resolveCountryCode } from '../hooks/useVisaCountries';
 import { useVisaRequirements } from '../hooks/useVisaRequirements';
+import { useAuthStore } from '../store/auth.store';
 import { formatDate } from '../utils/date.utils';
 import { formatPrice } from '../utils/price.utils';
 import { countryDisplayName } from '../utils/country.utils';
-import { ChevronLeft, ChevronRight, RefreshCw, ArrowLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw, ArrowLeft, List as ListIcon, Map as MapIcon, ShieldCheck } from 'lucide-react';
 import { format, addDays, parseISO } from 'date-fns';
+
+const VIEW_TAB_KEY = 'flexbook.flightResults.view';
+
+type ViewTab = 'list' | 'map';
+
+function readStoredView(): ViewTab {
+  if (typeof window === 'undefined') return 'list';
+  try {
+    const v = window.localStorage.getItem(VIEW_TAB_KEY);
+    return v === 'map' ? 'map' : 'list';
+  } catch {
+    return 'list';
+  }
+}
+
+function persistView(tab: ViewTab) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(VIEW_TAB_KEY, tab);
+  } catch {
+    /* localStorage unavailable */
+  }
+}
+
+const ORDINALS = [
+  'first',
+  'second',
+  'third',
+  'fourth',
+  'fifth',
+  'sixth',
+  'seventh',
+  'eighth',
+  'ninth',
+  'tenth',
+  'eleventh',
+  'twelfth',
+  'thirteenth',
+  'fourteenth',
+  'fifteenth',
+];
+
+function ordinalLabel(stopCount: number): string {
+  // stopCount = 0 → leg #1 ("first"); stopCount = n → leg #n+1.
+  const idx = Math.min(stopCount, ORDINALS.length - 1);
+  return ORDINALS[idx];
+}
 
 const FlightFanMap = lazy(() =>
   import('../components/FlightFanMap').then((m) => ({ default: m.FlightFanMap })),
@@ -35,6 +83,13 @@ export function FlightResultsScreen() {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const [localDate, setLocalDate] = useState(selectedDate ?? format(addDays(new Date(), 1), 'yyyy-MM-dd'));
   const [showCalendar, setShowCalendar] = useState(false);
+  const [view, setView] = useState<ViewTab>(() => readStoredView());
+  const [visaPopupOpen, setVisaPopupOpen] = useState(false);
+
+  function switchView(next: ViewTab) {
+    setView(next);
+    persistView(next);
+  }
 
   const lastOutboundLeg = legs.filter((l) => !l.isReturn).at(-1);
   const currentIata = lastOutboundLeg?.destinationIata ?? origin?.iata ?? '';
@@ -156,7 +211,9 @@ export function FlightResultsScreen() {
   // requirement per (passport, destination). Both the proxy and this hook
   // cache, so repeated renders are cheap.
   const { loaded: visaCountriesLoaded } = useVisaCountries();
-  const { passport } = useCurrentPassport();
+  const { passport, source: passportSource } = useCurrentPassport();
+  const isAuthLoading = useAuthStore((s) => s.loading);
+  const hasPassport = !!passport && passportSource !== 'none';
   const countryCodes = useMemo(
     () =>
       visaCountriesLoaded
@@ -242,7 +299,71 @@ export function FlightResultsScreen() {
     : `Next hop from ${currentCityName} · FlexBook`;
 
   const backLabel = isFirstStop ? 'Change search' : 'Back to plan';
-  const eyebrow = isFirstStop ? 'Cheapest flights from' : 'Next hop from';
+  // Per-leg ordinal note rendered as a small label in the aside (replaces the
+  // step label that used to live in the global ProgressBar header).
+  const legOrdinal = ordinalLabel(stopCount);
+  const legNote = isFirstStop
+    ? 'Choosing your first destination'
+    : `Choosing your ${legOrdinal} destination`;
+  // Headline above the From card. On leg 1 we drop the city name entirely
+  // (the From card itself shows it). On later legs we keep a tight
+  // "Next hop · cheapest flights" — the city is again redundant.
+  const headline = isFirstStop
+    ? 'Cheapest flights'
+    : 'Next hop · cheapest flights';
+
+  // Visa CTA shows only when we can plausibly look up requirements (countries
+  // list loaded, results in view) AND the user hasn't picked a passport yet.
+  // We don't show it while auth is still resolving because the user might be
+  // about to be recognized as signed in with a profile passport.
+  const showVisaCta =
+    !isAuthLoading &&
+    !hasPassport &&
+    !isSearchingFlights &&
+    countryGroups.length > 0;
+
+  // Resolve the visa requirement for the country the map popup is open on, so
+  // the popup can render the same VisaPill the list shows.
+  const popupVisaCode = popupDest?.country && visaCountriesLoaded
+    ? resolveCountryCode(popupDest.country)
+    : null;
+  const popupVisaEntry = popupVisaCode ? visaResults[popupVisaCode] : undefined;
+  const popupVisa = popupVisaEntry?.status === 'ok' ? popupVisaEntry.data : undefined;
+  const popupVisaLoading = !!passport && popupVisaEntry?.status === 'loading';
+
+  // Map block reused in both the desktop aside and the mobile Map tab — same
+  // wiring, different containers.
+  const mapBlock = (
+    <>
+      {origin && directDestinations.length > 0 ? (
+        <MapErrorBoundary>
+          <Suspense
+            fallback={
+              <div className="h-full flex items-center justify-center text-text-muted text-xs animate-pulse">
+                Loading map…
+              </div>
+            }
+          >
+            <FlightFanMap
+              origin={{ ...origin, city: { ...origin.city, name: currentCityName } }}
+              destinations={directDestinations}
+              onSelectDestination={handleSelectDestination}
+              onChooseDestination={handleChooseDestination}
+              highlightedCountry={expandedCountry}
+              popupDest={popupDest}
+              onPopupClose={() => setPopupDest(null)}
+              popupVisa={popupVisa}
+              popupVisaLoading={popupVisaLoading}
+            />
+          </Suspense>
+        </MapErrorBoundary>
+      ) : (
+        <div className="h-full flex items-center justify-center text-text-muted text-xs">
+          {isSearchingFlights ? 'Mapping routes…' : 'No direct routes to plot yet.'}
+        </div>
+      )}
+    </>
+  );
 
   return (
     <div className="flex flex-col lg:flex-row h-full overflow-hidden">
@@ -257,11 +378,12 @@ export function FlightResultsScreen() {
             <ArrowLeft size={14} />
             <span>{backLabel}</span>
           </button>
+          {/* Per-leg ordinal note (was previously the global progress-bar label) */}
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-indigo-mid mb-1">
-            {eyebrow}
+            {legNote}
           </p>
           <h1 className="text-lg lg:text-xl font-black tracking-[-0.02em] text-text-primary leading-tight">
-            Cheapest flights from {currentCityName}
+            {headline}
           </h1>
 
           {/* Context strip */}
@@ -306,7 +428,8 @@ export function FlightResultsScreen() {
               airports are tracked separately because a single city can have
               multiple airports (Istanbul = IST + SAW) — collapsing them into
               one "destinations" number inflates the count whenever a route is
-              served by two airports. */}
+              served by two airports. The selected date is already shown in
+              the stepper above, so we don't repeat it here. */}
           {totals.cityCount > 0 && (
             <p className="mt-2 text-[11px] text-text-muted">
               <span className="font-semibold text-indigo">{totals.cityCount}</span>{' '}
@@ -314,39 +437,16 @@ export function FlightResultsScreen() {
               <span className="text-text-secondary">{totals.airportCount}</span>{' '}
               {totals.airportCount === 1 ? 'airport' : 'airports'} ·{' '}
               <span className="text-text-secondary">{totals.countryCount}</span>{' '}
-              {totals.countryCount === 1 ? 'country' : 'countries'} ·{' '}
-              <span className="text-text-secondary">{formatDate(localDate)}</span>
+              {totals.countryCount === 1 ? 'country' : 'countries'}
             </p>
           )}
         </div>
 
-        {/* Map region */}
-        <div className="mx-4 mb-4 h-[220px] lg:flex-1 lg:min-h-0 lg:mx-6 lg:mb-6 rounded-2xl border border-border overflow-hidden bg-[#EEF1F8]">
-          {origin && directDestinations.length > 0 ? (
-            <MapErrorBoundary>
-              <Suspense
-                fallback={
-                  <div className="h-full flex items-center justify-center text-text-muted text-xs animate-pulse">
-                    Loading map…
-                  </div>
-                }
-              >
-                <FlightFanMap
-                  origin={{ ...origin, city: { ...origin.city, name: currentCityName } }}
-                  destinations={directDestinations}
-                  onSelectDestination={handleSelectDestination}
-                  onChooseDestination={handleChooseDestination}
-                  highlightedCountry={expandedCountry}
-                  popupDest={popupDest}
-                  onPopupClose={() => setPopupDest(null)}
-                />
-              </Suspense>
-            </MapErrorBoundary>
-          ) : (
-            <div className="h-full flex items-center justify-center text-text-muted text-xs">
-              {isSearchingFlights ? 'Mapping routes…' : 'No direct routes to plot yet.'}
-            </div>
-          )}
+        {/* Desktop map — restored to the aside so the list and map are visible
+            side-by-side without needing the mobile tabs UX. Hidden on mobile;
+            mobile uses the List/Map tabs in <main> instead. */}
+        <div className="hidden lg:block flex-1 min-h-0 mx-6 mb-6 rounded-2xl border border-border overflow-hidden bg-[#EEF1F8]">
+          {mapBlock}
         </div>
       </aside>
 
@@ -354,20 +454,91 @@ export function FlightResultsScreen() {
         ref={mainRef}
         className="flex-1 min-w-0 overflow-y-auto px-4 lg:px-6 py-4 lg:py-6"
       >
-        {/* Sub-header: cheapest summary + passport indicator. The cities/
-            airports/countries count lives next to the date strip in the aside. */}
+        {/* Tabs row: mobile-only. Desktop shows the map in the aside, so the
+            list is the only thing in <main> and the toggle is unnecessary.
+            "From $X" rides along on mobile and gets its own row on desktop. */}
         {!isSearchingFlights && countryGroups.length > 0 && (
-          <div className="flex items-center justify-between gap-3 mb-3 px-0.5">
-            <PassportIndicator />
+          <div className="lg:hidden flex items-center justify-between gap-3 mb-3 px-0.5">
+            <div
+              role="tablist"
+              aria-label="Result view"
+              className="inline-flex items-center rounded-full border border-border bg-surface p-0.5"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === 'list'}
+                onClick={() => switchView('list')}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors min-h-[36px] ${
+                  view === 'list'
+                    ? 'bg-indigo text-white shadow-sm'
+                    : 'text-text-muted hover:text-text-primary'
+                }`}
+              >
+                <ListIcon size={13} /> List view
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === 'map'}
+                onClick={() => switchView('map')}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors min-h-[36px] ${
+                  view === 'map'
+                    ? 'bg-indigo text-white shadow-sm'
+                    : 'text-text-muted hover:text-text-primary'
+                }`}
+              >
+                <MapIcon size={13} /> Map view
+              </button>
+            </div>
             {globalMinPrice != null && (
               <p className="text-[11px] text-text-muted shrink-0">
                 From{' '}
-                <span className="font-mono text-orange font-bold">
+                <span className="font-mono text-orange font-bold text-sm">
                   {formatPrice(globalMinPrice)}
                 </span>
               </p>
             )}
           </div>
+        )}
+
+        {/* Desktop-only "From $X" row. The tab toggle isn't needed here so
+            this stands alone, right-aligned above the list. */}
+        {!isSearchingFlights && countryGroups.length > 0 && globalMinPrice != null && (
+          <div className="hidden lg:flex items-center justify-end mb-3 px-0.5">
+            <p className="text-[11px] text-text-muted shrink-0">
+              From{' '}
+              <span className="font-mono text-orange font-bold text-sm">
+                {formatPrice(globalMinPrice)}
+              </span>
+            </p>
+          </div>
+        )}
+
+        {/* Visa CTA / status — guests & logged-in-without-citizenship see the
+            CTA that opens the popup; once a passport is set the per-route
+            chips render on the country accordions below. */}
+        {showVisaCta && (
+          <button
+            type="button"
+            onClick={() => setVisaPopupOpen(true)}
+            className="w-full mb-3 inline-flex items-center justify-between gap-3 rounded-2xl border border-indigo-border bg-indigo-soft/40 hover:bg-indigo-soft/60 transition-colors px-3.5 py-2.5 text-left"
+          >
+            <span className="inline-flex items-center gap-2 min-w-0">
+              <span className="w-7 h-7 rounded-full bg-indigo/10 flex items-center justify-center shrink-0">
+                <ShieldCheck size={14} className="text-indigo" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-xs font-semibold text-text-primary leading-tight">
+                  Check visa requirements
+                </span>
+                <span className="block text-[11px] text-text-muted leading-tight">
+                  Pick your citizenship to see visa status per route.
+                </span>
+              </span>
+            </span>
+            <ChevronRight size={16} className="text-indigo shrink-0" />
+          </button>
         )}
 
         {/* Error */}
@@ -421,9 +592,10 @@ export function FlightResultsScreen() {
           </>
         )}
 
-        {/* Country accordions */}
+        {/* List view — country accordions. Always shown on desktop; on mobile
+            only when the List tab is active. */}
         {!isSearchingFlights && countryGroups.length > 0 && (
-          <div className="space-y-3">
+          <div className={`space-y-3 ${view === 'list' ? '' : 'hidden'} lg:block`}>
             {countryGroups.map((group, idx) => {
               const code = countryCodes[idx];
               const entry = code ? visaResults[code] : undefined;
@@ -451,6 +623,13 @@ export function FlightResultsScreen() {
           </div>
         )}
 
+        {/* Map view — mobile-only. Desktop renders the map in the aside. */}
+        {!isSearchingFlights && view === 'map' && countryGroups.length > 0 && (
+          <div className="lg:hidden rounded-2xl border border-border overflow-hidden bg-[#EEF1F8] h-[60vh] min-h-[360px]">
+            {mapBlock}
+          </div>
+        )}
+
         {/* Try next day nudge */}
         {!isSearchingFlights && pendingFlights.length > 0 && (
           <button
@@ -473,6 +652,11 @@ export function FlightResultsScreen() {
           onConfirm={handleDateConfirm}
           onClose={() => setShowCalendar(false)}
         />
+      )}
+
+      {/* Visa-requirements popup */}
+      {visaPopupOpen && (
+        <VisaCheckPopup onClose={() => setVisaPopupOpen(false)} />
       )}
     </div>
   );

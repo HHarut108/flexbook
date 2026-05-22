@@ -106,6 +106,12 @@ export function ReturnFlightsScreen() {
           </div>
         </div>
 
+        {/* Per-leg note — mirrors the ordinal label on /flights. The global
+            ProgressBar no longer carries this; it lives inline with the
+            heading so it stays in eye-line with the trip context. */}
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-indigo-mid mb-1">
+          Choosing your way home
+        </p>
         <h1 className="text-xl md:text-2xl font-bold text-text-primary leading-tight mb-3">
           {currentCityName} <span className="text-text-muted font-normal">→</span> {originCityName}
         </h1>

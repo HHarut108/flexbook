@@ -5,6 +5,8 @@ import 'leaflet/dist/leaflet.css';
 import { Airport, FlightOption } from '@fast-travel/shared';
 import { formatPrice } from '../utils/price.utils';
 import { countryDisplayName } from '../utils/country.utils';
+import { VisaPill } from './visa/VisaPill';
+import type { VisaRequirement } from '../api/visa.api';
 
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -163,6 +165,10 @@ interface Props {
   /** Specific destination the popup is open on. */
   popupDest?: DirectDestination | null;
   onPopupClose?: () => void;
+  /** Visa requirement for the country the popup is currently open on (if any). */
+  popupVisa?: VisaRequirement;
+  /** True if the visa lookup for the open popup is in flight. */
+  popupVisaLoading?: boolean;
 }
 
 export function FlightFanMap({
@@ -173,6 +179,8 @@ export function FlightFanMap({
   highlightedCountry,
   popupDest,
   onPopupClose,
+  popupVisa,
+  popupVisaLoading,
 }: Props) {
   const cheapest = useMemo(() => {
     if (destinations.length === 0) return null;
@@ -305,7 +313,12 @@ export function FlightFanMap({
                 <span className="fan-popup__city">{popupDest.city}</span>
                 <span className="fan-popup__iata">{popupDest.iata}</span>
               </div>
-              <div className="fan-popup__sub">{popupDest.country}</div>
+              <div className="fan-popup__sub flex items-center gap-2 flex-wrap">
+                <span>{popupDest.country}</span>
+                {(popupVisa || popupVisaLoading) && (
+                  <VisaPill requirement={popupVisa} loading={popupVisaLoading && !popupVisa} />
+                )}
+              </div>
               <div className="fan-popup__price-row">
                 <span className="fan-popup__price">{formatPrice(popupDest.minPriceUsd)}</span>
                 <span className="fan-popup__price-caption">
