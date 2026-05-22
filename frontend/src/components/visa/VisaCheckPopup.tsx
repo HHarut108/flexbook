@@ -1,15 +1,35 @@
 import { useState } from 'react';
-import { X, ShieldCheck, Eye, EyeOff } from 'lucide-react';
+import { X, ShieldCheck, Sparkles, Eye, EyeOff } from 'lucide-react';
 import { authApi } from '../../api/auth.api';
 import { useAuthStore } from '../../store/auth.store';
 import { useCurrentPassport } from '../../hooks/useCurrentPassport';
 import { PassportPicker } from './PassportPicker';
 import { COUNTRIES } from '../../data/countries';
 
+type Gender = 'male' | 'female' | 'other' | 'prefer_not_to_say';
+
+const GENDER_OPTIONS: { value: Gender; label: string }[] = [
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+  { value: 'other', label: 'Other' },
+  { value: 'prefer_not_to_say', label: 'Prefer not to say' },
+];
+
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 interface Props {
   onClose: () => void;
   /** Fires after a citizenship has been committed (session or profile). */
   onCommitted?: (code: string) => void;
+  /** Initial step. Default 'pick'. Use 'signup' when the entry point is the
+      "Sign up for personalized recommendations" nudge so the user lands
+      directly on the signup form (guest-only — ignored when signed in). */
+  initialMode?: 'pick' | 'signup';
 }
 
 type Mode = 'pick' | 'signup';
@@ -28,21 +48,33 @@ type Mode = 'pick' | 'signup';
  * In all branches the chosen passport is written to the session store, which
  * unblocks visa-requirement lookups everywhere else in the app.
  */
-export function VisaCheckPopup({ onClose, onCommitted }: Props) {
+export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: Props) {
   const user = useAuthStore((s) => s.user);
   const { passport, setPassport } = useCurrentPassport();
   const [selected, setSelected] = useState<string | null>(passport);
   const [saveToProfile, setSaveToProfile] = useState(!!user);
-  const [mode, setMode] = useState<Mode>('pick');
+  // Honor initialMode only for guests — signed-in users have no signup path.
+  const [mode, setMode] = useState<Mode>(!user && initialMode === 'signup' ? 'signup' : 'pick');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Inline signup state
+  // Inline signup state — mirrors the mandatory fields of /signup so a
+  // popup-initiated registration produces the same profile as the full form.
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [gender, setGender] = useState<Gender | ''>('');
+  const [birthDay, setBirthDay] = useState('');
+  const [birthMonth, setBirthMonth] = useState('');
+  const [birthYear, setBirthYear] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const currentYear = new Date().getFullYear();
+  // 13+ minimum (matches /signup) — keeps us out of COPPA territory.
+  const YEARS = Array.from({ length: currentYear - 13 - 1899 }, (_, i) => currentYear - 13 - i);
 
   function selectedCountryName(code: string | null): string | null {
     if (!code) return null;
@@ -81,12 +113,32 @@ export function VisaCheckPopup({ onClose, onCommitted }: Props) {
       setError('Last name is required');
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    if (!gender) {
+      setError('Please select a gender');
+      return;
+    }
+    if (!birthDay || !birthMonth || !birthYear) {
+      setError('Please enter your date of birth');
+      return;
+    }
+    const mm = String(MONTHS.indexOf(birthMonth) + 1).padStart(2, '0');
+    const dd = String(birthDay).padStart(2, '0');
+    const birthday = `${birthYear}-${mm}-${dd}`;
+    const parsedDob = new Date(`${birthday}T12:00:00`);
+    if (isNaN(parsedDob.getTime()) || parsedDob.getDate() !== Number(dd)) {
+      setError('Invalid date of birth');
+      return;
+    }
+    if (!EMAIL_RE.test(email.trim())) {
       setError('Please enter a valid email address');
       return;
     }
     if (password.length < 8) {
       setError('Password must be at least 8 characters');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
       return;
     }
     setError(null);
@@ -98,6 +150,8 @@ export function VisaCheckPopup({ onClose, onCommitted }: Props) {
         password,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
+        gender: gender as Gender,
+        birthday,
         citizenships: [
           { countryCode: selected, countryName, isPrimary: true },
         ],
@@ -129,7 +183,10 @@ export function VisaCheckPopup({ onClose, onCommitted }: Props) {
         className="relative w-full max-w-[448px] md:max-w-lg bg-surface rounded-3xl overflow-hidden animate-fade-in"
         style={{ boxShadow: '0 24px 64px rgba(15,23,42,0.20)' }}
       >
-        {/* Header */}
+        {/* Header — copy adapts to the active step. In signup mode we
+            reframe around personalisation (the user is no longer doing a
+            visa check at that point, they're creating an account), and swap
+            the shield icon for a sparkles glyph. */}
         <div
           className="px-5 pt-5 pb-4 flex items-center justify-between"
           style={{
@@ -138,14 +195,20 @@ export function VisaCheckPopup({ onClose, onCommitted }: Props) {
         >
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-2xl bg-white/15 flex items-center justify-center shrink-0">
-              <ShieldCheck size={17} className="text-white" />
+              {mode === 'signup' ? (
+                <Sparkles size={17} className="text-white" />
+              ) : (
+                <ShieldCheck size={17} className="text-white" />
+              )}
             </div>
             <div className="min-w-0">
               <p className="text-[11px] uppercase tracking-[0.18em] text-indigo-200 font-mono mb-0.5">
-                Visa check
+                {mode === 'signup' ? 'Sign up' : 'Visa check'}
               </p>
-              <h3 className="text-lg font-bold text-white leading-tight truncate">
-                Check visa requirements
+              <h3 className="text-lg font-bold text-white leading-tight">
+                {mode === 'signup'
+                  ? 'Get personalized recommendations'
+                  : 'Check visa requirements'}
               </h3>
             </div>
           </div>
@@ -191,16 +254,16 @@ export function VisaCheckPopup({ onClose, onCommitted }: Props) {
           {/* Branch 2: guest → toggle into inline signup */}
           {!user && mode === 'pick' && (
             <div className="rounded-xl border border-indigo-border bg-indigo-soft/40 px-3 py-2.5">
-              <p className="text-xs font-semibold text-text-primary">Save it for next time?</p>
+              <p className="text-xs font-semibold text-text-primary">Want personalized recommendations?</p>
               <p className="text-[11px] text-text-muted leading-relaxed mt-0.5">
-                Create an account in 10 seconds — we&apos;ll keep your visa lookups ready next visit.
+                Sign up to save your travel profile and tailor flights, stays and visa lookups to you.
               </p>
               <button
                 type="button"
                 onClick={() => setMode('signup')}
                 className="mt-2 text-xs font-semibold text-indigo hover:underline"
               >
-                Create account →
+                Sign up →
               </button>
             </div>
           )}
@@ -211,9 +274,12 @@ export function VisaCheckPopup({ onClose, onCommitted }: Props) {
             </p>
           )}
 
-          {/* Inline signup form */}
+          {/* Inline signup form — collects the same mandatory fields as the
+              full /signup screen so a popup-initiated registration produces
+              the same profile (name, gender, DOB, email, password) and
+              attaches the picked citizenship in one shot. */}
           {!user && mode === 'signup' && (
-            <form onSubmit={handleSignup} className="space-y-3" noValidate>
+            <form onSubmit={handleSignup} className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1" noValidate>
               <div className="grid grid-cols-2 gap-2.5">
                 <input
                   value={firstName}
@@ -229,6 +295,53 @@ export function VisaCheckPopup({ onClose, onCommitted }: Props) {
                   autoComplete="family-name"
                   className="w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-indigo transition-colors"
                 />
+              </div>
+              <select
+                value={gender}
+                onChange={(e) => setGender(e.target.value as Gender | '')}
+                className="w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-sm text-text-primary focus:outline-none focus:border-indigo transition-colors"
+              >
+                <option value="">Gender</option>
+                {GENDER_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-text-muted mb-1">Date of birth</p>
+                <div className="flex gap-2">
+                  <select
+                    value={birthDay}
+                    onChange={(e) => setBirthDay(e.target.value)}
+                    className="flex-1 min-w-0 px-2 py-2.5 rounded-xl border border-border bg-surface text-sm text-text-primary focus:outline-none focus:border-indigo transition-colors"
+                  >
+                    <option value="">Day</option>
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={birthMonth}
+                    onChange={(e) => setBirthMonth(e.target.value)}
+                    style={{ flex: 2, minWidth: 0 }}
+                    className="px-2 py-2.5 rounded-xl border border-border bg-surface text-sm text-text-primary focus:outline-none focus:border-indigo transition-colors"
+                  >
+                    <option value="">Month</option>
+                    {MONTHS.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={birthYear}
+                    onChange={(e) => setBirthYear(e.target.value)}
+                    style={{ flex: 1.5, minWidth: 0 }}
+                    className="px-2 py-2.5 rounded-xl border border-border bg-surface text-sm text-text-primary focus:outline-none focus:border-indigo transition-colors"
+                  >
+                    <option value="">Year</option>
+                    {YEARS.map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <input
                 type="email"
@@ -257,12 +370,30 @@ export function VisaCheckPopup({ onClose, onCommitted }: Props) {
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              <div className="relative">
+                <input
+                  type={showConfirm ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm password"
+                  autoComplete="new-password"
+                  className="w-full px-3 py-2.5 pr-10 rounded-xl border border-border bg-surface text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-indigo transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm((s) => !s)}
+                  aria-label={showConfirm ? 'Hide password' : 'Show password'}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary p-1"
+                >
+                  {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
               <button
                 type="submit"
                 disabled={busy}
                 className="btn-primary"
               >
-                {busy ? 'Creating account…' : 'Create account & check visas'}
+                {busy ? 'Creating account…' : 'Create account'}
               </button>
               <button
                 type="button"
