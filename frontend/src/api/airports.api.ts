@@ -1,21 +1,22 @@
-import { Airport } from '@fast-travel/shared';
+import { Airport, AirportSearchResponse } from '@fast-travel/shared';
 import { apiClient, getApiMode } from './client';
 import { mockAirports } from './mock-data';
 
-export async function searchAirports(q: string, signal?: AbortSignal): Promise<Airport[]> {
+export async function searchAirports(q: string, signal?: AbortSignal): Promise<AirportSearchResponse> {
   const mode = getApiMode();
 
   if (mode === 'mock') {
     await new Promise((resolve) => setTimeout(resolve, 200));
-    return mockAirports.filter(
+    const results = mockAirports.filter(
       (airport) =>
         airport.name.toLowerCase().includes(q.toLowerCase()) ||
         airport.city.name.toLowerCase().includes(q.toLowerCase()) ||
         airport.iata.toLowerCase().includes(q.toLowerCase()),
     );
+    return { results };
   }
 
-  const { data } = await apiClient.get<Airport[]>('/airports/search', {
+  const { data } = await apiClient.get<AirportSearchResponse>('/airports/search', {
     params: { q },
     signal,
   });
