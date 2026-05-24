@@ -526,8 +526,9 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
             </p>
           </div>
 
-          {/* Decorative flight-fan illustration — desktop only, sits between hero and trust bar */}
-          <HomeFlightFan className="hidden md:block mb-8 lg:mb-10 max-w-[480px] lg:max-w-[520px]" />
+          {/* Decorative flight-fan banner — desktop only, fills the
+              left panel width between hero and trust bar */}
+          <HomeFlightFan className="hidden md:block mb-8 lg:mb-10" />
 
           {/* Trust bar — md+: always in left panel; mobile: hidden here, shown in right panel */}
           <div className="hidden md:block">

@@ -26,11 +26,12 @@ interface Place {
 
 const ORIGIN: Place = { iata: 'BUD', city: 'Budapest', lat: 47.4979, lng: 19.0402 };
 
-// Prices chosen to match what MockFlightProvider would surface for short-
-// to mid-haul European routes from BUD — LCC-dominated, ordered by hop
-// length. Cheapest first so the highlight in the render picks Vienna.
+// Cheapest direct fares from BUD — list sorted by price ascending, so
+// the first entry (Yerevan) gets the orange highlight at render time.
+// Yerevan replaces the original Vienna entry because VIE sits too close
+// to BUD geographically (~220 km) and visually overlapped the origin pin.
 const DESTINATIONS: Place[] = [
-  { iata: 'VIE', city: 'Vienna',     lat: 48.2082, lng: 16.3738, price: 24  }, // cheapest
+  { iata: 'EVN', city: 'Yerevan',    lat: 40.1792, lng: 44.4991, price: 29  }, // cheapest
   { iata: 'PRG', city: 'Prague',     lat: 50.0755, lng: 14.4378, price: 35  },
   { iata: 'FCO', city: 'Rome',       lat: 41.9028, lng: 12.4964, price: 49  },
   { iata: 'CPH', city: 'Copenhagen', lat: 55.6761, lng: 12.5683, price: 58  },
@@ -112,30 +113,32 @@ function computeArc(
   return points;
 }
 
-/* Auto-fit: zooms the map to comfortably hold origin + all destinations
- * once after first mount, with extra padding for the chip pills. */
-function AutoFit({ bounds }: { bounds: L.LatLngBoundsExpression }) {
+/* Combined size + fit: Leaflet calculates the wrong viewport on mount
+ * if the container hasn't settled yet, so we invalidateSize FIRST,
+ * then fitBounds. Re-runs on every container resize so the banner
+ * stays correctly framed across breakpoints. */
+function AutoFitOnSize({ bounds }: { bounds: L.LatLngBoundsExpression }) {
   const map = useMap();
   useEffect(() => {
-    map.fitBounds(bounds, { padding: [28, 36], maxZoom: 5, animate: false });
-  }, [map, bounds]);
-  return null;
-}
-
-/* Keep tile layout in sync when the container resizes — Leaflet
- * otherwise renders blank gray tiles until the user scrolls. */
-function SizeWatcher() {
-  const map = useMap();
-  useEffect(() => {
-    const container = map.getContainer();
-    const initial = setTimeout(() => map.invalidateSize({ animate: false }), 60);
-    const ro = new ResizeObserver(() => map.invalidateSize({ animate: false }));
-    ro.observe(container);
+    const fit = () => {
+      map.invalidateSize({ animate: false });
+      map.fitBounds(bounds, {
+        // Generous vertical padding so the chip pills (anchored at
+        // their pin's center) don't clip against the banner's
+        // rounded top/bottom edges. Tighter on the sides.
+        padding: [30, 24],
+        maxZoom: 5,
+        animate: false,
+      });
+    };
+    const initial = setTimeout(fit, 60);
+    const ro = new ResizeObserver(fit);
+    ro.observe(map.getContainer());
     return () => {
       clearTimeout(initial);
       ro.disconnect();
     };
-  }, [map]);
+  }, [map, bounds]);
   return null;
 }
 
@@ -164,9 +167,13 @@ export function HomeFlightFan({ className = '' }: { className?: string }) {
 
   return (
     <div className={`relative ${className}`} aria-hidden role="presentation">
+      {/* Banner-shaped container — fills the parent column width
+          with a 5:2 cinema aspect (2.5:1), but never thinner than
+          180px tall so the chip pills always have vertical room.
+          At md (~360px wide) → 180px (min); at lg (~480px) → 192px;
+          at xl (~520px) → 208px. */}
       <div
-        className="rounded-3xl border border-border/60 overflow-hidden shadow-[0_18px_50px_-20px_rgba(15,23,42,0.18)]"
-        style={{ height: 340 }}
+        className="rounded-3xl border border-border/60 overflow-hidden shadow-[0_18px_50px_-20px_rgba(15,23,42,0.18)] w-full aspect-[5/2] min-h-[180px]"
       >
         <MapContainer
           center={[ORIGIN.lat, ORIGIN.lng]}
@@ -187,8 +194,7 @@ export function HomeFlightFan({ className = '' }: { className?: string }) {
             url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
             attribution='&copy; OpenStreetMap &copy; CARTO'
           />
-          <SizeWatcher />
-          <AutoFit bounds={bounds} />
+          <AutoFitOnSize bounds={bounds} />
 
           {/* Glow underlay for each arc */}
           {arcs.map((arc) => (
