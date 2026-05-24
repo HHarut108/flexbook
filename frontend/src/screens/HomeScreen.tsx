@@ -223,7 +223,7 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const [geoLoading, setGeoLoading] = useState(false);
   const [passengers, setPassengers] = useState(1);
   const [departureDate, setDepartureDate] = useState(formatYMD(addDays(new Date(), 1)));
-  const { results, loading } = useAirportSearch(query);
+  const { results, loading, error: searchError } = useAirportSearch(query);
   const navigate = useNavigate();
   const setOrigin = useTripStore((s) => s.setOrigin);
   const setStorePassengers = useTripStore((s) => s.setPassengers);
@@ -357,7 +357,12 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
 
   const searchResults = showResults && (
     <div className="section-shell overflow-hidden mb-4 animate-fade-in">
-      {results.length === 0 && !loading && (
+      {searchError && !loading && results.length === 0 && (
+        <p className="px-5 py-4 text-rose-400 text-sm" role="alert">
+          {searchError}
+        </p>
+      )}
+      {!searchError && results.length === 0 && !loading && (
         <p className="px-5 py-4 text-text-muted text-sm">
           No airports found. Try a different city or code.
         </p>

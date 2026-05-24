@@ -2,7 +2,7 @@ import { Airport } from '@fast-travel/shared';
 import { apiClient, getApiMode } from './client';
 import { mockAirports } from './mock-data';
 
-export async function searchAirports(q: string): Promise<Airport[]> {
+export async function searchAirports(q: string, signal?: AbortSignal): Promise<Airport[]> {
   const mode = getApiMode();
 
   if (mode === 'mock') {
@@ -15,7 +15,10 @@ export async function searchAirports(q: string): Promise<Airport[]> {
     );
   }
 
-  const { data } = await apiClient.get<Airport[]>('/airports/search', { params: { q } });
+  const { data } = await apiClient.get<Airport[]>('/airports/search', {
+    params: { q },
+    signal,
+  });
   return data;
 }
 
