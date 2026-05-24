@@ -65,6 +65,40 @@ describe('AirportService.search', () => {
     expect(gru!.city.name).toMatch(/São Paulo/);
   });
 
+  it('surfaces marketing-alias airports as primary city matches', () => {
+    // MXP/LIN/BGY have municipalities Ferno/Segrate/Orio al Serio but are
+    // all marketed as "Milan". After MARKETING_CITY_ALIAS override, all
+    // three should surface with city.name === "Milan" for a "Milan" query.
+    const results = svc.search('Milan');
+    const iatas = new Set(results.map((r) => r.iata));
+    for (const expected of ['MXP', 'LIN', 'BGY']) {
+      expect(iatas.has(expected)).toBe(true);
+    }
+    const bgy = results.find((r) => r.iata === 'BGY')!;
+    expect(bgy.city.name).toBe('Milan');
+  });
+
+  it('finds airports via OurAirports keyword aliases (EWR for New York)', () => {
+    // EWR's city is "Newark" (intentionally not aliased to NYC because
+    // Newark is a real major city), but its keywords contain "Manhattan,
+    // New York City, NYC". A "New York" search should still surface EWR
+    // alongside JFK/LGA via the keyword tier.
+    const results = svc.search('New York');
+    const iatas = new Set(results.map((r) => r.iata));
+    expect(iatas.has('JFK')).toBe(true);
+    expect(iatas.has('LGA')).toBe(true);
+    expect(iatas.has('EWR')).toBe(true);
+  });
+
+  it('strips comma suffixes from municipalities (Luton, Luton → London via alias)', () => {
+    // OurAirports stores LTN's municipality as "Luton, Luton" — the
+    // build script's cleanMunicipality strips that to "Luton" and the
+    // alias overlay then maps LTN → "London". User shouldn't see the
+    // weird raw form anywhere.
+    const ltn = svc.getByIata('LTN');
+    expect(ltn?.city.name).toBe('London');
+  });
+
   it('returns airport with correct structure', () => {
     const results = svc.search('JFK');
     expect(results.length).toBeGreaterThan(0);
