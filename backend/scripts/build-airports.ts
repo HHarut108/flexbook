@@ -215,7 +215,6 @@ const MARKETING_CITY_ALIAS: Record<string, string> = {
   // Scotland
   PIK: 'Glasgow',   // Prestwick — branded "Glasgow Prestwick"
 };
-
 // Rough US longitude → timezone bucketing so coast-to-coast departure times
 // aren't all shown as Eastern.
 function tzForUSLng(lng: number): string {

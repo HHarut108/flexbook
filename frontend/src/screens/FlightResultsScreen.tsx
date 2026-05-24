@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { FlightOption } from '@fast-travel/shared';
+import { Airport, FlightOption } from '@fast-travel/shared';
 import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
@@ -97,6 +97,27 @@ export function FlightResultsScreen() {
   const lastOutboundLeg = legs.filter((l) => !l.isReturn).at(-1);
   const currentIata = lastOutboundLeg?.destinationIata ?? origin?.iata ?? '';
   const currentCityName = lastOutboundLeg?.destinationCity ?? origin?.city.name ?? '';
+  // The map needs the *current* stop's coordinates as its anchor, not the
+  // trip's original origin — otherwise on later legs (e.g. LHR→ARN→BUD→TFS)
+  // arcs and the centroid still emit from London while the label reads
+  // "Tenerife". For leg 1 there's no outbound leg yet, so we fall back to the
+  // trip origin.
+  const currentOrigin: Airport | null = useMemo(() => {
+    if (!lastOutboundLeg) return origin;
+    return {
+      iata: lastOutboundLeg.destinationIata,
+      name: `${lastOutboundLeg.destinationCity} Airport`,
+      city: {
+        id: lastOutboundLeg.destinationIata,
+        name: lastOutboundLeg.destinationCity,
+        countryCode: '',
+        countryName: lastOutboundLeg.destinationCountry,
+        lat: lastOutboundLeg.destinationLat,
+        lng: lastOutboundLeg.destinationLng,
+      },
+      timezone: '',
+    };
+  }, [lastOutboundLeg, origin]);
 
   useWeatherBatch(pendingFlights, localDate);
 
@@ -359,7 +380,7 @@ export function FlightResultsScreen() {
   // wiring, different containers.
   const mapBlock = (
     <>
-      {origin && directDestinations.length > 0 ? (
+      {currentOrigin && directDestinations.length > 0 ? (
         <MapErrorBoundary>
           <Suspense
             fallback={
@@ -369,7 +390,7 @@ export function FlightResultsScreen() {
             }
           >
             <FlightFanMap
-              origin={{ ...origin, city: { ...origin.city, name: currentCityName } }}
+              origin={currentOrigin}
               destinations={directDestinations}
               onSelectDestination={handleSelectDestination}
               onChooseDestination={handleChooseDestination}
