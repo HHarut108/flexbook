@@ -15,6 +15,13 @@ interface RawAirport {
   lat: number;
   lng: number;
   timezone: string;
+  /** Comma-separated alternate names / IATA metro codes / local-language
+   *  spellings from OurAirports' `keywords` field. Matched (lower score)
+   *  by search so e.g. BGY surfaces for "Milan" via "Milan Bergamo
+   *  Airport", EWR for "New York" via "Manhattan, New York City, NYC",
+   *  NRT for "Tokyo" via "TYO, Tokyo, Tokyo Narita Airport". May be
+   *  empty for older/quieter airports OurAirports hasn't tagged. */
+  keywords?: string;
 }
 
 /** Slim place record built from the wider OurAirports set (including small
@@ -80,11 +87,15 @@ export class AirportService {
     this.byIata = new Map(this.airports.map((a) => [a.iata.toUpperCase(), a]));
   }
 
-  /** Fuzzy search across IATA, city, and airport name. Returns top 12 so
-   *  multi-airport cities (London → LHR/LGW/STN/LCY/LTN/SEN, Moscow → 4,
-   *  New York → JFK/LGA, etc.) can all surface for the user to choose.
-   *  Same-city airports are co-located in the result via the alpha tie-break.
-   *  Diacritic-insensitive: "Sao Paulo" matches "São Paulo". */
+  /** Fuzzy search across IATA, city, airport name, and keyword aliases.
+   *  Returns top 12 so multi-airport cities (London → LHR/LGW/STN/LCY/LTN/SEN,
+   *  Moscow → 4, New York → JFK/LGA/EWR-via-keywords, etc.) can all surface
+   *  for the user to choose. Same-city airports are co-located in the result
+   *  via the alpha tie-break. Diacritic-insensitive: "Sao Paulo" matches
+   *  "São Paulo". Keyword-matching surfaces airports marketed as a different
+   *  city than their municipality — BGY for "Milan" (kw: "Milan Bergamo"),
+   *  EWR for "New York" (kw: "Manhattan, NYC"), TSF for "Venice" (kw:
+   *  "Venice-Treviso"), etc. */
   search(query: string): Airport[] {
     if (!query || query.trim().length < 1) return [];
     const raw = query.trim();
@@ -97,8 +108,8 @@ export class AirportService {
       const cityUpper = airport.city.toUpperCase();
       const nameUpper = airport.name.toUpperCase();
       // OurAirports stores some municipalities as "City, Region" (e.g.
-      // "London, Essex"). Match against just the leading token so a search
-      // for "London" still treats Stansted as a London city-match.
+      // "London, Essex"). The build script strips that suffix, but keep
+      // the leading-token split as a safety net for any cases we miss.
       const cityHead = cityUpper.split(',')[0].trim();
       const cityHeadNorm = normalizePlaceName(cityHead);
       const nameNorm = normalizePlaceName(nameUpper);
@@ -110,6 +121,14 @@ export class AirportService {
       else if (nameUpper.startsWith(q) || nameNorm.startsWith(qNorm)) score = 75;
       else if (cityHead.includes(q) || cityHeadNorm.includes(qNorm)) score = 65;
       else if (nameUpper.includes(q) || nameNorm.includes(qNorm)) score = 55;
+
+      // Keyword aliases — lowest tier, only checked if nothing else matched.
+      // Score 45 sits below name-contains so well-named matches always lead;
+      // keyword hits fill in airports the user knows by marketing name only.
+      if (score === 0 && airport.keywords) {
+        const kwNorm = normalizePlaceName(airport.keywords);
+        if (kwNorm.includes(qNorm)) score = 45;
+      }
 
       if (score > 0) results.push({ airport, score });
     }

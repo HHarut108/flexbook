@@ -27,6 +27,11 @@ interface LegacyAirport {
   lat: number;
   lng: number;
   timezone: string;
+  /** Alternate names / marketing aliases / metro codes / local-language
+   *  spellings from OurAirports' `keywords` field. Used for search only
+   *  (e.g. BGY's keywords include "Milan Bergamo Airport" so a "Milan"
+   *  query surfaces it). Empty string when no aliases. */
+  keywords: string;
 }
 
 /** Slim "place" record used to resolve a city name → coords when the user
@@ -49,6 +54,7 @@ interface OurAirportsRow {
   municipality: string;
   scheduled_service: string;
   iata_code: string;
+  keywords: string;
 }
 
 // Minimal RFC 4180 CSV parser: handles quoted fields with embedded commas and
@@ -92,6 +98,7 @@ function parseRows(text: string): OurAirportsRow[] {
     municipality: idx('municipality'),
     scheduled_service: idx('scheduled_service'),
     iata_code: idx('iata_code'),
+    keywords: idx('keywords'),
   };
   return rows
     .filter((r) => r.length >= header.length - 2) // trailing-comma tolerance
@@ -103,6 +110,7 @@ function parseRows(text: string): OurAirportsRow[] {
       iso_country: r[cols.iso_country],
       municipality: r[cols.municipality],
       scheduled_service: r[cols.scheduled_service],
+      keywords: r[cols.keywords],
       iata_code: r[cols.iata_code],
     }));
 }
@@ -138,14 +146,75 @@ const COUNTRY_PRIMARY_TZ: Record<string, string> = {
 /** OurAirports stores some municipalities with regional suffixes that read
  *  as gibberish to most users — e.g. Italian province codes ("Ferno (VA)",
  *  "Orio al Serio (BG)") and parenthetical sub-locality clarifiers
- *  ("Frankfurt am Main (Lautzenhausen)", "Paris (Roissy-en-France,
- *  Val-d'Oise)"). Strip anything from the first " (" onwards so the
- *  autocomplete shows clean city names. */
+ *  ("Frankfurt am Main (Lautzenhausen)"). It also uses comma-suffixed
+ *  county/region names for the UK ("London, Essex" for Stansted,
+ *  "Luton, Luton") and similar. Strip both — anything from the first
+ *  " (" or ", " onwards — so autocomplete shows clean city names.
+ *  The marketing-alias overlay (MARKETING_CITY_ALIAS) handles the
+ *  remaining cases where the resulting municipality still doesn't match
+ *  how travellers think of the airport (e.g. "Ferno" → "Milan"). */
 function cleanMunicipality(s: string): string {
-  const idx = s.indexOf(' (');
-  return idx === -1 ? s.trim() : s.slice(0, idx).trim();
+  let cleaned = s;
+  const paren = cleaned.indexOf(' (');
+  if (paren !== -1) cleaned = cleaned.slice(0, paren);
+  const comma = cleaned.indexOf(', ');
+  if (comma !== -1) cleaned = cleaned.slice(0, comma);
+  return cleaned.trim();
 }
 
+/** Manual overlay for airports whose city display, after cleanMunicipality,
+ *  still doesn't match how travellers think of the airport. Applied last.
+ *  Two patterns covered:
+ *    1. Low-cost-carrier "satellite" airports branded as the nearby major
+ *       city (Ryanair's Milan Bergamo, Paris Beauvais, etc.).
+ *    2. Italian / German / French airports where OurAirports stores the
+ *       municipality in the local language ("Venezia", "Napoli", "Köln")
+ *       while the airport name is already English ("Venice Marco Polo",
+ *       "Cologne Bonn") — harmonise to the English name. */
+const MARKETING_CITY_ALIAS: Record<string, string> = {
+  // Italy — local-language and suburb municipalities
+  MXP: 'Milan',     // Malpensa, physically in Ferno (~50 km from Milan)
+  LIN: 'Milan',     // Linate — own municipality is Segrate
+  BGY: 'Milan',     // Bergamo / Orio al Serio — Ryanair's main "Milan" base
+  TSF: 'Venice',    // Treviso — Ryanair brand "Venice Treviso"
+  VCE: 'Venice',    // Marco Polo — stored as "Venezia"
+  NAP: 'Naples',    // stored as "Napoli"
+  FLR: 'Florence',  // stored as "Firenze"
+  GOA: 'Genoa',     // stored as "Genova"
+  TRN: 'Turin',     // stored as "Caselle Torinese" (suburb)
+  VRN: 'Verona',    // stored as "Caselle" (suburb)
+  // France — suburb municipalities
+  BVA: 'Paris',     // Beauvais (~85 km from Paris) — low-cost "Paris Beauvais"
+  MRS: 'Marseille', // stored as "Marignane"
+  LYS: 'Lyon',      // stored as "Colombier-Saugnieu"
+  // Germany — local-language and suburb municipalities
+  HHN: 'Frankfurt', // Frankfurt-Hahn — actually ~120 km from Frankfurt
+  NRN: 'Düsseldorf',// Weeze / Niederrhein — branded "Düsseldorf Weeze"
+  CGN: 'Cologne',   // stored as "Köln"
+  // Belgium
+  CRL: 'Brussels',  // Charleroi — branded "Brussels South Charleroi"
+  // Spain
+  GRO: 'Barcelona', // Girona — "Barcelona Girona" branding
+  REU: 'Barcelona', // Reus — same pattern
+  // Greece
+  ATH: 'Athens',    // stored as "Spata-Artemida" (suburb)
+  // Sweden
+  NYO: 'Stockholm', // Skavsta (~100 km from Stockholm)
+  VST: 'Stockholm', // Västerås
+  // Norway
+  TRF: 'Oslo',      // Sandefjord/Torp (~110 km from Oslo)
+  RYG: 'Oslo',      // Rygge (~60 km from Oslo)
+  // Turkey
+  SAW: 'Istanbul',  // Sabiha Gökçen — municipality is Pendik (Istanbul Asian side)
+  // Japan
+  NRT: 'Tokyo',     // Narita (~60 km from central Tokyo)
+  // UK — London "satellite" airports all branded as London by carriers
+  STN: 'London',    // Stansted
+  LTN: 'London',    // Luton
+  SEN: 'London',    // Southend
+  // Scotland
+  PIK: 'Glasgow',   // Prestwick — branded "Glasgow Prestwick"
+};
 // Rough US longitude → timezone bucketing so coast-to-coast departure times
 // aren't all shown as Eastern.
 function tzForUSLng(lng: number): string {
@@ -214,15 +283,19 @@ async function main() {
     else if (COUNTRY_PRIMARY_TZ[cc]) { timezone = COUNTRY_PRIMARY_TZ[cc]; tzFromMap++; }
     else { timezone = 'UTC'; tzFallback++; }
 
+    const cleanedCity = cleanMunicipality(r.municipality || r.name);
+    const city = MARKETING_CITY_ALIAS[iata] ?? cleanedCity;
+
     out.push({
       iata,
       name: r.name,
-      city: cleanMunicipality(r.municipality || r.name),
+      city,
       country,
       countryCode: cc,
       lat,
       lng,
       timezone,
+      keywords: (r.keywords || '').trim(),
     });
   }
 

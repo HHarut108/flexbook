@@ -135,7 +135,9 @@ function AirportRow({
         <PlaneTakeoff size={14} className="text-indigo" />
       </div>
       <div className="min-w-0 flex-1">
-        {/* Line 1: City name + IATA chip — the recognisable identifiers. */}
+        {/* Line 1: City name + IATA chip — the recognisable identifiers.
+            The marketing-alias overlay (see backend MARKETING_CITY_ALIAS)
+            ensures Malpensa/Bergamo/Linate all read "Milan" here. */}
         <div className="flex items-baseline gap-2 min-w-0">
           <p className="text-[15px] font-semibold text-text-primary truncate">
             {airport.city.name}
