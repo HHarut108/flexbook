@@ -1,8 +1,17 @@
 import { FlightOption } from '@fast-travel/shared';
 import axios, { AxiosError } from 'axios';
 import { config } from '../config';
-import { KiwiSearchOptions } from './KiwiFlightProvider';
-import { increment } from '../utils/apiMetrics';
+
+export interface KiwiSearchOptions {
+  sort?: 'price' | 'duration' | 'quality';
+  maxStopovers?: number;
+  currency?: string;
+  cabinClass?: 'M' | 'W' | 'C' | 'F';
+  passengers?: number;
+  /** 2-letter ISO country code. When set (and destinationIata is not), Kiwi
+   *  searches for flights to any airport in that country via `destination=Country:XX`. */
+  country?: string;
+}
 
 export class RapidApiRateLimitError extends Error {
   constructor() {
@@ -67,7 +76,7 @@ export async function fetchRapidApiKiwiFlights(
   destinationIata?: string,
   options: KiwiSearchOptions = {},
 ): Promise<FlightOption[]> {
-  const { sort = 'price', maxStopovers, currency = 'USD', cabinClass = 'M', passengers = 1 } = options;
+  const { sort = 'price', maxStopovers, currency = 'USD', cabinClass = 'M', passengers = 1, country } = options;
 
   const cabinClassMap: Record<string, string> = {
     M: 'ECONOMY',
@@ -95,14 +104,24 @@ export async function fetchRapidApiKiwiFlights(
     sortBy: sortByMap[sort] ?? 'PRICE',
     sortOrder: 'ASCENDING',
     transportTypes: 'FLIGHT',
-    contentProviders: 'KIWI,KAYAK,FRESH',
-    limit: 50,
+    // No `contentProviders` filter: Kiwi defaults to all providers. The previous
+    // `KIWI,KAYAK,FRESH` triple excluded routes that exist on kiwi.com (notably
+    // Wizz Air direct EVN→FMM on Jun 30 2026) — those itineraries live behind
+    // other content providers and were never reaching us.
+    // 250: high enough that mid-priced destinations (e.g. EVN→DTM, EVN→FMM ~$77)
+    // aren't pushed out by ultra-cheap CIS/Turkey routes on an "anywhere" search.
+    limit: 250,
     outboundDepartureDateStart: `${date}T00:00:00`,
     outboundDepartureDateEnd: `${date}T23:59:59`,
   };
 
   if (destinationIata) {
     params['destination'] = `Airport:${destinationIata}`;
+  } else if (country) {
+    // Country-scoped search: bypasses the "anywhere" endpoint's per-region quotas
+    // and surfaces low-cost-carrier routes (e.g. Wizz EVN→FMM) that the unfiltered
+    // search drops. ISO 3166 alpha-2, uppercased.
+    params['destination'] = `Country:${country.toUpperCase()}`;
   }
   if (maxStopovers !== undefined) {
     params['maxStopsCount'] = maxStopovers;
@@ -110,7 +129,6 @@ export async function fetchRapidApiKiwiFlights(
 
   let response: RapidKiwiResponse;
   try {
-    increment('rapidapi-kiwi');
     const { data } = await axios.get<RapidKiwiResponse>(
       `https://${RAPIDAPI_HOST}/one-way`,
       {

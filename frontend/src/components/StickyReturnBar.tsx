@@ -8,14 +8,18 @@ export interface StickyReturnBarProps {
 
 export function StickyReturnBar({ onBack, crumbs, currentCity }: StickyReturnBarProps) {
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 max-w-[448px] mx-auto">
+    <div
+      className="fixed bottom-0 left-0 right-0 z-50"
+      style={{
+        background: 'rgba(55,48,163,0.97)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderTop: '1px solid rgba(255,255,255,0.10)',
+      }}
+    >
       <div
-        className="px-4 flex items-center gap-3"
+        className="px-4 md:px-8 flex items-center gap-3 max-w-[448px] md:max-w-3xl mx-auto"
         style={{
-          background: 'rgba(55,48,163,0.97)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          borderTop: '1px solid rgba(255,255,255,0.10)',
           paddingTop: '12px',
           paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
         }}
@@ -58,3 +62,4 @@ export function StickyReturnBar({ onBack, crumbs, currentCity }: StickyReturnBar
     </div>
   );
 }
+

@@ -11,6 +11,7 @@ export const apiClient = axios.create({
   // 30s default to tolerate Render cold starts; individual calls can override.
   timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 });
 
 // Unwrap the { success, data } envelope
@@ -42,7 +43,10 @@ apiClient.interceptors.response.use(
       );
     }
     const msg = error.response?.data?.error?.message ?? error.message ?? 'Unknown error';
-    return Promise.reject(new Error(msg));
+    const wrapped = new Error(msg) as Error & { status?: number; isCanceled?: boolean };
+    if (typeof status === 'number') wrapped.status = status;
+    if (axios.isCancel(error) || error.code === 'ERR_CANCELED') wrapped.isCanceled = true;
+    return Promise.reject(wrapped);
   },
 );
 

@@ -3,9 +3,62 @@
 @tailwind utilities;
 
 @layer base {
-  :root { color-scheme: light; }
+  :root {
+    color-scheme: light;
+    /* ── Design token palette — light ───────────────────────────────────────
+       All values as space-separated RGB channels so Tailwind opacity
+       modifiers (bg-surface/40, border-border/50, etc.) work correctly.
+       ────────────────────────────────────────────────────────────────────── */
+    --c-bg:              240 244 255;   /* #F0F4FF */
+    --c-surface:         255 255 255;   /* #FFFFFF */
+    --c-surface-2:       238 241 248;   /* #EEF1F8 */
+    --c-indigo:          55  48  163;   /* #3730A3 */
+    --c-indigo-mid:      79  70  229;   /* #4F46E5 */
+    --c-indigo-soft:     238 242 255;   /* #EEF2FF */
+    --c-indigo-border:   199 210 254;   /* #C7D2FE */
+    --c-orange:          249 115 22;    /* #F97316 */
+    --c-orange-dark:     234 108 10;    /* #EA6C0A */
+    --c-orange-soft:     255 247 237;   /* #FFF7ED */
+    --c-sky:             14  165 233;   /* #0EA5E9 */
+    --c-sky-soft:        224 242 254;   /* #E0F2FE */
+    --c-emerald:         16  185 129;   /* #10B981 */
+    --c-emerald-soft:    209 250 229;   /* #D1FAE5 */
+    --c-gold:            245 158 11;    /* #F59E0B */
+    --c-text-primary:    15  23  42;    /* #0F172A */
+    --c-text-secondary:  51  65  85;    /* #334155 */
+    --c-text-muted:      100 116 139;   /* #64748B */
+    --c-text-xmuted:     148 163 184;   /* #94A3B8 */
+    --c-border:          226 232 240;   /* #E2E8F0 */
+    --c-border-strong:   203 213 225;   /* #CBD5E1 */
+    --c-border-brand:    199 210 254;   /* #C7D2FE */
+    --c-error:           239 68  68;    /* #EF4444 */
+    --c-error-soft:      254 226 226;   /* #FEE2E2 */
+  }
 
-  html { background: #F0F4FF; }
+  html[data-theme="dark"] {
+    color-scheme: dark;
+    /* ── Design token palette — dark ────────────────────────────────────── */
+    --c-bg:              11  16  32;    /* #0B1020 */
+    --c-surface:         19  26  45;    /* #131A2D */
+    --c-surface-2:       15  23  42;    /* #0F172A */
+    --c-indigo:          165 180 252;   /* #A5B4FC */
+    --c-indigo-mid:      129 140 248;   /* #818CF8 */
+    --c-indigo-soft:     67  56  202;   /* #4338CA — used at low opacity for subtle tints */
+    --c-indigo-border:   99  102 241;   /* #6366F1 */
+    --c-text-primary:    243 244 246;   /* #F3F4F6 */
+    --c-text-secondary:  209 213 219;   /* #D1D5DB */
+    --c-text-muted:      156 163 175;   /* #9CA3AF */
+    --c-text-xmuted:     107 114 128;   /* #6B7280 */
+    --c-border:          31  42  68;    /* #1F2A44 */
+    --c-border-strong:   42  55  88;    /* #2A3758 */
+    --c-border-brand:    99  102 241;   /* #6366F1 */
+    --c-error-soft:      127 29  29;    /* #7F1D1D */
+    /* Orange/sky/emerald/gold stay vivid — they're accent colors that
+       read well on both light and dark backgrounds. */
+  }
+
+  html { background: rgb(var(--c-bg)); }
+  html[data-theme="dark"] { background: #0B1020; }
 
   body {
     @apply bg-bg text-text-primary font-sans;
@@ -16,6 +69,15 @@
       radial-gradient(circle at top right, rgba(14,165,233,0.08), transparent 28%),
       linear-gradient(180deg, #F0F4FF 0%, #EEF1F8 100%);
     min-height: 100vh;
+  }
+
+  html[data-theme="dark"] body {
+    color: rgb(var(--c-text-primary));
+    background-color: #0B1020;
+    background-image:
+      radial-gradient(circle at top left,  rgba(99,102,241,0.18), transparent 30%),
+      radial-gradient(circle at top right, rgba(14,165,233,0.12), transparent 28%),
+      linear-gradient(180deg, #0B1020 0%, #0F172A 100%);
   }
 
   * { @apply box-border; }
@@ -29,17 +91,14 @@
     }
   }
 
-  /* Brand-consistent focus ring */
   :focus-visible {
-    outline: 2px solid #4F46E5;
+    outline: 2px solid rgb(var(--c-indigo-mid));
     outline-offset: 2px;
     border-radius: 4px;
   }
 
-  /* Prevent scrollbar layout shift on overlays */
   .scrollbar-none::-webkit-scrollbar { display: none; }
 
-  /* Hide native date input text & icon — we render our own display */
   input[type="date"]::-webkit-date-and-time-value { color: transparent; }
   input[type="date"]::-webkit-calendar-picker-indicator {
     opacity: 0;
@@ -60,12 +119,16 @@
     background-size: 200% 100%;
     animation: shimmer 1.6s ease-in-out infinite;
   }
+  html[data-theme="dark"] .skeleton {
+    background: linear-gradient(90deg, #1A2540 25%, #1F2A44 50%, #1A2540 75%);
+    background-size: 200% 100%;
+  }
 
   /* ── Buttons ── */
   .btn-primary {
     @apply w-full text-center text-white font-semibold py-3.5 px-6 rounded-2xl
            active:scale-95 transition-all duration-150 disabled:opacity-40
-           disabled:cursor-not-allowed;
+           disabled:cursor-not-allowed border border-transparent;
     background: linear-gradient(135deg, #F97316 0%, #EA6C0A 100%);
     box-shadow: 0 12px 32px rgba(249,115,22,0.28);
   }
@@ -77,25 +140,31 @@
     @apply w-full text-center font-semibold py-3.5 px-6 rounded-2xl
            active:scale-95 transition-all duration-150 disabled:opacity-40
            disabled:cursor-not-allowed;
-    background: #EEF2FF;
-    color: #3730A3;
-    border: 1px solid #C7D2FE;
+    background: rgb(var(--c-indigo-soft));
+    color: rgb(var(--c-indigo));
+    border: 1px solid rgb(var(--c-indigo-border));
   }
   .btn-secondary:hover:not(:disabled) {
-    background: rgba(79,70,229,0.12);
-    border-color: #4F46E5;
+    background: rgb(var(--c-indigo-soft) / 0.7);
+    border-color: rgb(var(--c-indigo-mid));
   }
 
   .btn-outline {
     @apply border text-text-primary font-semibold py-3.5 px-6 rounded-2xl w-full
            text-center active:scale-95 transition-all duration-150 disabled:opacity-40
-           disabled:cursor-not-allowed bg-white/85 backdrop-blur-sm;
-    border-color: #E2E8F0;
+           disabled:cursor-not-allowed backdrop-blur-sm;
+    background: rgb(255 255 255 / 0.85);
+    border-color: rgb(var(--c-border));
     box-shadow: 0 4px 12px rgba(15,23,42,0.06);
   }
   .btn-outline:hover:not(:disabled) {
-    border-color: #4F46E5;
-    color: #3730A3;
+    border-color: rgb(var(--c-indigo-mid));
+    color: rgb(var(--c-indigo));
+  }
+  html[data-theme="dark"] .btn-outline {
+    background: rgba(19,26,45,0.9);
+    color: rgb(var(--c-text-primary));
+    border-color: rgb(var(--c-border));
   }
 
   /* ── Cards ── */
@@ -103,25 +172,36 @@
     @apply bg-surface rounded-[20px] p-5 border border-border;
     box-shadow: 0 8px 24px rgba(15,23,42,0.08), 0 2px 0 rgba(255,255,255,0.9) inset;
   }
+  html[data-theme="dark"] .card {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3), 0 1px 0 rgba(255,255,255,0.04) inset;
+  }
   .card-interactive {
     @apply card cursor-pointer transition-all duration-150;
   }
   .card-interactive:hover {
     transform: translateY(-2px);
-    border-color: #C7D2FE;
+    border-color: rgb(var(--c-indigo-border));
     box-shadow: 0 16px 40px rgba(15,23,42,0.12), 0 2px 0 rgba(255,255,255,0.9) inset;
+  }
+  html[data-theme="dark"] .card-interactive:hover {
+    box-shadow: 0 16px 40px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.04) inset;
   }
 
   /* ── Input ── */
   .input-field {
     @apply border rounded-2xl px-4 py-3.5 text-text-primary placeholder-text-xmuted
-           w-full focus:outline-none transition-all bg-white;
-    border-color: #E2E8F0;
+           w-full focus:outline-none transition-all bg-surface;
+    border-color: rgb(var(--c-border));
     box-shadow: 0 4px 12px rgba(15,23,42,0.06);
   }
   .input-field:focus {
-    border-color: #4F46E5;
-    box-shadow: 0 4px 12px rgba(15,23,42,0.06), 0 0 0 4px rgba(79,70,229,0.12);
+    border-color: rgb(var(--c-indigo-mid));
+    box-shadow: 0 4px 12px rgba(15,23,42,0.06), 0 0 0 4px rgb(var(--c-indigo-mid) / 0.12);
+  }
+  html[data-theme="dark"] .input-field {
+    background: rgb(var(--c-surface));
+    border-color: rgb(var(--c-border));
+    color: rgb(var(--c-text-primary));
   }
 
   /* ── Pills ── */
@@ -130,33 +210,33 @@
   }
   .pill-default {
     @apply pill;
-    background: #EEF1F8;
-    color: #64748B;
-    border: 1px solid #E2E8F0;
+    background: rgb(var(--c-surface-2));
+    color: rgb(var(--c-text-muted));
+    border: 1px solid rgb(var(--c-border));
   }
   .pill-brand {
     @apply pill;
-    background: #EEF2FF;
-    color: #3730A3;
-    border: 1px solid #C7D2FE;
+    background: rgb(var(--c-indigo-soft));
+    color: rgb(var(--c-indigo));
+    border: 1px solid rgb(var(--c-indigo-border));
   }
   .pill-success {
     @apply pill;
-    background: #D1FAE5;
+    background: rgb(var(--c-emerald-soft));
     color: #059669;
-    border: 1px solid rgba(16,185,129,0.3);
+    border: 1px solid rgb(var(--c-emerald) / 0.3);
   }
   .pill-warning {
     @apply pill;
-    background: #FFF7ED;
-    color: #EA6C0A;
-    border: 1px solid rgba(249,115,22,0.3);
+    background: rgb(var(--c-orange-soft));
+    color: rgb(var(--c-orange-dark));
+    border: 1px solid rgb(var(--c-orange) / 0.3);
   }
   .pill-sky {
     @apply pill;
-    background: #E0F2FE;
+    background: rgb(var(--c-sky-soft));
     color: #0284C7;
-    border: 1px solid rgba(14,165,233,0.3);
+    border: 1px solid rgb(var(--c-sky) / 0.3);
   }
 
   /* ── Section label ── */
@@ -168,22 +248,37 @@
   .hero-panel {
     @apply rounded-[28px] px-5 py-5;
     background: linear-gradient(135deg, rgba(238,242,255,0.98) 0%, rgba(240,244,255,0.95) 100%);
-    border: 1px solid #C7D2FE;
+    border: 1px solid rgb(var(--c-indigo-border));
     box-shadow: 0 16px 40px rgba(55,48,163,0.08), 0 2px 0 rgba(255,255,255,0.9) inset;
   }
+  .hero-panel.hero-panel--compact {
+    @apply rounded-2xl px-3 py-2.5;
+    box-shadow: 0 6px 18px rgba(55,48,163,0.06), 0 1px 0 rgba(255,255,255,0.9) inset;
+  }
+  html[data-theme="dark"] .hero-panel {
+    background: linear-gradient(135deg, rgba(30,27,75,0.85) 0%, rgba(15,23,42,0.85) 100%);
+    border-color: rgba(99,102,241,0.35);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.05) inset;
+  }
 
-  /* Return screen hero panel — warm orange tint */
   .hero-panel-return {
     @apply rounded-[28px] px-5 py-5;
     background: linear-gradient(135deg, rgba(255,247,237,0.98) 0%, rgba(240,244,255,0.95) 100%);
     border: 1px solid rgba(249,115,22,0.25);
     box-shadow: 0 16px 40px rgba(249,115,22,0.08), 0 2px 0 rgba(255,255,255,0.9) inset;
   }
+  html[data-theme="dark"] .hero-panel-return {
+    background: linear-gradient(135deg, rgba(67,20,7,0.6) 0%, rgba(15,23,42,0.85) 100%);
+    border-color: rgba(249,115,22,0.35);
+  }
 
   /* ── Section shell ── */
   .section-shell {
     @apply rounded-3xl border border-border bg-surface;
     box-shadow: 0 8px 24px rgba(15,23,42,0.06), 0 1px 0 rgba(255,255,255,0.9) inset;
+  }
+  html[data-theme="dark"] .section-shell {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3), 0 1px 0 rgba(255,255,255,0.04) inset;
   }
 
   /* ── List row ── */
@@ -192,11 +287,37 @@
     box-shadow: 0 4px 12px rgba(15,23,42,0.04);
   }
   .list-row:hover {
-    border-color: #C7D2FE;
+    border-color: rgb(var(--c-indigo-border));
     transform: translateY(-1px);
     box-shadow: 0 8px 24px rgba(15,23,42,0.08);
   }
+  html[data-theme="dark"] .list-row {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+  html[data-theme="dark"] .list-row:hover {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  }
 }
+
+/* ── Dark overrides for standard Tailwind white utilities ─────────────────
+   These run outside any @layer, so they come after @tailwind utilities in
+   the cascade and win without !important.
+   ─────────────────────────────────────────────────────────────────────── */
+html[data-theme="dark"] .bg-white,
+html[data-theme="dark"] .bg-white\/60,
+html[data-theme="dark"] .bg-white\/70,
+html[data-theme="dark"] .bg-white\/75,
+html[data-theme="dark"] .bg-white\/80,
+html[data-theme="dark"] .bg-white\/85,
+html[data-theme="dark"] .bg-white\/86,
+html[data-theme="dark"] .bg-white\/95 {
+  background-color: rgba(19,26,45,0.9);
+}
+html[data-theme="dark"] .border-white\/80 {
+  border-color: rgba(99,102,241,0.25);
+}
+/* Ambient background shells that use min-h-screen */
+html[data-theme="dark"] .min-h-screen { background-color: transparent; }
 
 /* ── Trip Map ── */
 
@@ -210,18 +331,48 @@
 }
 
 .leaflet-container {
-  background: #EEF1F8 !important;
+  background: rgb(var(--c-surface-2)) !important;
   font-family: 'Inter', sans-serif;
   border-radius: 20px;
 }
 
-/* Subtle tile tint for brand harmony */
 .leaflet-tile {
   filter: saturate(0.92) contrast(0.95);
 }
 
-/* Hide default Leaflet attribution — we render our own */
 .leaflet-control-attribution { display: none !important; }
+
+/* Compact zoom controls — small enough to coexist with overlays on tight viewports. */
+.leaflet-control-zoom {
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(15,23,42,0.10) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+.leaflet-control-zoom a {
+  width: 26px !important;
+  height: 26px !important;
+  line-height: 26px !important;
+  font-size: 16px !important;
+  color: #475569 !important;
+  background: #ffffff !important;
+  border: none !important;
+}
+.leaflet-control-zoom a:hover {
+  background: #EEF2FF !important;
+  color: #4F46E5 !important;
+}
+.leaflet-control-zoom a:first-child {
+  border-bottom: 1px solid rgba(226,232,240,0.8) !important;
+}
+@media (max-width: 640px) {
+  .leaflet-control-zoom a {
+    width: 24px !important;
+    height: 24px !important;
+    line-height: 24px !important;
+    font-size: 14px !important;
+  }
+}
 
 /* ── Pin styles ── */
 
@@ -256,6 +407,160 @@
 
 .trip-map-pin--stop span {
   line-height: 1;
+}
+
+/* ── Price-chip pin used by FlightFanMap ── */
+
+.flight-fan-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #3730A3;
+  font-family: 'JetBrains Mono', 'Menlo', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(15,23,42,0.16), 0 0 0 1.5px #C7D2FE;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  white-space: nowrap;
+}
+
+/* Mobile: shrink price chips so the cluster of pins doesn't overlap on a 220px map. */
+@media (max-width: 640px) {
+  .flight-fan-pin {
+    min-width: 36px;
+    height: 20px;
+    padding: 0 5px;
+    font-size: 11px;
+    box-shadow: 0 2px 8px rgba(15,23,42,0.18), 0 0 0 1px #C7D2FE;
+  }
+}
+
+.flight-fan-pin:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 16px rgba(15,23,42,0.22), 0 0 0 1.5px #4F46E5;
+}
+
+.flight-fan-pin--hot {
+  background: linear-gradient(135deg, #F97316 0%, #EA580C 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(249,115,22,0.4), 0 0 0 2px rgba(249,115,22,0.25);
+}
+
+.flight-fan-pin--hot:hover {
+  box-shadow: 0 6px 18px rgba(249,115,22,0.5), 0 0 0 2px rgba(249,115,22,0.4);
+}
+
+/* Highlighted pins for the destination currently selected in the list. */
+.flight-fan-pin--selected {
+  transform: scale(1.18);
+  box-shadow:
+    0 6px 18px rgba(15,23,42,0.28),
+    0 0 0 3px #4F46E5,
+    0 0 0 7px rgba(79,70,229,0.20);
+  z-index: 1000;
+}
+.flight-fan-pin--selected:hover {
+  transform: scale(1.22);
+}
+.flight-fan-pin--selected.flight-fan-pin--hot {
+  box-shadow:
+    0 6px 20px rgba(249,115,22,0.55),
+    0 0 0 3px #ffffff,
+    0 0 0 6px #EA580C;
+}
+
+/* ── Destination popup (FlightFanMap) ── */
+
+.fan-popup-wrapper .leaflet-popup-content-wrapper {
+  padding: 0;
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(15,23,42,0.18);
+  border: 1px solid rgba(199,210,254,0.6);
+}
+.fan-popup-wrapper .leaflet-popup-content {
+  margin: 0;
+  width: auto !important;
+}
+.fan-popup-wrapper .leaflet-popup-close-button {
+  top: 6px;
+  right: 6px;
+  color: #94A3B8;
+  font-size: 18px;
+}
+
+.fan-popup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px 12px;
+  min-width: 180px;
+  font-family: 'Inter', sans-serif;
+}
+.fan-popup__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fan-popup__city {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0F172A;
+  line-height: 1.1;
+}
+.fan-popup__iata {
+  font-family: 'JetBrains Mono', 'Menlo', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  color: #4F46E5;
+  background: #EEF2FF;
+  padding: 2px 6px;
+  border-radius: 6px;
+  letter-spacing: 0.04em;
+}
+.fan-popup__sub {
+  font-size: 11px;
+  color: #64748B;
+  line-height: 1.2;
+}
+.fan-popup__price-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+.fan-popup__price {
+  font-family: 'JetBrains Mono', 'Menlo', monospace;
+  font-size: 20px;
+  font-weight: 800;
+  color: #EA580C;
+}
+.fan-popup__price-caption {
+  font-size: 10px;
+  color: #64748B;
+  line-height: 1.2;
+}
+.fan-popup__cta {
+  margin-top: 6px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffffff;
+  background: linear-gradient(135deg, #4F46E5 0%, #3730A3 100%);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.fan-popup__cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(79,70,229,0.35);
 }
 
 /* ── City labels ── */
@@ -300,6 +605,40 @@
   font-family: 'Inter', sans-serif;
   display: flex;
   align-items: center;
+}
+
+/* ── Trip total pill (separate from legend so users don't mis-read it
+        as the return-flight price) ── */
+
+.trip-map-total {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  z-index: 1000;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(226,232,240,0.7);
+  border-radius: 10px;
+  padding: 5px 10px;
+  box-shadow: 0 2px 8px rgba(15,23,42,0.10);
+  font-family: 'Inter', sans-serif;
+}
+.trip-map-total__label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #64748B;
+}
+.trip-map-total__amount {
+  font-family: 'JetBrains Mono', 'Menlo', monospace;
+  font-size: 13px;
+  font-weight: 800;
+  color: #0F172A;
 }
 
 /* ── Attribution (minimal) ── */

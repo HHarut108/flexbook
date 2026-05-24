@@ -1,9 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, Send, AlertCircle, CheckCircle2, Calendar, Filter } from 'lucide-react';
-import { fetchMetricsHistory, sendReport } from '../api/metrics';
-import type { DayMetrics } from '../api/metrics';
+import {
+  fetchMetricsHistory,
+  fetchSessionMetrics,
+  fetchAllTimeMetrics,
+  fetchCacheMetrics,
+  sendReport,
+} from '../api/metrics';
+import type {
+  DayMetrics,
+  SessionMetricsResponse,
+  AllTimeMetricsResponse,
+  CacheMetricsResponse,
+} from '../api/metrics';
 import { UsageChart } from '../components/UsageChart';
 import { MetricsTable } from '../components/MetricsTable';
+import { ApiHealthTable } from '../components/ApiHealthTable';
 
 const SERVICE_COLORS: Record<string, string> = {
   'rapidapi-kiwi':  '#8B5CF6',
@@ -50,19 +62,31 @@ export function ApiUsagePage() {
   const [reportStatus, setReportStatus] = useState<ReportStatus>('idle');
   const [reportError, setReportError] = useState('');
 
+  const [session, setSession] = useState<SessionMetricsResponse | null>(null);
+  const [allTime, setAllTime] = useState<AllTimeMetricsResponse | null>(null);
+  const [cacheMetrics, setCacheMetrics] = useState<CacheMetricsResponse | null>(null);
+
   const load = useCallback(async () => {
     if (from > to) return;
     setLoading(true);
     setFetchError('');
     try {
-      const res = await fetchMetricsHistory(from, to);
-      setHistory(res.history);
-      const svcs = extractServices(res.history);
+      const [histRes, sessionRes, allTimeRes, cacheRes] = await Promise.all([
+        fetchMetricsHistory(from, to),
+        fetchSessionMetrics(),
+        fetchAllTimeMetrics(),
+        fetchCacheMetrics(),
+      ]);
+
+      setHistory(histRes.history);
+      setSession(sessionRes);
+      setAllTime(allTimeRes);
+      setCacheMetrics(cacheRes);
+
+      const svcs = extractServices(histRes.history);
       setServices(svcs);
-      // Add any new service that isn't already known to the selection
       setSelected((prev) => {
         const next = new Set(prev);
-        // First load: select all. Subsequent: auto-include new ones.
         if (prev.size === 0) {
           svcs.forEach((s) => next.add(s));
         } else {
@@ -85,7 +109,7 @@ export function ApiUsagePage() {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(name)) {
-        if (next.size > 1) next.delete(name); // keep at least one
+        if (next.size > 1) next.delete(name);
       } else {
         next.add(name);
       }
@@ -95,7 +119,6 @@ export function ApiUsagePage() {
 
   function toggleAll() {
     if (selected.size === services.length) {
-      // deselect all but first
       setSelected(new Set(services.slice(0, 1)));
     } else {
       setSelected(new Set(services));
@@ -182,6 +205,80 @@ export function ApiUsagePage() {
         </div>
       )}
 
+      {fetchError && (
+        <div className="admin-alert admin-alert--error">
+          <AlertCircle size={15} />
+          {fetchError}
+        </div>
+      )}
+
+      {/* API Health breakdown — session + alltime with primary/fallback */}
+      <div className="admin-card">
+        <h2 className="admin-section-title">API Health</h2>
+        {loading ? (
+          <div className="admin-chart__loading">Loading…</div>
+        ) : (
+          <ApiHealthTable
+            session={session}
+            allTime={allTime}
+            history={history}
+            services={services}
+            serviceColor={serviceColor}
+          />
+        )}
+      </div>
+
+      {/* Cache Health */}
+      <div className="admin-card">
+        <h2 className="admin-section-title">
+          Cache Health
+          {cacheMetrics && (
+            <span style={{ marginLeft: 12, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 400 }}>
+              <span style={{
+                display: 'inline-block',
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: cacheMetrics.redis.connected ? '#10B981' : '#EF4444',
+              }} />
+              <span style={{ color: 'var(--admin-text-muted)' }}>
+                Redis {cacheMetrics.redis.connected ? 'connected' : 'disconnected'}
+              </span>
+              <span style={{ color: 'var(--admin-text-muted)', marginLeft: 8 }}>
+                {cacheMetrics.totalKeys} keys in memory
+              </span>
+            </span>
+          )}
+        </h2>
+        {loading || !cacheMetrics ? (
+          <div className="admin-chart__loading">Loading…</div>
+        ) : Object.keys(cacheMetrics.namespaces).length === 0 ? (
+          <p style={{ color: 'var(--admin-text-muted)', fontSize: 13 }}>
+            No cache activity yet — stats accumulate as the app handles requests.
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {Object.entries(cacheMetrics.namespaces).map(([ns, stat]) => {
+              const pct = Math.round(stat.hitRate * 100);
+              const barColor = pct >= 80 ? '#10B981' : pct >= 50 ? '#F59E0B' : '#EF4444';
+              return (
+                <div key={ns}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 13 }}>
+                    <span style={{ fontFamily: 'monospace', color: 'var(--admin-text)' }}>{ns}</span>
+                    <span style={{ color: 'var(--admin-text-muted)' }}>
+                      {pct}% hit rate &nbsp;·&nbsp; {stat.hits}h / {stat.misses}m / {stat.sets}s
+                    </span>
+                  </div>
+                  <div style={{ height: 6, borderRadius: 3, background: 'var(--admin-border)', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${pct}%`, background: barColor, borderRadius: 3, transition: 'width 0.4s ease' }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Date range controls */}
       <div className="admin-card admin-card--controls">
         <Calendar size={16} className="admin-controls__icon" />
@@ -231,13 +328,6 @@ export function ApiUsagePage() {
               </button>
             ))}
           </div>
-        </div>
-      )}
-
-      {fetchError && (
-        <div className="admin-alert admin-alert--error">
-          <AlertCircle size={15} />
-          {fetchError}
         </div>
       )}
 

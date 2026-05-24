@@ -28,7 +28,7 @@ export function ShareModal() {
   }
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-end justify-center px-4 pb-6">
+    <div className="fixed inset-0 z-[300] flex items-end md:items-center justify-center px-4 pb-6 md:pb-0">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
@@ -37,7 +37,7 @@ export function ShareModal() {
 
       {/* Modal */}
       <div
-        className="relative w-full max-w-[448px] bg-white rounded-3xl overflow-hidden animate-fade-in"
+        className="relative w-full max-w-[448px] md:max-w-lg bg-white rounded-3xl overflow-hidden animate-fade-in"
         style={{ boxShadow: '0 24px 64px rgba(15,23,42,0.20)' }}
       >
         {/* Header */}

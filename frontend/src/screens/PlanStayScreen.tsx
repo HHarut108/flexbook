@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
+import { Helmet } from 'react-helmet-async';
+import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
-import { useSessionStore } from '../store/session.store';
 import { apiClient } from '../api/client';
 import { StickyReturnBar } from '../components/StickyReturnBar';
 import { formatShortDate } from '../utils/date.utils';
+import { countryDisplayName } from '../utils/country.utils';
 import {
   ArrowLeft,
   BedDouble,
@@ -135,21 +137,8 @@ interface CountryInfo {
 
 async function fetchCountryInfo(countryName: string): Promise<CountryInfo | null> {
   try {
-    const res = await fetch(
-      `https://restcountries.com/v3.1/name/${encodeURIComponent(countryName)}?fullText=true&fields=flag,flags,currencies,capital,region`,
-    );
-    if (!res.ok) throw new Error('not found');
-    const [c] = await res.json();
-    const [currencyCode, currencyData] = Object.entries(c.currencies)[0] as [string, { name: string; symbol: string }];
-    return {
-      flag: c.flag,
-      flagUrl: c.flags?.png ?? '',
-      currencyCode,
-      currencyName: currencyData.name,
-      currencySymbol: currencyData.symbol,
-      capital: c.capital?.[0] ?? '',
-      region: c.region ?? '',
-    };
+    const res = await apiClient.get<CountryInfo>('/country-info', { params: { country: countryName } });
+    return res.data;
   } catch {
     return null;
   }
@@ -158,15 +147,18 @@ async function fetchCountryInfo(countryName: string): Promise<CountryInfo | null
 // ── Main screen ────────────────────────────────────────────────────────────────
 
 export function PlanStayScreen() {
+  const navigate = useNavigate();
   const legs = useTripStore((s) => s.legs);
   const origin = useTripStore((s) => s.origin);
   const passengers = useTripStore((s) => s.passengers);
-  const { setScreen } = useSessionStore();
 
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
   const lastLeg = nonReturnLegs.at(-1)!;
-  const { destinationIata, destinationCity, destinationCountry, arrivalDatetime, nextDepartureDate, stayDurationDays } =
+  const { destinationIata, destinationCity, arrivalDatetime, nextDepartureDate, stayDurationDays } =
     lastLeg;
+  // Normalize so 2-letter codes returned by some providers become real names
+  // before they're rendered, used to call RestCountries, or passed to other APIs.
+  const destinationCountry = countryDisplayName(lastLeg.destinationCountry);
 
   const crumbs = [origin?.iata ?? '?', ...nonReturnLegs.map((l) => l.destinationIata)];
   const nights = stayDurationDays ?? 1;
@@ -179,7 +171,7 @@ export function PlanStayScreen() {
   const [practicalOpen, setPracticalOpen] = useState(false);
   const [liveRestaurants, setLiveRestaurants] = useState<Restaurant[] | null>(null);
   const [restaurantsLoading, setRestaurantsLoading] = useState(false);
-  const handleBack = () => setScreen('decision');
+  const handleBack = () => navigate('/review');
 
   const checkin = arrivalDatetime ? arrivalDatetime.slice(0, 10) : undefined;
   const checkout = nextDepartureDate ?? undefined;
@@ -273,7 +265,10 @@ export function PlanStayScreen() {
   const dayCount = Math.min(nights, content.days.length);
 
   return (
-    <div className="px-4 pb-32 pt-4 animate-fade-in">
+    <div className="animate-fade-in md:flex md:items-start md:gap-0 md:max-w-6xl md:mx-auto xl:max-w-7xl">
+      <Helmet><title>Plan your stay in {destinationCity} · FlexBook</title></Helmet>
+      {/* ── Left panel ── */}
+      <div className="px-4 pb-32 pt-4 md:flex-1 md:min-w-0 md:pb-12">
       <StickyReturnBar onBack={handleBack} crumbs={crumbs} currentCity={destinationIata} />
 
       {/* ── Header ── */}
@@ -508,6 +503,10 @@ export function PlanStayScreen() {
           </div>
         </div>
       </div>
+      </div>{/* end left panel */}
+
+      {/* ── Right panel: day planner + practical ── */}
+      <div className="px-4 pb-12 pt-4 md:w-[320px] lg:w-[360px] xl:w-[400px] md:flex-shrink-0 md:border-l md:border-border/50 md:sticky md:top-0 md:max-h-screen md:overflow-y-auto">
 
       {/* ── Day-by-day sketch ── */}
       {dayCount > 0 && (
@@ -641,6 +640,7 @@ export function PlanStayScreen() {
           </div>
         </div>
       </div>
+      </div>{/* end right panel */}
     </div>
   );
 }

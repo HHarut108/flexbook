@@ -4,7 +4,6 @@ vi.mock('../config', () => ({
   config: {
     KIWI_API_KEY: '',
     OPENWEATHER_API_KEY: '',
-    AIRHEX_API_KEY: '',
     PORT: 3000,
     NODE_ENV: 'test',
     FRONTEND_URL: 'http://localhost:5173',

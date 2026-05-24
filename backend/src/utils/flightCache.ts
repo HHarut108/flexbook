@@ -1,5 +1,16 @@
-import { PriceInfo, PriceStatus } from '@fast-travel/shared';
-import { getCache, setCache } from './cache';
+import { getCacheAsync, setCache } from './cache';
+import { log } from './logger';
+
+export type PriceStatus = 'cached' | 'stale';
+
+export interface PriceInfo {
+  amount: number;
+  currency: string;
+  provider: string;
+  deeplink: string;
+  priceUpdatedAt: string;
+  priceStatus: PriceStatus;
+}
 
 // ---------- Types ----------
 
@@ -42,8 +53,16 @@ export const CACHE_TTL = {
 
 // ---------- Key builders ----------
 
-export function scheduleKey(originIata: string, date: string, destinationIata?: string): string {
-  const dest = destinationIata ? destinationIata.toUpperCase() : 'any';
+export function scheduleKey(
+  originIata: string,
+  date: string,
+  destinationIata?: string,
+  country?: string,
+): string {
+  let dest: string;
+  if (destinationIata) dest = destinationIata.toUpperCase();
+  else if (country) dest = `country:${country.toUpperCase()}`;
+  else dest = 'any';
   return `flights:schedule:${originIata.toUpperCase()}:${date}:${dest}`;
 }
 
@@ -81,18 +100,19 @@ export function priceSoftTtlSeconds(dateStr: string): number {
 
 // ---------- Schedule cache ----------
 
-export function getScheduleCache(
+export async function getScheduleCache(
   originIata: string,
   date: string,
   destinationIata?: string,
-): ScheduleEntry[] | undefined {
-  const key = scheduleKey(originIata, date, destinationIata);
+  country?: string,
+): Promise<ScheduleEntry[] | undefined> {
+  const key = scheduleKey(originIata, date, destinationIata, country);
   try {
-    const result = getCache<ScheduleEntry[]>(key);
-    console.log(`[flightCache] schedule ${result ? 'HIT' : 'MISS'} ${key}`);
+    const result = await getCacheAsync<ScheduleEntry[]>(key);
+    log().debug({ key, hit: !!result }, 'flightCache schedule read');
     return result;
   } catch (err) {
-    console.warn(`[flightCache] schedule read failed, treating as MISS ${key}`, err);
+    log().warn({ key, err }, 'flightCache schedule read failed, treating as MISS');
     return undefined;
   }
 }
@@ -102,29 +122,30 @@ export function setScheduleCache(
   date: string,
   entries: ScheduleEntry[],
   destinationIata?: string,
+  country?: string,
 ): void {
-  const key = scheduleKey(originIata, date, destinationIata);
+  const key = scheduleKey(originIata, date, destinationIata, country);
   const ttl = scheduleTtlSeconds(date);
   if (ttl === null) {
-    console.log(`[flightCache] schedule SKIP ${key} (past date)`);
+    log().debug({ key }, 'flightCache schedule SKIP (past date)');
     return;
   }
   try {
-    console.log(`[flightCache] schedule SET ${key} ttl=${ttl}s entries=${entries.length}`);
+    log().debug({ key, ttl, entries: entries.length }, 'flightCache schedule SET');
     setCache(key, entries, ttl);
   } catch (err) {
-    console.warn(`[flightCache] schedule write failed, continuing without cache ${key}`, err);
+    log().warn({ key, err }, 'flightCache schedule write failed, continuing without cache');
   }
 }
 
 // ---------- Price cache ----------
 
-export function getPriceInfo(flightId: string): PriceInfo | undefined {
+export async function getPriceInfo(flightId: string): Promise<PriceInfo | undefined> {
   const key = priceKey(flightId);
   try {
-    const entry = getCache<PriceCacheEntry>(key);
+    const entry = await getCacheAsync<PriceCacheEntry>(key);
     if (!entry) {
-      console.log(`[flightCache] price MISS ${key}`);
+      log().debug({ key }, 'flightCache price MISS');
       return undefined;
     }
 
@@ -133,9 +154,9 @@ export function getPriceInfo(flightId: string): PriceInfo | undefined {
     // Stale entries remain in cache to support stale-while-revalidate — the caller triggers a
     // background refresh and returns the stale data immediately rather than blocking.
     const status: PriceStatus = ageSeconds > entry.softTtlSeconds ? 'stale' : 'cached';
-    console.log(
-      `[flightCache] price ${status === 'stale' ? 'STALE' : 'HIT'} ${key}` +
-        ` (age=${Math.round(ageSeconds)}s softTtl=${entry.softTtlSeconds}s)`,
+    log().debug(
+      { key, status, ageSeconds: Math.round(ageSeconds), softTtl: entry.softTtlSeconds },
+      'flightCache price read',
     );
 
     return {
@@ -147,7 +168,7 @@ export function getPriceInfo(flightId: string): PriceInfo | undefined {
       priceStatus: status,
     };
   } catch (err) {
-    console.warn(`[flightCache] price read failed, treating as MISS ${key}`, err);
+    log().warn({ key, err }, 'flightCache price read failed, treating as MISS');
     return undefined;
   }
 }
@@ -171,9 +192,9 @@ export function setPriceInfo(
   };
 
   try {
-    console.log(`[flightCache] price SET ${key} softTtl=${softTtl}s hardTtl=${hardTtl}s`);
+    log().debug({ key, softTtl, hardTtl }, 'flightCache price SET');
     setCache(key, entry, hardTtl);
   } catch (err) {
-    console.warn(`[flightCache] price write failed, continuing without cache ${key}`, err);
+    log().warn({ key, err }, 'flightCache price write failed, continuing without cache');
   }
 }

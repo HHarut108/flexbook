@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Polyline, ZoomControl, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Airport, TripLeg } from '@fast-travel/shared';
@@ -69,6 +69,7 @@ function computeArc(from: [number, number], to: [number, number], flipCurve = fa
   const dLat = lat2 - lat1;
   const dLng = lng2 - lng1;
   const dist = Math.sqrt(dLat * dLat + dLng * dLng);
+  if (dist === 0) return [from, to];
   // Return arcs curve more aggressively so they're clearly separate
   const curvature = flipCurve ? Math.min(dist * 0.35, 12) : Math.min(dist * 0.15, 8);
 
@@ -94,18 +95,54 @@ function computeArc(from: [number, number], to: [number, number], flipCurve = fa
 
 function AutoFit({ pins }: { pins: MapPin[] }) {
   const map = useMap();
+  // Depend on a stringified key so we only refit when coords actually change.
+  const coordsKey = pins.map((p) => `${p.lat.toFixed(3)},${p.lng.toFixed(3)}`).join('|');
   useEffect(() => {
     if (pins.length === 0) return;
     const bounds = L.latLngBounds(pins.map((p) => [p.lat, p.lng]));
     map.fitBounds(bounds, { padding: [60, 60], maxZoom: 6 });
-  }, [map, pins]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, coordsKey]);
   return null;
 }
 
-/* ── Route legend overlay ── */
+/* ── Keep Leaflet in sync with container size ──
+ *
+ * Without this, tiles render gray / misaligned whenever the wrapper resizes
+ * after mount: window resize, sticky sidebar settling, fonts loading,
+ * tab visibility flip, mobile rotation. invalidateSize() forces a re-layout. */
+
+function SizeWatcher() {
+  const map = useMap();
+  useEffect(() => {
+    const container = map.getContainer();
+    // Initial nudge — covers the case where the map mounted while the parent
+    // was still being sized (e.g. inside a Suspense boundary that just resolved
+    // or a sticky sidebar that hasn't laid out yet).
+    const initial = setTimeout(() => map.invalidateSize({ animate: false }), 50);
+
+    const ro = new ResizeObserver(() => {
+      map.invalidateSize({ animate: false });
+    });
+    ro.observe(container);
+
+    const onWinResize = () => map.invalidateSize({ animate: false });
+    window.addEventListener('resize', onWinResize);
+    window.addEventListener('orientationchange', onWinResize);
+
+    return () => {
+      clearTimeout(initial);
+      ro.disconnect();
+      window.removeEventListener('resize', onWinResize);
+      window.removeEventListener('orientationchange', onWinResize);
+    };
+  }, [map]);
+  return null;
+}
+
+/* ── Route legend overlay (line-type swatches only) ── */
 
 function RouteLegend({ legs }: { origin: Airport; legs: TripLeg[] }) {
-  const totalPrice = legs.reduce((sum, l) => sum + l.priceUsd, 0);
   const hasReturn = legs.some((l) => l.isReturn);
 
   return (
@@ -121,8 +158,20 @@ function RouteLegend({ legs }: { origin: Airport; legs: TripLeg[] }) {
             <span className="text-[10px] text-text-muted">return</span>
           </span>
         )}
-        <span className="text-[10px] font-bold text-orange ml-1">{formatPrice(totalPrice)}</span>
       </div>
+    </div>
+  );
+}
+
+/* ── Trip-total pill (separate corner, clearly labelled) ── */
+
+function TripTotalPill({ legs }: { legs: TripLeg[] }) {
+  const totalPrice = legs.reduce((sum, l) => sum + l.priceUsd, 0);
+  if (totalPrice <= 0) return null;
+  return (
+    <div className="trip-map-total">
+      <span className="trip-map-total__label">Trip total</span>
+      <span className="trip-map-total__amount">{formatPrice(totalPrice)}</span>
     </div>
   );
 }
@@ -135,7 +184,8 @@ interface Props {
 }
 
 export function TripMap({ origin, legs }: Props) {
-  const { pins, lines } = buildMapData(origin, legs);
+  // Memoize so AutoFit / arc useMemo don't refire on every parent render.
+  const { pins, lines } = useMemo(() => buildMapData(origin, legs), [origin, legs]);
 
   // Pre-compute arcs for all lines (must be before early return — hooks rule)
   const arcs = useMemo(
@@ -157,16 +207,24 @@ export function TripMap({ origin, legs }: Props) {
       <MapContainer
         center={[origin.city.lat, origin.city.lng]}
         zoom={4}
+        minZoom={2}
+        maxZoom={8}
         style={{ height: '100%', width: '100%' }}
         zoomControl={false}
         attributionControl={false}
+        scrollWheelZoom={true}
+        worldCopyJump={false}
+        maxBounds={[[-85, -180], [85, 180]]}
+        maxBoundsViscosity={1}
       >
         {/* CartoDB Voyager — clean, travel-appropriate tiles */}
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
         />
+        <SizeWatcher />
         <AutoFit pins={pins} />
+        <ZoomControl position="topright" />
 
         {/* Glow underline for arcs (rendered first, behind) */}
         {arcs.map((arc, i) => (
@@ -224,8 +282,11 @@ export function TripMap({ origin, legs }: Props) {
         &copy; OpenStreetMap &copy; CARTO
       </div>
 
-      {/* Route legend overlay */}
+      {/* Route legend overlay (line-types only) */}
       <RouteLegend origin={origin} legs={legs} />
+
+      {/* Trip total — separate corner so it doesn't read as "return = $X" */}
+      <TripTotalPill legs={legs} />
     </div>
   );
 }

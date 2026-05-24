@@ -45,6 +45,127 @@
         "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/relaxed-chatelet-4699c2/admin && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5177"
       ],
       "port": 5177
+    },
+    {
+      "name": "Frontend-compassionate (Vite :5180)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/compassionate-dijkstra-47c519/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5180"
+      ],
+      "port": 5180
+    },
+    {
+      "name": "Frontend-tender (Vite :5181)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/tender-torvalds-0e711e/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5181"
+      ],
+      "port": 5181
+    },
+    {
+      "name": "Frontend-silly (Vite :5184)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/silly-hoover-0b1c5f/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5184"
+      ],
+      "port": 5184
+    },
+    {
+      "name": "Frontend-gracious (Vite :5185)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/gracious-heisenberg-f83ea5/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5185"
+      ],
+      "port": 5185
+    },
+    {
+      "name": "Frontend-infallible (Vite :5186)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/infallible-chebyshev-c5f52d/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5186"
+      ],
+      "port": 5186
+    },
+    {
+      "name": "Frontend-musing-wing (Vite :5187)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/musing-wing-fb3f15/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5187"
+      ],
+      "port": 5187
+    },
+    {
+      "name": "Admin-musing-wing (Vite :5188)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/musing-wing-fb3f15/admin && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5188"
+      ],
+      "port": 5188
+    },
+    {
+      "name": "Frontend-eloquent-hoover (Vite :5189)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/eloquent-hoover-601c97/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5189"
+      ],
+      "port": 5189
+    },
+    {
+      "name": "Frontend-vigorous-gagarin (Vite :5192)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/vigorous-gagarin-33a584/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5192 --strictPort"
+      ],
+      "port": 5192
+    },
+    {
+      "name": "Frontend-laughing-pasteur (Vite)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/laughing-pasteur-f18d70/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port ${PORT}"
+      ],
+      "port": 5194,
+      "autoPort": true
+    },
+    {
+      "name": "Frontend-dazzling-ramanujan (Vite)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/dazzling-ramanujan-df93d5/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port ${PORT}"
+      ],
+      "port": 5196,
+      "autoPort": true
+    },
+    {
+      "name": "Frontend-dreamy-dijkstra (Vite)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/dreamy-dijkstra-5750fa/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port ${PORT}"
+      ],
+      "port": 5198,
+      "autoPort": true
+    },
+    {
+      "name": "Frontend-jolly-williams (Vite)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/jolly-williams-fb508a/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port ${PORT}"
+      ],
+      "port": 5200,
+      "autoPort": true
     }
   ]
 }

@@ -36,7 +36,20 @@ export const useTripStore = create<TripState>((set, get) => ({
 
   setPassengers: (count) => set({ passengers: Math.max(1, Math.min(9, count)) }),
 
-  addLeg: (leg) => set((s) => ({ legs: [...s.legs, leg] })),
+  addLeg: (leg) =>
+    set((s) => {
+      if (leg.isReturn) {
+        const outbound = s.legs.filter((l) => !l.isReturn);
+        return { legs: [...outbound, leg] };
+      }
+      const existingIdx = s.legs.findIndex((l) => !l.isReturn && l.flightId === leg.flightId);
+      if (existingIdx >= 0) {
+        const next = [...s.legs];
+        next[existingIdx] = leg;
+        return { legs: next };
+      }
+      return { legs: [...s.legs, leg] };
+    }),
 
   updateStay: (stopIndex, days, nextDepartureDate) =>
     set((s) => ({

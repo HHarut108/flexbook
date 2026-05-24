@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, useMemo, useState, useCallback } from 'react';
 import { TripLeg } from '@fast-travel/shared';
+import { Helmet } from 'react-helmet-async';
+import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
-import { useSessionStore } from '../store/session.store';
 import { fetchAirlineLogos } from '../api/airlines.api';
 import { formatDate, formatTime, durationLabel } from '../utils/date.utils';
 import { formatPrice, totalPrice } from '../utils/price.utils';
@@ -22,7 +23,9 @@ import {
   Luggage,
   CheckCircle2,
   Menu,
+  Headphones as HeadphonesIcon,
 } from 'lucide-react';
+import { AssistanceRequestModal } from '../components/AssistanceRequestModal';
 
 const TripMap = lazy(() => import('../components/TripMap').then((m) => ({ default: m.TripMap })));
 
@@ -47,9 +50,6 @@ function formatTravelWindow(legs: TripLeg[]) {
   return `${formatDate(legs[0].departureDatetime)} – ${formatDate(legs[legs.length - 1].arrivalDatetime)}`;
 }
 
-function uniqueBookingUrls(legs: TripLeg[]) {
-  return Array.from(new Set(legs.map((l) => l.bookingUrl).filter(Boolean)));
-}
 
 function totalDurationMinutes(legs: TripLeg[]) {
   return legs.reduce((sum, l) => sum + l.durationMinutes, 0);
@@ -174,6 +174,7 @@ function FlightLegRow({
                 src={logoUrl}
                 alt={`${leg.airlineName} logo`}
                 className="h-6 w-8 object-contain"
+                loading="lazy"
                 onError={() => setImageFailed(true)}
               />
             ) : (
@@ -360,11 +361,12 @@ function PriceBreakdown({ legs }: { legs: TripLeg[] }) {
 /* ── Main Screen ── */
 
 export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?: boolean; onMenuOpen?: () => void } = {}) {
+  const navigate = useNavigate();
   const origin = useTripStore((s) => s.origin);
   const allLegs = useTripStore((s) => s.legs);
-  const setScreen = useSessionStore((s) => s.setScreen);
   const [bulkStarted, setBulkStarted] = useState(false);
   const [bookingConfirm, setBookingConfirm] = useState(false);
+  const [assistModalOpen, setAssistModalOpen] = useState(false);
   const [airlineLogos, setAirlineLogos] = useState<Record<string, string>>({});
 
   const relevantLegs = partial ? allLegs.filter((l) => !l.isReturn) : allLegs;
@@ -374,12 +376,11 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
     [relevantLegs],
   );
   const total = totalPrice(orderedLegs);
-  const uniqueUrls = useMemo(() => uniqueBookingUrls(orderedLegs), [orderedLegs]);
   const tripCities = [origin?.city.name, ...orderedLegs.map((l) => l.destinationCity)].filter(Boolean);
   const travelWindow = formatTravelWindow(orderedLegs);
   const totalFlightTime = totalDurationMinutes(orderedLegs);
 
-  const backScreen = partial ? 'decision' : 'itinerary';
+  const backScreen = partial ? '/review' : '/itinerary';
 
   useEffect(() => {
     let cancelled = false;
@@ -398,13 +399,80 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
       return;
     }
     setBulkStarted(true);
-    uniqueUrls.forEach((url) => {
-      window.open(url, '_blank', 'noopener,noreferrer');
+    let firstTab: Window | null = null;
+    orderedLegs.forEach((leg) => {
+      if (leg.bookingUrl) {
+        const tab = window.open(leg.bookingUrl, '_blank', 'noopener,noreferrer');
+        if (!firstTab && tab) firstTab = tab;
+      }
     });
-  }, [bookingConfirm, uniqueUrls]);
+    if (firstTab) (firstTab as Window).focus();
+  }, [bookingConfirm, orderedLegs]);
+
+  /* ── Booking CTA panel (shared between mobile inline + desktop sidebar) ── */
+  const ctaPanel = (
+    <div className="section-shell px-4 py-4">
+      {!bookingConfirm ? (
+        <>
+          <button
+            className="btn-primary flex items-center justify-center gap-2"
+            onClick={handleBookAll}
+            style={{ minHeight: '48px' }}
+            aria-label={`Book entire itinerary for ${formatPrice(total)}`}
+          >
+            <ExternalLink size={16} />
+            Book this itinerary · {formatPrice(total)}
+          </button>
+          <p className="text-[11px] text-text-muted text-center mt-2 leading-relaxed">
+            This will open each booking in a new tab — one per flight.
+            Check final prices before completing each purchase.
+          </p>
+        </>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-start gap-3 rounded-xl bg-[#FFF7ED] border border-orange/20 px-3 py-3">
+            <ShieldCheck size={18} className="text-orange shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-text-primary mb-0.5">Ready to open booking pages?</p>
+              <p className="text-xs text-text-muted leading-relaxed">
+                This will open {orderedLegs.length} tab{orderedLegs.length > 1 ? 's' : ''} — one for each flight leg.
+                Check final prices, baggage rules, and layover details on each page.
+              </p>
+            </div>
+          </div>
+          <button
+            className="btn-primary flex items-center justify-center gap-2"
+            onClick={handleBookAll}
+            style={{ minHeight: '48px' }}
+          >
+            {bulkStarted ? (
+              <><CheckCircle2 size={16} /> Booking pages opened</>
+            ) : (
+              <><ExternalLink size={16} /> Confirm — open all booking pages</>
+            )}
+          </button>
+          {!bulkStarted && (
+            <button
+              className="w-full text-center text-sm text-text-muted py-2 hover:text-text-primary transition-colors"
+              onClick={() => setBookingConfirm(false)}
+            >
+              Cancel
+            </button>
+          )}
+          {bulkStarted && (
+            <p className="text-xs text-text-muted text-center flex items-center justify-center gap-1.5">
+              <CheckCircle2 size={12} className="text-emerald-500" />
+              Opened {orderedLegs.length} tab{orderedLegs.length > 1 ? 's' : ''} — your first flight is shown
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="pb-8">
+      <Helmet><title>{partial ? 'Book flights so far' : 'Book your trip'} · FlexBook</title></Helmet>
       {/* ── Top brand header ── */}
       <div
         className="sticky top-0 z-50 px-4 py-2.5 flex items-center justify-between"
@@ -427,10 +495,9 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
       {/* ── Hero header ── */}
       <div className="px-4 pt-4 pb-3">
         <div className="hero-panel">
-          {/* Back + title */}
           <div className="flex items-start gap-3 mb-4">
             <button
-              onClick={() => setScreen(backScreen)}
+              onClick={() => navigate(backScreen)}
               className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white border border-border hover:bg-indigo-soft hover:border-indigo-border transition-all text-text-muted shrink-0"
               style={{ minHeight: '44px', minWidth: '44px' }}
               aria-label={partial ? 'Back to trip planning' : 'Back to trip overview'}
@@ -447,7 +514,6 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
             </div>
           </div>
 
-          {/* Stats row */}
           <div className="grid grid-cols-3 gap-2 mb-3">
             <div className="rounded-xl bg-white border border-border px-3 py-2.5 text-center">
               <p className="text-[9px] uppercase tracking-[0.16em] text-text-muted mb-0.5">Flights</p>
@@ -463,7 +529,6 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
             </div>
           </div>
 
-          {/* Travel window */}
           {travelWindow && (
             <div className="rounded-xl bg-white/70 border border-border/60 px-3 py-2 flex items-center gap-2 mb-3">
               <CalendarDays size={13} className="text-indigo shrink-0" />
@@ -471,141 +536,119 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
             </div>
           )}
 
-          {/* Journey timeline */}
           {origin && (
             <JourneyTimeline legs={orderedLegs} origin={origin.city.name} />
           )}
         </div>
       </div>
 
-      {/* ── Route map ── */}
-      {origin && (
-        <div className="px-4 mb-3">
-          <div className="section-shell px-3 py-3">
+      {/* ── Body: single column on mobile, 2-panel from md: up ── */}
+      <div className="md:flex md:gap-5 md:px-4 md:items-start md:max-w-6xl md:mx-auto xl:max-w-7xl">
+
+        {/* ── Left: flight leg details ── */}
+        <div className="flex-1 min-w-0">
+          <div className="px-4 md:px-0">
             <div className="flex items-center gap-2 mb-2">
-              <Map size={13} className="text-indigo" />
+              <Luggage size={13} className="text-text-muted" />
               <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold">
-                {partial ? 'Your route so far' : 'Full route'}
+                Flight details
               </p>
+              <span className="text-[10px] text-text-muted">— tap to expand</span>
             </div>
-            <div style={{ height: '200px' }} className="rounded-2xl overflow-hidden">
-              <MapErrorBoundary>
-                <Suspense fallback={<div className="h-full bg-surface rounded-2xl animate-pulse" />}>
-                  <TripMap origin={origin} legs={relevantLegs} />
-                </Suspense>
-              </MapErrorBoundary>
+            <div className="space-y-2">
+              {orderedLegs.map((leg, index) => (
+                <FlightLegRow
+                  key={`${leg.stopIndex}-${leg.flightId}`}
+                  leg={leg}
+                  index={index + 1}
+                  isReturn={leg.isReturn}
+                  logoUrl={leg.airlineCode ? airlineLogos[leg.airlineCode.toUpperCase()] : undefined}
+                  defaultExpanded={orderedLegs.length <= 2}
+                />
+              ))}
             </div>
           </div>
+
+          {/* Back button — mobile only (desktop uses sidebar) */}
+          <div className="px-4 mt-5 md:hidden">
+            <button
+              className="btn-outline"
+              onClick={() => navigate(backScreen)}
+              style={{ minHeight: '44px' }}
+            >
+              {partial ? 'Back to trip planning' : 'Back to trip overview'}
+            </button>
+          </div>
         </div>
-      )}
 
-      {/* ── Price breakdown ── */}
-      <div className="px-4 mb-3">
-        <PriceBreakdown legs={orderedLegs} />
-      </div>
+        {/* ── Right sidebar: map + price + CTAs (mobile: inline above legs; md+: sticky sidebar) ── */}
+        <div className="md:w-72 lg:w-80 xl:w-96 md:flex-shrink-0 md:sticky md:top-16 md:space-y-3">
 
-      {/* ── Primary CTA: Book this itinerary ── */}
-      <div className="px-4 mb-4">
-        <div className="section-shell px-4 py-4">
-          {!bookingConfirm ? (
-            <>
-              <button
-                className="btn-primary flex items-center justify-center gap-2"
-                onClick={handleBookAll}
-                style={{ minHeight: '48px' }}
-                aria-label={`Book entire itinerary for ${formatPrice(total)}`}
-              >
-                <ExternalLink size={16} />
-                Book this itinerary · {formatPrice(total)}
-              </button>
-              <p className="text-[11px] text-text-muted text-center mt-2 leading-relaxed">
-                Opens {uniqueUrls.length} booking page{uniqueUrls.length > 1 ? 's' : ''} in new tabs.
-                Check final prices before completing each purchase.
-              </p>
-            </>
-          ) : (
-            /* Confirmation step */
-            <div className="space-y-3">
-              <div className="flex items-start gap-3 rounded-xl bg-[#FFF7ED] border border-orange/20 px-3 py-3">
-                <ShieldCheck size={18} className="text-orange shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-semibold text-text-primary mb-0.5">Ready to open booking pages?</p>
-                  <p className="text-xs text-text-muted leading-relaxed">
-                    This will open {uniqueUrls.length} tab{uniqueUrls.length > 1 ? 's' : ''} with the airlines' booking pages.
-                    Check final prices, baggage rules, and layover details on each page.
+          {/* Route map */}
+          {origin && (
+            <div className="px-4 mb-3 md:px-0 md:mb-0">
+              <div className="section-shell px-3 py-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Map size={13} className="text-indigo" />
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold">
+                    {partial ? 'Your route so far' : 'Full route'}
                   </p>
                 </div>
+                <div style={{ height: '200px' }} className="rounded-2xl overflow-hidden">
+                  <MapErrorBoundary>
+                    <Suspense fallback={<div className="h-full bg-surface rounded-2xl animate-pulse" />}>
+                      <TripMap origin={origin} legs={relevantLegs} />
+                    </Suspense>
+                  </MapErrorBoundary>
+                </div>
               </div>
-              <button
-                className="btn-primary flex items-center justify-center gap-2"
-                onClick={handleBookAll}
-                style={{ minHeight: '48px' }}
-              >
-                {bulkStarted ? (
-                  <>
-                    <CheckCircle2 size={16} /> Booking pages opened
-                  </>
-                ) : (
-                  <>
-                    <ExternalLink size={16} /> Confirm — open all booking pages
-                  </>
-                )}
-              </button>
-              {!bulkStarted && (
-                <button
-                  className="w-full text-center text-sm text-text-muted py-2 hover:text-text-primary transition-colors"
-                  onClick={() => setBookingConfirm(false)}
-                >
-                  Cancel
-                </button>
-              )}
-              {bulkStarted && (
-                <p className="text-xs text-text-muted text-center flex items-center justify-center gap-1.5">
-                  <CheckCircle2 size={12} className="text-emerald-500" />
-                  Opened {uniqueUrls.length} booking page{uniqueUrls.length > 1 ? 's' : ''} in new tabs
-                </p>
-              )}
             </div>
           )}
+
+          {/* Price breakdown */}
+          <div className="px-4 mb-3 md:px-0 md:mb-0">
+            <PriceBreakdown legs={orderedLegs} />
+          </div>
+
+          {/* Book CTA */}
+          <div className="px-4 mb-4 md:px-0 md:mb-0">
+            {ctaPanel}
+          </div>
+
+          {/* Assistant help */}
+          <div className="px-4 mb-4 md:px-0 md:mb-0">
+            <button
+              className="w-full flex items-center justify-center gap-2 rounded-2xl border border-indigo-border bg-indigo-soft/40 text-indigo px-4 py-3 text-sm font-semibold hover:bg-indigo-soft transition-colors active:scale-[0.98]"
+              style={{ minHeight: '48px' }}
+              onClick={() => setAssistModalOpen(true)}
+              aria-label="Request assistant help with booking"
+            >
+              <HeadphonesIcon size={16} />
+              Request assistant help
+            </button>
+          </div>
+
+          {/* Back button — desktop only */}
+          <div className="hidden md:block px-0">
+            <button
+              className="btn-outline"
+              onClick={() => navigate(backScreen)}
+              style={{ minHeight: '44px' }}
+            >
+              {partial ? 'Back to trip planning' : 'Back to trip overview'}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* ── Flight legs (expandable) ── */}
-      <div className="px-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Luggage size={13} className="text-text-muted" />
-          <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold">
-            Flight details
-          </p>
-          <span className="text-[10px] text-text-muted">
-            — tap to expand
-          </span>
-        </div>
-
-        <div className="space-y-2">
-          {orderedLegs.map((leg, index) => (
-            <FlightLegRow
-              key={`${leg.stopIndex}-${leg.flightId}`}
-              leg={leg}
-              index={index + 1}
-              isReturn={leg.isReturn}
-              logoUrl={leg.airlineCode ? airlineLogos[leg.airlineCode.toUpperCase()] : undefined}
-              defaultExpanded={orderedLegs.length <= 2}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* ── Bottom nav ── */}
-      <div className="px-4 mt-5">
-        <button
-          className="btn-outline"
-          onClick={() => setScreen(backScreen)}
-          style={{ minHeight: '44px' }}
-        >
-          {partial ? 'Back to trip planning' : 'Back to trip overview'}
-        </button>
-      </div>
+      {assistModalOpen && (
+        <AssistanceRequestModal
+          onClose={() => setAssistModalOpen(false)}
+          origin={origin?.city.name}
+          legs={orderedLegs}
+          total={total}
+        />
+      )}
     </div>
   );
 }

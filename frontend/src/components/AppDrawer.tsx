@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSavedTripsStore, SavedTrip } from '../store/saved-trips.store';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
+import { useAuthStore } from '../store/auth.store';
+import { authApi } from '../api/auth.api';
 import { buildSlugShareUrl } from '../utils/url.utils';
 import { createTripShare } from '../api/trips.api';
 import { formatPrice } from '../utils/price.utils';
-import { ApiModeSwitcher } from './ApiModeSwitcher';
-import { X, MapPin, Share2, Trash2, Plane, BookmarkCheck, Loader2 } from 'lucide-react';
+import { useThemeStore } from '../store/theme.store';
+import { X, MapPin, Share2, Trash2, Plane, BookmarkCheck, Loader2, Sun, Moon, User, LogOut, ChevronRight } from 'lucide-react';
 import { GoHomeLogo } from './GoHomeLogo';
 
 interface Props {
@@ -83,12 +86,26 @@ function SavedTripCard({
 }
 
 export function AppDrawer({ open, onClose }: Props) {
+  const navigate = useNavigate();
   const { trips, deleteTrip } = useSavedTripsStore();
   const loadFromItinerary = useTripStore((s) => s.loadFromItinerary);
-  const setScreen = useSessionStore((s) => s.setScreen);
   const showToast = useSessionStore((s) => s.showToast);
   const showShareModal = useSessionStore((s) => s.showShareModal);
+  const theme = useThemeStore((s) => s.theme);
+  const setTheme = useThemeStore((s) => s.setTheme);
+  const { user, logout } = useAuthStore();
   const [sharingTripId, setSharingTripId] = useState<string | null>(null);
+
+  async function handleLogout() {
+    try { await authApi.logout(); } catch { /* ignore */ }
+    logout();
+    onClose();
+  }
+
+  function goTo(path: string) {
+    navigate(path);
+    onClose();
+  }
 
   // Lock body scroll when open
   useEffect(() => {
@@ -103,11 +120,11 @@ export function AppDrawer({ open, onClose }: Props) {
   function handleLoad(trip: SavedTrip) {
     loadFromItinerary(trip.itinerary);
     if (trip.itinerary.status === 'complete') {
-      setScreen('itinerary');
+      navigate('/itinerary');
     } else if (trip.itinerary.legs.length > 0) {
-      setScreen('decision');
+      navigate('/review');
     } else {
-      setScreen('flight-results');
+      navigate('/flights');
     }
     onClose();
   }
@@ -140,22 +157,24 @@ export function AppDrawer({ open, onClose }: Props) {
         onClick={onClose}
       />
 
-      {/* Drawer panel */}
+      {/* Drawer panel
+          Mobile: slides down from the top edge (full width, capped at 448).
+          md+: slides in from the right as a side drawer (420px wide).        */}
       <div
-        className={`fixed top-0 left-0 right-0 z-[201] max-w-[448px] mx-auto transition-transform duration-300 ease-out ${
-          open ? 'translate-y-0' : '-translate-y-full'
-        }`}
+        className={`fixed z-[201] transition-transform duration-300 ease-out
+          top-0 left-0 right-0 max-w-[448px] mx-auto ${open ? 'translate-y-0' : '-translate-y-full'}
+          md:left-auto md:right-0 md:mx-0 md:w-[420px] md:max-w-none md:h-screen md:translate-y-0
+          ${open ? 'md:translate-x-0' : 'md:translate-x-full'}`}
       >
         <div
-          className="bg-white rounded-b-3xl overflow-hidden"
+          className="bg-white overflow-hidden h-[100dvh] flex flex-col"
           style={{
-            maxHeight: '85vh',
             boxShadow: '0 24px 48px rgba(15,23,42,0.15)',
           }}
         >
           {/* Header */}
           <div
-            className="px-5 pt-5 pb-4 flex items-center justify-between"
+            className="px-5 pt-5 pb-4 flex items-center justify-between shrink-0"
             style={{
               background: 'linear-gradient(135deg, rgba(55,48,163,0.97) 0%, rgba(79,70,229,0.97) 100%)',
             }}
@@ -164,13 +183,77 @@ export function AppDrawer({ open, onClose }: Props) {
             <button
               onClick={onClose}
               className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center text-white hover:bg-white/25 transition-all active:scale-95"
+              aria-label="Close"
             >
               <X size={18} />
             </button>
           </div>
 
           {/* Content — scrollable */}
-          <div className="overflow-y-auto" style={{ maxHeight: 'calc(85vh - 72px)' }}>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+
+            {/* Account section */}
+            <div className="px-5 pt-5 pb-4 border-b border-border">
+              {user ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-indigo/15 border border-indigo-border flex items-center justify-center shrink-0">
+                      <span className="text-sm font-bold text-indigo leading-none">
+                        {user.firstName[0]}{user.lastName[0]}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-text-primary truncate">{user.firstName} {user.lastName}</p>
+                      <p className="text-xs text-text-muted truncate">{user.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => goTo('/account')}
+                      className="flex-1 flex items-center justify-between px-3 py-2.5 rounded-xl bg-indigo-soft border border-indigo-border text-xs font-semibold text-indigo hover:bg-indigo/10 transition-all"
+                    >
+                      <span>Account settings</span>
+                      <ChevronRight size={13} />
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className="w-10 h-10 rounded-xl border border-border flex items-center justify-center text-text-muted hover:text-red-500 hover:border-red-200 transition-all"
+                      title="Log out"
+                    >
+                      <LogOut size={15} />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-8 h-8 rounded-full bg-indigo/10 flex items-center justify-center">
+                      <User size={15} className="text-indigo" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-text-primary">Your account</p>
+                      <p className="text-xs text-text-muted">Save trips across devices</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => goTo('/login')}
+                      className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold text-text-primary hover:bg-surface-2 transition-all"
+                    >
+                      Log in
+                    </button>
+                    <button
+                      onClick={() => goTo('/signup')}
+                      className="flex-1 py-3 rounded-xl bg-indigo text-white text-sm font-semibold hover:bg-indigo/90 transition-all"
+                      style={{ boxShadow: '0 4px 12px rgba(55,48,163,0.2)' }}
+                    >
+                      Sign up
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Saved Trips */}
             <div className="px-5 pt-5 pb-4">
               <div className="flex items-center gap-2 mb-4">
@@ -184,7 +267,14 @@ export function AppDrawer({ open, onClose }: Props) {
                     <MapPin size={20} className="text-indigo" />
                   </div>
                   <p className="text-sm text-text-muted mb-1">No saved trips yet</p>
-                  <p className="text-xs text-text-xmuted">Plan a trip and save it for later.</p>
+                  <p className="text-xs text-text-xmuted mb-4">Plan a trip and save it for later.</p>
+                  <button
+                    onClick={() => { navigate('/'); onClose(); }}
+                    className="inline-flex items-center gap-2 rounded-2xl bg-indigo text-white text-sm font-semibold px-5 py-2.5 hover:bg-indigo/90 transition-all active:scale-95"
+                    style={{ boxShadow: '0 8px 20px rgba(55,48,163,0.25)' }}
+                  >
+                    Plan a new trip
+                  </button>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -207,10 +297,35 @@ export function AppDrawer({ open, onClose }: Props) {
               <h3 className="text-sm font-bold uppercase tracking-wider text-text-muted mb-3 mt-3">Settings</h3>
               <div className="flex items-center justify-between bg-surface-2 rounded-2xl px-4 py-3">
                 <div>
-                  <p className="text-sm font-medium text-text-primary">Data source</p>
-                  <p className="text-xs text-text-muted">Switch between mock and live API</p>
+                  <p className="text-sm font-medium text-text-primary">Appearance</p>
+                  <p className="text-xs text-text-muted">Switch between light and dark</p>
                 </div>
-                <ApiModeSwitcher />
+                <div
+                  role="group"
+                  aria-label="Theme"
+                  className="inline-flex items-center rounded-full bg-white border border-border p-0.5"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setTheme('light')}
+                    aria-pressed={theme === 'light'}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                      theme === 'light' ? 'bg-indigo text-white' : 'text-text-muted hover:text-text-primary'
+                    }`}
+                  >
+                    <Sun size={13} /> Light
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTheme('dark')}
+                    aria-pressed={theme === 'dark'}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                      theme === 'dark' ? 'bg-indigo text-white' : 'text-text-muted hover:text-text-primary'
+                    }`}
+                  >
+                    <Moon size={13} /> Dark
+                  </button>
+                </div>
               </div>
             </div>
           </div>

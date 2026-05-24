@@ -77,6 +77,10 @@ Start from your current city, discover the cheapest next places to fly, choose h
 - Shareable trip URL
 - Booking review screen
 - Plan Stay screen — per-city guide with live hotels, attractions, restaurants, and a day-by-day sketch, fetched dynamically from Google Places for any destination worldwide
+- Booking review date guard — past dates are blocked on the home screen; minimum selectable date is today
+- Per-leg booking tabs — the "Book this itinerary" button opens one browser tab per flight leg and focuses the first flight automatically
+- Assistant help request — a "Request assistant help" CTA on the booking review screen opens a modal where users can submit their name, email, and phone number to receive booking assistance
+- Admin: Assistance Requests section — a dedicated backoffice page lists all submitted assistance requests with full contact details and trip information (cities, route, estimated total, flight count)
 
 ## Project Structure
 

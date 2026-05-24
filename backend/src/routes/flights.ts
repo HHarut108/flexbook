@@ -11,13 +11,14 @@ const searchQuerySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD'),
   destination: z.string().length(3).toUpperCase().optional(),
   deduplicate: z.coerce.boolean().default(true),
-  limit: z.coerce.number().int().min(1).max(10).default(10),
   sort: z.enum(['price', 'duration', 'quality']).default('price'),
   maxStopovers: z.coerce.number().int().min(0).max(2).optional(),
   currency: z.string().length(3).toUpperCase().default('USD'),
   cabinClass: z.enum(['M', 'W', 'C', 'F']).optional(),
   passengers: z.coerce.number().int().min(1).max(9).default(1),
   apiMode: z.enum(['real', 'mock']).optional(),
+  fresh: z.coerce.boolean().default(false),
+  country: z.string().length(2).toUpperCase().optional(),
 });
 
 export async function flightRoutes(app: FastifyInstance) {
@@ -27,16 +28,17 @@ export async function flightRoutes(app: FastifyInstance) {
       return reply.status(400).send(fail('INVALID_PARAMS', parsed.error.issues[0]?.message ?? 'Invalid params'));
     }
 
-    const { originIata, date, destination, deduplicate, limit, sort, maxStopovers, currency, cabinClass, passengers, apiMode } = parsed.data;
+    const { originIata, date, destination, deduplicate, sort, maxStopovers, currency, cabinClass, passengers, apiMode, fresh, country } = parsed.data;
 
     const origin = airportService.getByIata(originIata);
     const originCity = origin?.city.name ?? originIata;
 
     try {
       const result = await flightService.search(
-        originIata, originCity, date, destination, deduplicate, limit,
-        { sort, maxStopovers, currency, cabinClass, passengers },
+        originIata, originCity, date, destination, deduplicate,
+        { sort, maxStopovers, currency, cabinClass, passengers, country },
         apiMode,
+        fresh,
       );
       return ok({ origin: originIata, date, cacheStatus: result.cacheStatus, results: result.flights });
     } catch (err) {
@@ -51,7 +53,7 @@ export async function flightRoutes(app: FastifyInstance) {
       }
       if (err instanceof SerpApiResponseError) {
         app.log.error(err, 'SerpAPI returned an error in response body');
-        return reply.status(503).send(fail('FLIGHT_API_ERROR', `SerpAPI error — check API key or quota. Detail: ${err.message}`, true));
+        return reply.status(503).send(fail('FLIGHT_API_ERROR', 'Flight search is temporarily unavailable. Please try again shortly.', true));
       }
       if (err instanceof RapidApiRateLimitError) {
         return reply.status(429).headers({ 'Retry-After': '60' }).send(
@@ -60,7 +62,7 @@ export async function flightRoutes(app: FastifyInstance) {
       }
       if (err instanceof RapidApiAuthError) {
         app.log.error(err, 'RapidAPI auth failure — invalid or missing API key');
-        return reply.status(503).send(fail('FLIGHT_API_AUTH_ERROR', 'RapidAPI key is invalid or missing. Check RAPIDAPI_KEY env var on Render.', true));
+        return reply.status(503).send(fail('FLIGHT_API_AUTH_ERROR', 'Flight search is temporarily unavailable. Please try again shortly.', true));
       }
       if (err instanceof RapidApiUnavailableError) {
         app.log.warn(err, 'RapidAPI temporarily unavailable');

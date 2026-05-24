@@ -1,10 +1,11 @@
 import { FlightOption } from '@fast-travel/shared';
 import { config } from '../config';
-import { KiwiSearchOptions } from '../providers/KiwiFlightProvider';
-import { fetchRapidApiKiwiFlights } from '../providers/RapidApiKiwiFlightProvider';
+import { fetchRapidApiKiwiFlights, KiwiSearchOptions } from '../providers/RapidApiKiwiFlightProvider';
 import { fetchSerpApiFlights, fetchSerpApiOpenFlights } from '../providers/SerpApiFlightProvider';
 import { fetchMockFlights } from '../providers/MockFlightProvider';
 import { airportService } from './AirportService';
+import { increment, CallType } from '../utils/apiMetrics';
+import { log } from '../utils/logger';
 import {
   ScheduleEntry,
   getScheduleCache,
@@ -94,29 +95,27 @@ function storePricesAndAttach(
   });
 }
 
-function attachCachedPrices(entries: ScheduleEntry[]): { flights: FlightOption[]; hasStale: boolean } {
+async function attachCachedPrices(
+  entries: ScheduleEntry[],
+): Promise<{ flights: FlightOption[]; hasStale: boolean; hasMissing: boolean }> {
   let hasStale = false;
-  const flights: FlightOption[] = entries.map((entry) => {
-    const priceInfo = getPriceInfo(entry.flightId);
-    if (!priceInfo || priceInfo.priceStatus === 'stale') hasStale = true;
-
-    const resolvedPriceInfo = priceInfo ?? {
-      amount: 0,
-      currency: 'USD',
-      provider: 'unknown',
-      deeplink: '',
-      priceUpdatedAt: new Date(0).toISOString(),
-      priceStatus: 'stale' as const,
-    };
-
+  let hasMissing = false;
+  const resolved = await Promise.all(entries.map(async (entry) => {
+    const priceInfo = await getPriceInfo(entry.flightId);
+    if (!priceInfo) {
+      hasMissing = true;
+      return null;
+    }
+    if (priceInfo.priceStatus === 'stale') hasStale = true;
     return {
       ...entry,
-      priceUsd: resolvedPriceInfo.amount,
-      bookingUrl: resolvedPriceInfo.deeplink,
-      priceInfo: resolvedPriceInfo,
-    };
-  });
-  return { flights, hasStale };
+      priceUsd: priceInfo.amount,
+      bookingUrl: priceInfo.deeplink,
+      priceInfo,
+    } as FlightOption;
+  }));
+  const flights = resolved.filter((f): f is FlightOption => f !== null);
+  return { flights, hasStale, hasMissing };
 }
 
 export class FlightService {
@@ -126,29 +125,78 @@ export class FlightService {
     date: string,
     destinationIata?: string,
     deduplicate = true,
-    limit = 10,
     options: KiwiSearchOptions = {},
     apiMode?: 'real' | 'mock',
+    bypassCache = false,
   ): Promise<FlightSearchResult> {
-    const provider: Provider = apiMode === 'mock' ? 'mock' : this.selectProvider();
+    const chain = this.providerChain(apiMode);
+    const country = options.country;
 
-    const cachedSchedule = getScheduleCache(originIata, date, destinationIata);
+    const cachedSchedule = bypassCache ? undefined : await getScheduleCache(originIata, date, destinationIata, country);
     if (cachedSchedule) {
-      const { flights, hasStale } = attachCachedPrices(cachedSchedule);
-      if (hasStale) {
-        this.refreshInBackground({ originIata, originCity, date, destinationIata, provider, options, deduplicate });
+      const { flights, hasStale, hasMissing } = await attachCachedPrices(cachedSchedule);
+      // Fall through to a live fetch when no flights remain after dropping
+      // entries with no cached price — otherwise the user sees an empty list.
+      if (flights.length > 0) {
+        if (hasStale || hasMissing) {
+          this.refreshInBackground({ originIata, originCity, date, destinationIata, chain, options, deduplicate });
+        }
+        return { flights, cacheStatus: 'schedule_cached' };
       }
-      return { flights: flights.slice(0, limit), cacheStatus: 'schedule_cached' };
     }
 
-    const raw = await this.callProvider(provider, originIata, originCity, date, destinationIata, options);
+    const { raw, usedProvider } = await this.callWithFallback(
+      chain, originIata, originCity, date, destinationIata, options,
+    );
     const processed = this.processFlights(raw, originIata, deduplicate);
-    const top10 = processed.slice(0, 10);
 
-    setScheduleCache(originIata, date, top10.map(toScheduleEntry), destinationIata);
-    const withPrices = storePricesAndAttach(top10, provider, date);
+    setScheduleCache(originIata, date, processed.map(toScheduleEntry), destinationIata, country);
+    const withPrices = storePricesAndAttach(processed, usedProvider, date);
 
-    return { flights: withPrices.slice(0, limit), cacheStatus: 'live' };
+    return { flights: withPrices, cacheStatus: 'live' };
+  }
+
+  /** Ordered list of providers to try, from primary to fallback. */
+  private providerChain(apiMode?: 'real' | 'mock'): Provider[] {
+    if (apiMode === 'mock') return ['mock'];
+    const chain: Provider[] = [];
+    if (config.RAPIDAPI_KEY) chain.push('rapidapi-kiwi');
+    if (config.SERPAPI_API_KEY) chain.push('serpapi');
+    if (chain.length === 0) chain.push('mock');
+    return chain;
+  }
+
+  /**
+   * Iterates through the provider chain until one succeeds.
+   * Increments the metric with 'primary' for the first provider and 'fallback' for any retry.
+   */
+  private async callWithFallback(
+    chain: Provider[],
+    originIata: string,
+    originCity: string,
+    date: string,
+    destinationIata: string | undefined,
+    options: KiwiSearchOptions,
+  ): Promise<{ raw: FlightOption[]; usedProvider: string }> {
+    let lastError: unknown;
+    for (let i = 0; i < chain.length; i++) {
+      const provider = chain[i];
+      const callType: CallType = i === 0 ? 'primary' : 'fallback';
+      increment(provider, callType);
+      try {
+        const raw = await this.callProvider(provider, originIata, originCity, date, destinationIata, options);
+        return { raw, usedProvider: provider };
+      } catch (err) {
+        lastError = err;
+        if (i < chain.length - 1) {
+          log().warn(
+            { provider, nextProvider: chain[i + 1], err: err instanceof Error ? err.message : err },
+            'FlightService provider failed, falling back',
+          );
+        }
+      }
+    }
+    throw lastError;
   }
 
   private async callProvider(
@@ -183,35 +231,23 @@ export class FlightService {
     originCity: string;
     date: string;
     destinationIata?: string;
-    provider: Provider;
+    chain: Provider[];
     options: KiwiSearchOptions;
     deduplicate: boolean;
   }): void {
-    const { originIata, originCity, date, destinationIata, provider, options, deduplicate } = params;
-    Promise.resolve()
-      .then(async () => {
-        try {
-          console.log(`[flightCache] background refresh start ${originIata}:${date}`);
-          const raw = await this.callProvider(provider, originIata, originCity, date, destinationIata, options);
-          const top10 = this.processFlights(raw, originIata, deduplicate).slice(0, 10);
-          setScheduleCache(originIata, date, top10.map(toScheduleEntry), destinationIata);
-          storePricesAndAttach(top10, provider, date);
-          console.log(`[flightCache] background refresh done ${originIata}:${date}`);
-        } catch (err) {
-          console.warn(`[flightCache] background refresh failed ${originIata}:${date}`, err);
-        }
-      })
-      .catch((err) => {
-        // Belt-and-suspenders: the inner try/catch should absorb all errors, but guard
-        // here too so a bug in the catch block itself never causes an unhandled rejection.
-        console.warn(`[flightCache] background refresh uncaught ${originIata}:${date}`, err);
-      });
-  }
-
-  private selectProvider(): Provider {
-    if (config.RAPIDAPI_KEY) return 'rapidapi-kiwi';
-    if (config.SERPAPI_API_KEY) return 'serpapi';
-    return 'mock';
+    const { originIata, originCity, date, destinationIata, chain, options, deduplicate } = params;
+    void (async () => {
+      try {
+        const { raw, usedProvider } = await this.callWithFallback(
+          chain, originIata, originCity, date, destinationIata, options,
+        );
+        const processed = this.processFlights(raw, originIata, deduplicate);
+        setScheduleCache(originIata, date, processed.map(toScheduleEntry), destinationIata, options.country);
+        storePricesAndAttach(processed, usedProvider, date);
+      } catch (err) {
+        log().warn({ originIata, date, err }, 'flightCache background refresh failed');
+      }
+    })();
   }
 }
 

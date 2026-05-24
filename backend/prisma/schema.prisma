@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id                       String   @id @default(cuid())
+  email                    String   @unique
+  passwordHash             String
+  firstName                String
+  lastName                 String
+  gender                   String?  // male | female | other | prefer_not_to_say
+  birthday                 String?
+  countryOfResidenceCode   String?
+  countryOfResidenceName   String?
+  emailVerified            Boolean  @default(false)
+  lastLoginAt              DateTime?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  citizenships UserCitizenship[]
+  visas        UserVisa[]
+  otps         OTP[]
+}
+
+model UserCitizenship {
+  id             String  @id @default(cuid())
+  userId         String
+  countryCode    String
+  countryName    String
+  documentNumber String?
+  isPrimary      Boolean @default(false)
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  visas UserVisa[]
+}
+
+model UserVisa {
+  id             String  @id @default(cuid())
+  userId         String
+  citizenshipId  String
+  countryCode    String
+  countryName    String
+  visaType       String?
+  documentNumber String?
+  validUntil     String?
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  citizenship UserCitizenship @relation(fields: [citizenshipId], references: [id], onDelete: Cascade)
+}
+
+model OTP {
+  id        String   @id @default(cuid())
+  userId    String
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

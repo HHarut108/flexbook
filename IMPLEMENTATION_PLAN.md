@@ -1,6 +1,6 @@
 # FlexBook — Implementation Plan
 
-> **Last updated:** 2026-04-29
+> **Last updated:** 2026-05-10
 > **Status key:** `[ ]` Not started · `[~]` In progress · `[x]` Done · `[!]` Blocked
 
 ---
@@ -9,27 +9,30 @@
 
 FlexBook is a mobile-first trip builder that chains up to 15 one-way cheap flights into multi-stop adventures. No login, no databases—just URL-encoded state, React + Fastify, and pure flexibility.
 
-### Screen flow (current — 7 screens)
+### Screen flow (current — 7 screens + React Router v6)
 
 ```
-S1 Origin Search  ──►  S2 Flight Results  ◄──► [DatePickerOverlay]
-                              │
-                              ▼
-                        S3 Stay Duration
-                              │
-                              ▼
-                         S4 Decision
-                        ╱            ╲
-      Continue destination     Wrap up and fly home
-                  │                      │
-                  ▼                      ▼
-           S2 Flight Results      S5 Return Flights
-                                         │
-                                         ▼
-                                    S6 Itinerary
-                                         │
-                                         ▼
-                                  S7 Booking Review
+/          Origin Search  ──►  /flights  Flight Results  ◄──► [DatePickerScreen at /date]
+                                    │
+                                    ▼
+                              /stay  Stay Duration
+                                    │
+                                    ▼
+                            /review  Decision
+                           ╱                  ╲
+          Continue destination          Wrap up and fly home
+                    │                              │
+                    ▼                              ▼
+           /flights  Flight Results        /return  Return Flights
+                                                   │
+                                                   ▼
+                                         /itinerary  Itinerary
+                                                   │
+                                                   ▼
+                                          /book  Booking Review
+                                          /book/partial  (partial booking)
+
+/share/:slug  → ShareRedirect (hydrates trip from backend, navigates to /itinerary)
 ```
 
 **Key design decisions:**
@@ -43,13 +46,14 @@ S1 Origin Search  ──►  S2 Flight Results  ◄──► [DatePickerOverlay]
 - **Booking review supports airline branding.** When `AIRHEX_API_KEY` is configured, the screen shows real airline logos; otherwise it falls back to airline initials.
 - **Mock provider respects destination.** When `destinationIata` is passed, the mock returns targeted flights to that city; for cities outside the static list it generates synthetic direct + via-hub options.
 
-### Validation snapshot (2026-04-02)
+### Validation snapshot (2026-05-10)
 
-- `npx tsc --noEmit` (frontend + backend) — passes, zero errors
-- `npm run lint` (frontend) — passes, zero errors
-- Backend endpoints verified: `/health`, `/airports/search`, `/airports/nearby`, `/airports/nearby-coords`, `/flights/search`, `/weather/batch`, `/airlines/logos`
-- Reload loop bug fixed: stable string primitives in `useEffect` deps
-- URL state (`?t=`) persists and restores full trip on refresh
+- `npx tsc --noEmit` — pre-existing type gaps in `@fast-travel/shared` (PriceInfo/PriceStatus) and `resend` module; no regressions introduced in Phase 6
+- Backend test suite: 60/64 tests pass; 4 pre-existing failures in `FlightService.test.ts` (limit enforcement) and `flights.test.ts` unrelated to Phase 6 changes
+- `flightCache.test.ts`: 15/15 pass after async migration
+- Backend endpoints: `/health`, `/airports/*`, `/flights/search`, `/weather/batch`, `/airlines/logos`, `/trips`, `/city-guide`, `/places`, `/metrics`, `/cron/daily-report`, `/country-info`
+- React Router v6: all screens navigate by URL path; browser back/forward works; `/share/:slug` hydrates from backend
+- URL state (`?t=`): persists trip on refresh; pre-render hydration ensures `RequireOrigin` guard sees correct state
 
 ---
 
@@ -130,9 +134,9 @@ S1 Origin Search  ──►  S2 Flight Results  ◄──► [DatePickerOverlay]
 | # | Task | Status | Notes |
 |---|------|--------|-------|
 | 3.1 | Zustand `trip.store` — `origin`, `legs`, `addLeg`, `canContinue`, `reset` | `[x]` | Max 15 non-return legs enforced |
-| 3.2 | Zustand `session.store` — current screen, pending flights, selected flight | `[x]` | Screen type: `'home' \| 'flight-results' \| 'stay-duration' \| 'decision' \| 'return-flights' \| 'itinerary' \| 'booking-review'` |
-| 3.3 | URL sync — active trip state persisted to `?t=` on every change | `[x]` | `useUrlSync` hook in `App.tsx`; restores screen + trip on refresh |
-| 3.4 | Share URL — copy-to-clipboard, restores full completed itinerary | `[x]` | Server-side: `POST /trips` stores itinerary in NodeCache (24h TTL), returns 8-char ID → `?trip=<id>`. `ShareModal` shows link + Copy + 24h notice. `ExpiredLinkModal` on 404. Legacy `?t=` still used for live session continuity only. |
+| 3.2 | Zustand `session.store` — pending flights, selected flight, toast, share/expired modals | `[x]` | Screen state removed in Phase 6 — navigation now handled by React Router v6 |
+| 3.3 | URL sync — active trip state persisted to `?t=` on every change | `[x]` | `useUrlSync` hook in `App.tsx`; `?t=` encodes trip only (screen sync removed in Phase 6); pre-render hydration in `main.tsx` so `RequireOrigin` sees correct state on refresh |
+| 3.4 | Share URL — copy-to-clipboard, restores full completed itinerary | `[x]` | Server-side: `POST /trips` stores itinerary, returns slug → `/share/:slug` route. `ShareRedirect` component fetches itinerary and navigates to `/itinerary`. `ShareModal` shows link + Copy + 24h notice. `ExpiredLinkModal` on 404. |
 
 ### 3B — Backend Business Logic
 
@@ -235,6 +239,94 @@ S1 Origin Search  ──►  S2 Flight Results  ◄──► [DatePickerOverlay]
 
 ---
 
+---
+
+## Phase 5 — Booking UX & Assistant Help
+
+**Goal:** Improve the booking experience and provide a human-assisted fallback for users who need help completing their bookings.
+
+### 5A — Booking UX Fixes
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 5.1 | Home screen: block past dates from date picker | `[x]` | `min` attribute set to today (`formatYMD(new Date())`); previously blocked only tomorrow+ |
+| 5.2 | Booking review: open one tab per flight leg (not per unique URL) | `[x]` | `handleBookAll` iterates `orderedLegs`, opens `leg.bookingUrl` per leg; removed `uniqueBookingUrls` dedup |
+| 5.3 | Booking review: focus first flight tab after opening | `[x]` | `window.open()` ref stored; `.focus()` called on first non-null tab reference |
+| 5.4 | Booking review: update CTA helper text | `[x]` | "This will open each booking in a new tab — one per flight"; success state shows "Opened N tabs — your first flight is shown" |
+
+### 5B — Assistant Help Request
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 5.5 | `AssistanceRequestModal` component — form with full name, email, phone | `[x]` | `frontend/src/components/AssistanceRequestModal.tsx`; submits trip data with contact details; success/error state |
+| 5.6 | "Request assistant help" CTA on booking review screen | `[x]` | Secondary button below the main booking CTA; opens `AssistanceRequestModal` |
+| 5.7 | `assistanceRequests.api.ts` frontend API client | `[x]` | `POST /assistance-requests` via `apiClient`; typed payload with `TripLeg[]` |
+| 5.8 | Backend: `POST /assistance-requests` — public endpoint | `[x]` | `backend/src/routes/assistanceRequests.ts`; validates name/email/phone; stores in `NodeCache` (no TTL); logs each submission |
+| 5.9 | Backend: `GET /assistance-requests` — admin-only endpoint | `[x]` | Protected by `requireAdminAuth`; returns all requests sorted newest-first |
+| 5.10 | Register `assistanceRequestRoutes` in `backend/src/index.ts` | `[x]` | |
+
+### 5C — Admin: Assistance Requests Page
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 5.11 | `AssistanceRequestsPage` admin page | `[x]` | `admin/src/pages/AssistanceRequestsPage.tsx`; table of requests with name, email, phone, route, est. total; expandable rows show full trip details + clickable email/phone links |
+| 5.12 | Add `fetchAssistanceRequests()` to `admin/src/api/metrics.ts` | `[x]` | Uses shared `adminClient` with Bearer token auth |
+| 5.13 | Add "Assistance Requests" nav item to admin Sidebar | `[x]` | `Headphones` icon; route `/assistance-requests` |
+| 5.14 | Add route for `AssistanceRequestsPage` in `AdminApp.tsx` | `[x]` | Path `assistance-requests` |
+
+---
+
+## Phase 6 — Routing Refactor, SEO & Infrastructure ✅
+
+**Goal:** Replace screen-state navigation with React Router v6, add dynamic meta tags, and fix serverless-hostile infrastructure patterns.
+
+### 6A — React Router v6 Migration
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 6.1 | Create `RequireOrigin` route guard | `[x]` | `<Navigate to="/" replace />` if `origin` is null; wraps all protected routes via `<Outlet>` |
+| 6.2 | Create `ShareRedirect` component | `[x]` | Handles `/share/:slug`; fetches itinerary, hydrates stores, navigates to `/itinerary` |
+| 6.3 | Simplify `useUrlSync` — remove screen sync | `[x]` | Hook now only syncs `?t=` trip data; screen position determined by URL |
+| 6.4 | Rewrite `App.tsx` with `<Routes>/<Route>` | `[x]` | `RequireOrigin` wraps protected routes; `FIXED_HEIGHT_PATHS` set for `/flights` and `/return`; `<BookingReviewScreen partial />` passed directly in `/book/partial` route element |
+| 6.5 | Remove `screen` + `setScreen` from `session.store.ts` | `[x]` | `Screen` type, `screen` state, and `setScreen` action deleted; `SCREEN_PATHS`/`PATH_SCREENS`/`screenToPath`/`pathToScreen` removed from `url.utils.ts` |
+| 6.6 | `ProgressBar` + `GoHomeLogo` — `useLocation()` | `[x]` | `stepLabel()` keyed on pathname; hidden on `/` and `/book*`; `GoHomeLogo` confirm-reset navigates to `/` |
+| 6.7 | Migrate `HomeScreen` | `[x]` | `navigate('/flights')` on airport select |
+| 6.8 | Migrate `FlightResultsScreen` | `[x]` | `navigate('/stay')`, `navigate('/review')`, `navigate('/return')`; back is contextual |
+| 6.9 | Migrate `StayDurationScreen` | `[x]` | `useEffect` guard: `navigate('/flights', { replace: true })` if no selected flight (replaces render-time anti-pattern) |
+| 6.10 | Migrate `DecisionScreen` | `[x]` | All 5 `setScreen` calls replaced with `navigate()` |
+| 6.11 | Migrate `ReturnFlightsScreen` | `[x]` | `navigate('/itinerary')` after `finalize()` |
+| 6.12 | Migrate `ItineraryScreen` | `[x]` | Removed `setScreen` import entirely |
+| 6.13 | Migrate `BookingReviewScreen` | `[x]` | `backScreen` changed to `/review`\|`/itinerary` path literals; `partial` prop from route element |
+| 6.14 | Migrate `PlanStayScreen` | `[x]` | `navigate('/review')` for back |
+| 6.15 | Migrate `AppDrawer` + `DatePickerScreen` | `[x]` | `useNavigate()` replaces all `setScreen` calls |
+
+### 6B — SEO & Dynamic Meta Tags
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 6.16 | Install `react-helmet-async`, add `HelmetProvider` to `main.tsx` | `[x]` | Pre-render `?t=` hydration also added in `main.tsx` so `RequireOrigin` sees correct state on refresh |
+| 6.17 | Add `<Helmet>` with dynamic `<title>` to each screen | `[x]` | Titles: "FlexBook — Plan your multi-stop trip" (home), "Flights from {city}", "Next hop from {city}", "Pick a date", "How long in {city}?", "What's next?", "Flying home from {city}", "{route} · FlexBook" (itinerary), "Booking Review" |
+| 6.18 | Add OG + Twitter Card meta tags to `index.html` and `ItineraryScreen` | `[x]` | `index.html` has fallback OG/Twitter tags; `ItineraryScreen` injects dynamic `og:title`, `og:description`, `twitter:card` with full route and price |
+
+### 6C — UX Polish
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 6.19 | `ProgressBar` amber warning at ≤ 3 stops remaining | `[x]` | Pill text and fill bar turn amber; threshold configurable via `MAX_STOPS = 15` |
+| 6.20 | `AppDrawer` empty saved-trips CTA | `[x]` | "Plan a new trip" button navigates to `/` when no trips saved |
+| 6.21 | Remove unused `react-hook-form` dependency | `[x]` | Package removed from `frontend/package.json` |
+| 6.22 | Add `loading="lazy"` to airline logo `<img>` in `BookingReviewScreen` | `[x]` | Defers off-screen logo network requests |
+
+### 6D — Infrastructure Fixes
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 6.23 | Upstash Redis L2 cache in `cache.ts` | `[x]` | New `getCacheAsync<T>` checks NodeCache (L1) then Redis (L2) on miss — cold-start instances warm from Redis. `setCache` fire-and-forgets to Redis. `deleteCache` fire-and-forgets Redis del. Flight schedule, price, and weather caches upgraded. |
+| 6.24 | Vercel Cron replaces `node-cron` | `[x]` | `node-cron` removed from `index.ts` (dies on serverless cold start). New `GET /cron/daily-report` endpoint protected by `CRON_SECRET` bearer header. `backend/vercel.json` schedules at `0 4 * * *` UTC (= 08:00 Yerevan). Env var to add: `CRON_SECRET`. |
+| 6.25 | `GET /country-info` backend proxy for RestCountries | `[x]` | Proxies `restcountries.com/v3.1/name/…` with 24h NodeCache+Redis cache. Returns `{ flag, flagUrl, currencyCode, currencyName, currencySymbol, capital, region }`. `PlanStayScreen` now calls this endpoint via `apiClient` instead of fetching RestCountries directly from the browser (eliminates CORS risk and rate-limit exposure). |
+
+---
+
 ## Progress Summary
 
 | Phase | Tasks | Done | In Progress | Not Started |
@@ -243,4 +335,8 @@ S1 Origin Search  ──►  S2 Flight Results  ◄──► [DatePickerOverlay]
 | Phase 2 — Search & Flights | 23 | 23 | 0 | 0 |
 | Phase 3 — Trip Chaining | 28 | 28 | 0 | 0 |
 | Phase 4 — Polish & Deploy | 17 | 4 | 0 | 13 |
-| **Total** | **77** | **64** | **0** | **13** |
+| Phase 5 — Booking UX & Assistant Help | 14 | 14 | 0 | 0 |
+| Phase 6 — Routing, SEO & Infrastructure | 25 | 25 | 0 | 0 |
+| **Total** | **116** | **103** | **0** | **13** |
+
+> Phase 4 "Not Started" items (4.14–4.17) are deployment tasks (Vercel/Railway config, CORS, smoke tests) intentionally deferred.

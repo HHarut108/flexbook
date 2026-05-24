@@ -55,6 +55,21 @@ export interface ReportResponse {
   error?: string;
 }
 
+/** Per-service primary vs fallback breakdown. */
+export interface ServiceBreakdown {
+  primary: number;
+  fallback: number;
+}
+
+export interface SessionMetricsResponse {
+  startedAt: string;
+  calls: Record<string, ServiceBreakdown>;
+}
+
+export interface AllTimeMetricsResponse {
+  calls: Record<string, ServiceBreakdown>;
+}
+
 export async function fetchMetricsHistory(from: string, to: string): Promise<MetricsHistoryResponse> {
   const { data } = await adminClient.get<MetricsHistoryResponse>('/metrics/history', {
     params: { from, to },
@@ -69,7 +84,54 @@ export async function fetchMetricsDay(date?: string): Promise<SingleDayResponse>
   return data;
 }
 
+export async function fetchSessionMetrics(): Promise<SessionMetricsResponse> {
+  const { data } = await adminClient.get<SessionMetricsResponse>('/metrics/session');
+  return data;
+}
+
+export async function fetchAllTimeMetrics(): Promise<AllTimeMetricsResponse> {
+  const { data } = await adminClient.get<AllTimeMetricsResponse>('/metrics/alltime');
+  return data;
+}
+
 export async function sendReport(payload: { date?: string; from?: string; to?: string }): Promise<ReportResponse> {
   const { data } = await adminClient.post<ReportResponse>('/metrics/report', payload);
+  return data;
+}
+
+export interface AssistanceRequest {
+  id: string;
+  createdAt: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  tripData: {
+    origin?: string;
+    cities: string[];
+    totalPrice: number;
+    legs: unknown[];
+  };
+}
+
+export async function fetchAssistanceRequests(): Promise<AssistanceRequest[]> {
+  const { data } = await adminClient.get<{ requests: AssistanceRequest[] }>('/assistance-requests');
+  return data.requests;
+}
+
+export interface CacheNamespaceStat {
+  hits: number;
+  misses: number;
+  sets: number;
+  hitRate: number;
+}
+
+export interface CacheMetricsResponse {
+  namespaces: Record<string, CacheNamespaceStat>;
+  totalKeys: number;
+  redis: { connected: boolean };
+}
+
+export async function fetchCacheMetrics(): Promise<CacheMetricsResponse> {
+  const { data } = await adminClient.get<CacheMetricsResponse>('/metrics/cache');
   return data;
 }

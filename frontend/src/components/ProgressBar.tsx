@@ -1,23 +1,22 @@
+import { useLocation } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
-import { useSessionStore } from '../store/session.store';
+import { useAuthStore } from '../store/auth.store';
 import { GoHomeLogo } from './GoHomeLogo';
-import { Menu } from 'lucide-react';
+import { User } from 'lucide-react';
 
 const MAX_STOPS = 15;
 
-function stepLabel(screen: string, stopCount: number): string {
-  switch (screen) {
-    case 'flight-results':
-      return stopCount === 0 ? 'Choosing your first destination' : `Adding stop ${stopCount + 1}`;
-    case 'stay-duration':
+// Pathnames that render a step label outside of /flights — those already
+// render the per-leg note inline (see FlightResultsScreen).
+function stepLabel(pathname: string): string {
+  switch (pathname) {
+    case '/stay':
       return 'Picking your stay duration';
-    case 'decision':
+    case '/review':
       return "What's next for your trip?";
-    case 'return-flights':
-      return 'Finding your way home';
-    case 'itinerary':
+    case '/itinerary':
       return 'Your trip is ready!';
-    case 'plan-stay':
+    case '/plan':
       return 'Planning your stay';
     default:
       return '';
@@ -27,9 +26,15 @@ function stepLabel(screen: string, stopCount: number): string {
 export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const legs = useTripStore((s) => s.legs);
   const origin = useTripStore((s) => s.origin);
-  const screen = useSessionStore((s) => s.screen);
+  const user = useAuthStore((s) => s.user);
+  const initials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : null;
+  const { pathname } = useLocation();
 
-  if (screen === 'home' || screen === 'booking-review' || screen === 'partial-booking') return null;
+  // Hide the trip progress bar on the home + auth/account screens. The crumb row
+  // would otherwise render with a placeholder "?" because no trip origin is set yet,
+  // which looks like a broken badge next to the brand mark.
+  const HIDDEN_PATHS = new Set(['/', '/book', '/book/partial', '/login', '/signup', '/verify-email', '/account']);
+  if (HIDDEN_PATHS.has(pathname)) return null;
 
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
   const stopCount = nonReturnLegs.length;
@@ -40,12 +45,12 @@ export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
     ...nonReturnLegs.map((l) => l.destinationIata),
   ];
 
-  const label = stepLabel(screen, stopCount);
+  const label = stepLabel(pathname);
 
   return (
     <div className="sticky top-0 z-50">
       <div
-        className="px-4 py-2.5 flex items-center gap-3"
+        className="px-5 py-2.5 md:px-8 lg:px-10 flex items-center gap-3"
         style={{
           background: 'rgba(55,48,163,0.97)',
           backdropFilter: 'blur(12px)',
@@ -77,32 +82,42 @@ export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
           </div>
         </div>
 
-        {/* Stops remaining pill */}
-        {screen !== 'itinerary' && screen !== 'return-flights' && screen !== 'plan-stay' && (
-          <div className="shrink-0 flex items-center gap-1.5">
+        {/* Stops remaining pill — desktop only. The 15-stop limit still applies;
+            we just don't surface the counter on mobile to keep the header tight. */}
+        {pathname !== '/itinerary' && pathname !== '/return' && pathname !== '/plan' && (
+          <div className="shrink-0 hidden md:flex items-center gap-1.5">
             <div className="flex flex-col items-end">
-              <span className="text-white/40 text-[9px] leading-none mb-0.5">stops left</span>
-              <span className="text-white font-mono font-bold text-xs leading-none">{slotsRemaining}</span>
+              <span className={`text-[9px] leading-none mb-0.5 ${slotsRemaining <= 3 ? 'text-amber-300' : 'text-white/40'}`}>
+                stops left
+              </span>
+              <span className={`font-mono font-bold text-xs leading-none ${slotsRemaining <= 3 ? 'text-amber-300' : 'text-white'}`}>
+                {slotsRemaining}
+              </span>
             </div>
             <div className="w-12 h-1.5 rounded-full bg-white/15 overflow-hidden">
               <div
                 className="h-full rounded-full transition-all duration-500"
                 style={{
                   width: `${Math.max(6, (stopCount / MAX_STOPS) * 100)}%`,
-                  background: 'linear-gradient(90deg, #F97316, #FBBF24)',
+                  background: slotsRemaining <= 3
+                    ? 'linear-gradient(90deg, #F59E0B, #FCD34D)'
+                    : 'linear-gradient(90deg, #F97316, #FBBF24)',
                 }}
               />
             </div>
           </div>
         )}
 
-        {/* Menu button */}
+        {/* Account button */}
         <button
           onClick={onMenuOpen}
-          className="shrink-0 ml-1 w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-white hover:bg-white/25 transition-all active:scale-95"
-          aria-label="Open menu"
+          className="shrink-0 ml-1 w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center text-white hover:bg-white/25 transition-all active:scale-95"
+          aria-label="Account"
         >
-          <Menu size={16} />
+          {initials
+            ? <span className="text-xs font-bold leading-none">{initials}</span>
+            : <User size={16} />
+          }
         </button>
       </div>
     </div>

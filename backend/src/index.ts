@@ -1,8 +1,12 @@
-import Fastify from 'fastify';
+import Fastify, { FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
-import cron from 'node-cron';
+import rateLimit from '@fastify/rate-limit';
+import cookie from '@fastify/cookie';
 import { config } from './config';
-import { sendDailyReport } from './services/EmailReportService';
+import { db } from './db';
+import { setRedisLogger } from './utils/redisClient';
+import { setSharedLogger } from './utils/logger';
+import { verifyToken as verifyAdminToken } from './utils/adminAuth';
 import { healthRoutes } from './routes/health';
 import { airportRoutes } from './routes/airports';
 import { flightRoutes } from './routes/flights';
@@ -13,6 +17,12 @@ import { placesRoutes } from './routes/places';
 import { cityGuideRoutes } from './routes/cityGuide';
 import { metricsRoutes } from './routes/metrics';
 import { adminAuthRoutes } from './routes/adminAuth';
+import { assistanceRequestRoutes } from './routes/assistanceRequests';
+import { cronRoutes } from './routes/cron';
+import { countryInfoRoutes } from './routes/countryInfo';
+import { userAuthRoutes } from './routes/userAuth';
+import { adminUsersRoutes } from './routes/adminUsers';
+import { visaRoutes } from './routes/visa';
 
 const app = Fastify({
   logger: {
@@ -23,12 +33,107 @@ const app = Fastify({
   },
 });
 
+setRedisLogger(app.log);
+setSharedLogger(app.log);
+
+async function runMigrations() {
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS "User" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "email" TEXT NOT NULL,
+      "passwordHash" TEXT NOT NULL,
+      "firstName" TEXT NOT NULL,
+      "lastName" TEXT NOT NULL,
+      "birthday" TEXT,
+      "countryOfResidenceCode" TEXT,
+      "countryOfResidenceName" TEXT,
+      "emailVerified" BOOLEAN NOT NULL DEFAULT false,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "User_email_key" ON "User"("email")`,
+    `CREATE TABLE IF NOT EXISTS "UserCitizenship" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "userId" TEXT NOT NULL,
+      "countryCode" TEXT NOT NULL,
+      "countryName" TEXT NOT NULL,
+      "documentNumber" TEXT,
+      "isPrimary" BOOLEAN NOT NULL DEFAULT false,
+      FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS "UserVisa" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "userId" TEXT NOT NULL,
+      "citizenshipId" TEXT NOT NULL,
+      "countryCode" TEXT NOT NULL,
+      "countryName" TEXT NOT NULL,
+      "visaType" TEXT,
+      "documentNumber" TEXT,
+      "validUntil" TEXT,
+      FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE,
+      FOREIGN KEY ("citizenshipId") REFERENCES "UserCitizenship" ("id") ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS "OTP" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "userId" TEXT NOT NULL,
+      "code" TEXT NOT NULL,
+      "expiresAt" DATETIME NOT NULL,
+      "used" BOOLEAN NOT NULL DEFAULT false,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE
+    )`,
+  ];
+  for (const sql of statements) {
+    await db.$executeRawUnsafe(sql);
+  }
+
+  // Idempotent ALTER TABLE for columns added to existing tables. SQLite has no
+  // "ADD COLUMN IF NOT EXISTS", so we swallow the "duplicate column" error.
+  const alters = [
+    `ALTER TABLE "User" ADD COLUMN "countryOfResidenceCode" TEXT`,
+    `ALTER TABLE "User" ADD COLUMN "countryOfResidenceName" TEXT`,
+    `ALTER TABLE "User" ADD COLUMN "lastLoginAt" DATETIME`,
+  ];
+  for (const sql of alters) {
+    try {
+      await db.$executeRawUnsafe(sql);
+    } catch (e: any) {
+      if (!/duplicate column/i.test(e?.message ?? '')) throw e;
+    }
+  }
+}
+
 async function start() {
+  await runMigrations();
+
   const wwwVariant = config.FRONTEND_URL.replace('https://', 'https://www.').replace('https://www.www.', 'https://www.');
   const noWwwVariant = config.FRONTEND_URL.replace('https://www.', 'https://');
+  const corsOrigins = [wwwVariant, noWwwVariant, 'https://flexbook-admin.vercel.app'];
+  if (config.NODE_ENV !== 'production') {
+    corsOrigins.push('http://localhost:5173', 'http://localhost:5176');
+  }
   await app.register(cors, {
-    origin: [wwwVariant, noWwwVariant, 'http://localhost:5173', 'http://localhost:5176', 'https://flexbook-admin.vercel.app'],
+    origin: corsOrigins,
     methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+    credentials: true,
+  });
+
+  await app.register(cookie);
+
+  await app.register(rateLimit, {
+    global: true,
+    max: 120,
+    timeWindow: '1 minute',
+    allowList: (request: FastifyRequest) => {
+      if (request.url === '/health') return true;
+      // Bypass the per-IP global limit for authenticated admin-panel traffic.
+      // The admin dashboard loads several metric endpoints in parallel on every
+      // page switch and was hitting 120/min on its own when an end-user was
+      // browsing from the same NAT'd IP at the same time.
+      const auth = request.headers.authorization;
+      if (auth?.startsWith('Bearer ') && verifyAdminToken(auth.slice(7))) return true;
+      return false;
+    },
   });
 
   await app.register(healthRoutes);
@@ -41,17 +146,19 @@ async function start() {
   await app.register(cityGuideRoutes);
   await app.register(metricsRoutes);
   await app.register(adminAuthRoutes);
+  await app.register(assistanceRequestRoutes);
+  await app.register(cronRoutes);
+  await app.register(countryInfoRoutes);
+  await app.register(userAuthRoutes);
+  await app.register(adminUsersRoutes);
+  await app.register(visaRoutes);
 
-  // Daily API usage report — every day at 08:00 Yerevan time
-  cron.schedule('0 8 * * *', async () => {
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-    const result = await sendDailyReport(yesterday);
-    if (result.sent) {
-      app.log.info(`Daily API report sent for ${yesterday}`);
-    } else {
-      app.log.warn(`Daily API report failed: ${result.error}`);
-    }
-  }, { timezone: 'Asia/Yerevan' });
+  app.setErrorHandler((err, req, reply) => {
+    app.log.error({ err, url: req.url, method: req.method }, 'Unhandled route error');
+    reply.status(err.statusCode ?? 500).send({
+      error: { message: err.message || 'Internal server error' },
+    });
+  });
 
   try {
     await app.listen({ port: config.PORT, host: '0.0.0.0' });

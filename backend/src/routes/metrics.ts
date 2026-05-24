@@ -1,6 +1,14 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { getMetrics, getMetricsHistory, startedAt } from '../utils/apiMetrics';
+import {
+  getMetrics,
+  getMetricsHistory,
+  getSessionMetrics,
+  getAllTimeMetrics,
+  startedAt,
+} from '../utils/apiMetrics';
+import { getCacheStats } from '../utils/cache';
+import { config } from '../config';
 import { sendDailyReport, sendHistoryReport } from '../services/EmailReportService';
 import { requireAdminAuth } from '../middleware/requireAdminAuth';
 
@@ -40,8 +48,25 @@ export async function metricsRoutes(app: FastifyInstance) {
     return { from, to, history };
   });
 
+  // GET /metrics/session — in-memory counts since server start, with primary/fallback breakdown
+  app.get('/metrics/session', { preHandler: requireAdminAuth }, async () => {
+    return getSessionMetrics();
+  });
+
+  // GET /metrics/alltime — all-time cumulative counts with primary/fallback breakdown
+  app.get('/metrics/alltime', { preHandler: requireAdminAuth }, async () => {
+    const calls = await getAllTimeMetrics();
+    return { calls };
+  });
+
+  // GET /metrics/cache — in-memory cache hit/miss stats per namespace since server start
+  app.get('/metrics/cache', { preHandler: requireAdminAuth }, async () => {
+    const stats = getCacheStats();
+    const redisConnected = !!(config.UPSTASH_REDIS_REST_URL && config.UPSTASH_REDIS_REST_TOKEN);
+    return { ...stats, redis: { connected: redisConnected } };
+  });
+
   // POST /metrics/report  — send on-demand email report
-  // Body (optional): { date: "YYYY-MM-DD" } for daily, or { from: "YYYY-MM-DD", to: "YYYY-MM-DD" } for history
   app.post('/metrics/report', { preHandler: requireAdminAuth }, async (request, reply) => {
     const body = (request.body ?? {}) as Record<string, string>;
 

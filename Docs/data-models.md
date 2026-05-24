@@ -766,6 +766,105 @@ export interface AirportDataEntry {
 
 ---
 
+---
+
+## 11. User — DB model
+
+**Purpose:** Registered user account. Stored in SQLite/LibSQL via Prisma. `passwordHash` is never returned to the client — the `safeUser` helper strips it before every response.
+
+**Layer:** Backend DB (Prisma) + Frontend Zustand (`AuthUser`)
+
+### Fields
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `id` | `string` | ✅ | CUID primary key |
+| `email` | `string` | ✅ | Unique, always lowercased |
+| `passwordHash` | `string` | ✅ | bcrypt hash (12 rounds), never exposed to FE |
+| `firstName` | `string` | ✅ | Max 100 chars |
+| `lastName` | `string` | ✅ | Max 100 chars |
+| `birthday` | `string?` | ❌ | `YYYY-MM-DD`; validated for reality + min age 13 on FE |
+| `emailVerified` | `boolean` | ✅ | `false` until OTP verified; login blocked while false |
+| `createdAt` | `DateTime` | ✅ | Auto |
+| `updatedAt` | `DateTime` | ✅ | Auto-updated |
+| `citizenships` | `UserCitizenship[]` | ❌ | Relation — up to 2 entries |
+| `otps` | `OTP[]` | ❌ | Relation — cascade deletes with user |
+
+### Frontend interface (`AuthUser`)
+
+```typescript
+// frontend/src/store/auth.store.ts
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  birthday?: string;
+  emailVerified: boolean;
+  citizenships: UserCitizenship[];
+  createdAt: string;
+}
+```
+
+---
+
+## 12. UserCitizenship — DB model
+
+**Purpose:** Up to two citizenships per user. Cascade-deleted when the user is deleted.
+
+**Layer:** Backend DB (Prisma) + Frontend (`UserCitizenship`)
+
+### Fields
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `id` | `string` | ✅ | CUID |
+| `userId` | `string` | ✅ | FK → User |
+| `countryCode` | `string` | ✅ | ISO 3166-1 alpha-2 (e.g. `"FR"`) |
+| `countryName` | `string` | ✅ | Full name (e.g. `"France"`) |
+| `documentNumber` | `string?` | ❌ | Passport / national ID |
+| `isPrimary` | `boolean` | ✅ | `true` for first entry |
+
+### TypeScript Interface
+
+```typescript
+// frontend/src/store/auth.store.ts
+
+export interface UserCitizenship {
+  id: string;
+  countryCode: string;
+  countryName: string;
+  documentNumber?: string;
+  isPrimary: boolean;
+}
+```
+
+---
+
+## 13. OTP — DB model
+
+**Purpose:** Time-limited one-time codes for email verification. The `code` field stores a **bcrypt hash** of the 6-digit code — plaintext is never persisted.
+
+**Layer:** Backend DB (Prisma) only
+
+### Fields
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `id` | `string` | ✅ | CUID |
+| `userId` | `string` | ✅ | FK → User (cascade delete) |
+| `code` | `string` | ✅ | bcrypt hash of 6-digit code |
+| `expiresAt` | `DateTime` | ✅ | 10 minutes from creation |
+| `used` | `boolean` | ✅ | `true` after successful verification |
+| `createdAt` | `DateTime` | ✅ | Auto |
+
+### Verification flow
+
+On verify, the BE fetches all `{ used: false, expiresAt > now }` OTPs for the user and iterates with `bcrypt.compare(plainCode, candidate.code)`. The first match is marked `used: true`.
+
+---
+
 ## Model Layer Summary
 
 | Model | Layer | Stored in URL | Stored in Zustand | Computed |
@@ -782,3 +881,6 @@ export interface AirportDataEntry {
 | `KiwiApiResponse` | Backend | No | No | No |
 | `OWMForecastResponse` | Backend | No | No | No |
 | `AirportDataEntry` | Backend | No | No | No |
+| `User` | Backend DB | No | Yes (AuthUser) | No |
+| `UserCitizenship` | Backend DB | No | Via AuthUser | No |
+| `OTP` | Backend DB | No | No | No |
