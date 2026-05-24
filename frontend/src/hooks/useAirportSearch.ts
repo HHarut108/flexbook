@@ -1,16 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Airport } from '@fast-travel/shared';
+import { AirportSearchResponse } from '@fast-travel/shared';
 import { searchAirports } from '../api/airports.api';
 
 // Tiny in-memory LRU-ish cache for recently typed queries. Keeps the UI feeling
 // snappy when the user deletes/retypes and avoids hammering the backend.
 const RECENT_CACHE_MAX = 30;
 const RECENT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-type CacheEntry = { results: Airport[]; ts: number };
+type CacheEntry = { response: AirportSearchResponse; ts: number };
 const recentCache = new Map<string, CacheEntry>();
 
-function readCache(key: string): Airport[] | null {
+function readCache(key: string): AirportSearchResponse | null {
   const entry = recentCache.get(key);
   if (!entry) return null;
   if (Date.now() - entry.ts > RECENT_CACHE_TTL_MS) {
@@ -20,19 +20,21 @@ function readCache(key: string): Airport[] | null {
   // Touch for LRU ordering
   recentCache.delete(key);
   recentCache.set(key, entry);
-  return entry.results;
+  return entry.response;
 }
 
-function writeCache(key: string, results: Airport[]): void {
-  recentCache.set(key, { results, ts: Date.now() });
+function writeCache(key: string, response: AirportSearchResponse): void {
+  recentCache.set(key, { response, ts: Date.now() });
   if (recentCache.size > RECENT_CACHE_MAX) {
     const oldest = recentCache.keys().next().value;
     if (oldest !== undefined) recentCache.delete(oldest);
   }
 }
 
+const EMPTY: AirportSearchResponse = { results: [] };
+
 export function useAirportSearch(query: string, debounceMs = 300) {
-  const [results, setResults] = useState<Airport[]>([]);
+  const [response, setResponse] = useState<AirportSearchResponse>(EMPTY);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -45,7 +47,7 @@ export function useAirportSearch(query: string, debounceMs = 300) {
 
     const trimmed = query.trim();
     if (!trimmed) {
-      setResults([]);
+      setResponse(EMPTY);
       setError(null);
       setLoading(false);
       return;
@@ -55,7 +57,7 @@ export function useAirportSearch(query: string, debounceMs = 300) {
     const key = trimmed.toLowerCase();
     const cached = readCache(key);
     if (cached) {
-      setResults(cached);
+      setResponse(cached);
       setError(null);
       setLoading(false);
       return;
@@ -70,7 +72,7 @@ export function useAirportSearch(query: string, debounceMs = 300) {
         const data = await searchAirports(trimmed, controller.signal);
         if (controller.signal.aborted) return;
         writeCache(key, data);
-        setResults(data);
+        setResponse(data);
       } catch (err) {
         // Cancellations are expected — ignore them.
         if (
@@ -81,7 +83,7 @@ export function useAirportSearch(query: string, debounceMs = 300) {
         ) {
           return;
         }
-        setResults([]);
+        setResponse(EMPTY);
         setError(
           err instanceof Error ? err.message : 'Could not load airports. Please try again.',
         );
@@ -97,5 +99,10 @@ export function useAirportSearch(query: string, debounceMs = 300) {
     };
   }, [query, debounceMs]);
 
-  return { results, loading, error };
+  return {
+    results: response.results,
+    fallback: response.fallback,
+    loading,
+    error,
+  };
 }
