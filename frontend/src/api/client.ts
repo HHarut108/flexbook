@@ -8,7 +8,8 @@ const getBaseURL = () => {
 
 export const apiClient = axios.create({
   baseURL: getBaseURL(),
-  timeout: 15000,
+  // 30s default to tolerate Render cold starts; individual calls can override.
+  timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -21,6 +22,10 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
+    // Preserve cancellations so callers can ignore them silently.
+    if (axios.isCancel(error) || error.code === 'ERR_CANCELED') {
+      return Promise.reject(error);
+    }
     const status = error.response?.status;
     if (status === 429) {
       const retryAfter = error.response?.headers?.['retry-after'];
@@ -29,6 +34,12 @@ apiClient.interceptors.response.use(
     }
     if (status === 503) {
       return Promise.reject(new Error('Flight search is temporarily unavailable. Please try again shortly.'));
+    }
+    // Network / timeout — likely a cold backend or offline user.
+    if (error.code === 'ECONNABORTED' || error.message === 'Network Error') {
+      return Promise.reject(
+        new Error('Server is taking longer than usual to respond. Please try again in a moment.'),
+      );
     }
     const msg = error.response?.data?.error?.message ?? error.message ?? 'Unknown error';
     return Promise.reject(new Error(msg));
