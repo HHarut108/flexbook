@@ -660,3 +660,25 @@ html[data-theme="dark"] .min-h-screen { background-color: transparent; }
   0%, 100% { box-shadow: 0 4px 16px rgba(55,48,163,0.35), 0 0 0 4px rgba(79,70,229,0.15); }
   50%      { box-shadow: 0 4px 16px rgba(55,48,163,0.35), 0 0 0 8px rgba(79,70,229,0.08); }
 }
+
+/* ── HomeFlightFan animations ──
+ * Price pins on the home-page Leaflet map fade-in with a small
+ * scale bounce. Honors prefers-reduced-motion. */
+
+@keyframes homeFanPinIn {
+  0%   { opacity: 0; transform: translateY(6px) scale(0.85); }
+  60%  { opacity: 1; transform: translateY(0)   scale(1.06); }
+  100% { opacity: 1; transform: translateY(0)   scale(1);    }
+}
+
+.home-fan-pin-anim {
+  opacity: 0;
+  animation: homeFanPinIn 520ms cubic-bezier(0.34, 1.4, 0.5, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-fan-pin-anim {
+    opacity: 1;
+    animation: none;
+  }
+}
