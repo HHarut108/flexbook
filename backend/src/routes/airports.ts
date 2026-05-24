@@ -17,13 +17,16 @@ const nearbyByCoordsSchema = z.object({
 });
 
 export async function airportRoutes(app: FastifyInstance) {
+  // Returns { results, fallback? }. `fallback` is populated when the typed
+  // query didn't match any commercial airport but resolved to a known place
+  // via the gazetteer (e.g. "São Carlos" → nearest commercial = VCP/CGH/GRU).
   app.get('/airports/search', async (request, reply) => {
     const parsed = searchQuerySchema.safeParse(request.query);
     if (!parsed.success) {
       return reply.status(400).send(fail('INVALID_PARAMS', 'Query param "q" is required'));
     }
-    const results = airportService.search(parsed.data.q);
-    return ok(results);
+    const result = airportService.searchWithFallback(parsed.data.q);
+    return ok(result);
   });
 
   app.get('/airports/nearby', async (request, reply) => {

@@ -135,11 +135,20 @@ function AirportRow({
         <PlaneTakeoff size={14} className="text-indigo" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-[15px] font-semibold text-text-primary">{airport.city.name}</p>
-        <p className="text-xs text-text-muted mt-0.5">
-          <span className="font-mono font-semibold text-indigo-mid">{airport.iata}</span>
-          {' · '}
+        {/* Line 1: City name + IATA chip — the recognisable identifiers. */}
+        <div className="flex items-baseline gap-2 min-w-0">
+          <p className="text-[15px] font-semibold text-text-primary truncate">
+            {airport.city.name}
+          </p>
+          <span className="text-xs font-mono font-bold text-indigo-mid shrink-0">
+            {airport.iata}
+          </span>
+        </div>
+        {/* Line 2: Full airport name (and distance, when this is a "did you
+            mean" fallback hit). */}
+        <p className="text-xs text-text-muted mt-0.5 truncate">
           {airport.name}
+          {airport.distanceKm !== undefined && ` · ${airport.distanceKm} km`}
         </p>
       </div>
       <div className="w-8 h-8 rounded-full bg-indigo-soft/60 text-indigo flex items-center justify-center shrink-0">
@@ -223,7 +232,7 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const [geoLoading, setGeoLoading] = useState(false);
   const [passengers, setPassengers] = useState(1);
   const [departureDate, setDepartureDate] = useState(formatYMD(addDays(new Date(), 1)));
-  const { results, loading, error: searchError } = useAirportSearch(query);
+  const { results, fallback, loading, error: searchError } = useAirportSearch(query);
   const navigate = useNavigate();
   const setOrigin = useTripStore((s) => s.setOrigin);
   const setStorePassengers = useTripStore((s) => s.setPassengers);
@@ -362,15 +371,37 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
           {searchError}
         </p>
       )}
-      {!searchError && results.length === 0 && !loading && (
+      {!searchError && results.length === 0 && !loading && !fallback && (
         <p className="px-5 py-4 text-text-muted text-sm">
           No airports found. Try a different city or code.
+        </p>
+      )}
+      {/* We resolved the query to a known place (gazetteer hit) but no
+          commercial airport sits within 300 km — e.g. remote islands like
+          Diego Garcia. Tell the user honestly. */}
+      {!searchError && results.length === 0 && !loading && fallback && (
+        <p className="px-5 py-4 text-text-muted text-sm">
+          We found <strong className="text-text-primary">{fallback.matchedPlace}</strong>, but no
+          commercial airport sits within {fallback.radiusKm} km.
         </p>
       )}
       {loading && results.length === 0 && (
         <div className="flex items-center gap-2.5 px-5 py-4 text-text-muted text-sm">
           <Loader2 size={14} className="animate-spin text-indigo-mid" />
           Searching airports...
+        </div>
+      )}
+      {/* "Did you mean" header — only shown when the query matched a known
+          place that has no commercial airport (e.g. São Carlos) and we fell
+          back to nearest commercial airports within 300 km. */}
+      {fallback && results.length > 0 && !loading && (
+        <div className="px-5 py-3 border-b border-border bg-indigo-soft/40">
+          <p className="text-[13px] text-text-primary">
+            No commercial airport in <strong>{fallback.matchedPlace}</strong>.
+          </p>
+          <p className="text-xs text-text-muted mt-0.5">
+            Nearest commercial airports within {fallback.radiusKm} km:
+          </p>
         </div>
       )}
       {results.map((airport, i) => (

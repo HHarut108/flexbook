@@ -26,14 +26,14 @@ describe('AirportService.search', () => {
     expect(lower[0]?.iata).toBe('CDG');
   });
 
-  it('returns at most 7 results', () => {
+  it('returns at most 12 results', () => {
     const results = svc.search('a'); // very broad query
-    expect(results.length).toBeLessThanOrEqual(7);
+    expect(results.length).toBeLessThanOrEqual(12);
   });
 
   it('city starts-with match appears before contains match', () => {
-    // "paris" starts-with → CDG/ORY should score 80
-    // "port" starts-with, but "airport" contains "port" → score 60
+    // "paris" starts-with → CDG/ORY should score high
+    // "port" starts-with, but "airport" contains "port" → lower
     const results = svc.search('paris');
     expect(results.length).toBeGreaterThan(0);
     // All Paris results should be before any non-Paris result
@@ -41,6 +41,28 @@ describe('AirportService.search', () => {
       r.city.name.toUpperCase().includes('PARIS'),
     );
     expect(parisResults.length).toBeGreaterThan(0);
+  });
+
+  it('surfaces every commercial airport of a multi-airport city', () => {
+    // London has 6 IATAs in the OurAirports commercial set: LHR, LGW, STN,
+    // LCY, LTN, SEN. All should appear so the user can choose.
+    const results = svc.search('London');
+    const iatas = new Set(results.map((r) => r.iata));
+    for (const expected of ['LHR', 'LGW', 'STN', 'LCY', 'LTN', 'SEN']) {
+      expect(iatas.has(expected)).toBe(true);
+    }
+  });
+
+  it('US country code is "US", not "UN" (regression)', () => {
+    const jfk = svc.search('JFK')[0];
+    expect(jfk.city.countryCode).toBe('US');
+  });
+
+  it('matches diacritic-stripped queries (Sao Paulo → São Paulo)', () => {
+    const results = svc.search('Sao Paulo');
+    const gru = results.find((r) => r.iata === 'GRU');
+    expect(gru).toBeDefined();
+    expect(gru!.city.name).toMatch(/São Paulo/);
   });
 
   it('returns airport with correct structure', () => {
@@ -51,6 +73,35 @@ describe('AirportService.search', () => {
     expect(jfk.city).toBeDefined();
     expect(jfk.city.name).toBeTruthy();
     expect(jfk.city.countryCode).toBeTruthy();
+  });
+});
+
+describe('AirportService.searchWithFallback', () => {
+  it('returns regular results unchanged when commercial matches exist', () => {
+    const out = svc.searchWithFallback('London');
+    expect(out.fallback).toBeUndefined();
+    expect(out.results.length).toBeGreaterThan(0);
+    expect(out.results.some((r) => r.iata === 'LHR')).toBe(true);
+  });
+
+  it('falls back to nearest commercial when query is a known non-commercial place', () => {
+    // QSC (São Carlos) was dropped from the commercial set. The gazetteer
+    // still has São Carlos's coordinates, so we should surface São Paulo's
+    // hubs (GRU/VCP/CGH) as nearby commercial alternatives within 300 km.
+    const out = svc.searchWithFallback('Sao Carlos');
+    expect(out.fallback).toBeDefined();
+    expect(out.fallback!.matchedPlace).toMatch(/São Carlos/);
+    expect(out.fallback!.countryCode).toBe('BR');
+    expect(out.results.length).toBeGreaterThan(0);
+    const saoPauloHubs = new Set(['GRU', 'CGH', 'VCP']);
+    expect(out.results.some((r) => saoPauloHubs.has(r.iata))).toBe(true);
+    expect(out.results.every((r) => r.distanceKm !== undefined)).toBe(true);
+  });
+
+  it('returns empty (no fallback) for queries that match no known place', () => {
+    const out = svc.searchWithFallback('zzzzz nowhere place xyz');
+    expect(out.results).toEqual([]);
+    expect(out.fallback).toBeUndefined();
   });
 });
 
