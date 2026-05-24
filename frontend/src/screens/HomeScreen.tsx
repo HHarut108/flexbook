@@ -135,10 +135,18 @@ function AirportRow({
         <PlaneTakeoff size={14} className="text-indigo" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-[15px] font-semibold text-text-primary">{airport.city.name}</p>
-        <p className="text-xs text-text-muted mt-0.5">
-          <span className="font-mono font-semibold text-indigo-mid">{airport.iata}</span>
-          {' · '}
+        {/* Line 1: City name + IATA chip — the recognisable identifiers. */}
+        <div className="flex items-baseline gap-2 min-w-0">
+          <p className="text-[15px] font-semibold text-text-primary truncate">
+            {airport.city.name}
+          </p>
+          <span className="text-xs font-mono font-bold text-indigo-mid shrink-0">
+            {airport.iata}
+          </span>
+        </div>
+        {/* Line 2: Full airport name (and distance, when this is a "did you
+            mean" fallback hit). */}
+        <p className="text-xs text-text-muted mt-0.5 truncate">
           {airport.name}
           {airport.distanceKm !== undefined && ` · ${airport.distanceKm} km`}
         </p>

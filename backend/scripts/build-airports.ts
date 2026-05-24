@@ -135,6 +135,17 @@ const COUNTRY_PRIMARY_TZ: Record<string, string> = {
   US: 'America/New_York', VN: 'Asia/Ho_Chi_Minh', ZA: 'Africa/Johannesburg',
 };
 
+/** OurAirports stores some municipalities with regional suffixes that read
+ *  as gibberish to most users — e.g. Italian province codes ("Ferno (VA)",
+ *  "Orio al Serio (BG)") and parenthetical sub-locality clarifiers
+ *  ("Frankfurt am Main (Lautzenhausen)", "Paris (Roissy-en-France,
+ *  Val-d'Oise)"). Strip anything from the first " (" onwards so the
+ *  autocomplete shows clean city names. */
+function cleanMunicipality(s: string): string {
+  const idx = s.indexOf(' (');
+  return idx === -1 ? s.trim() : s.slice(0, idx).trim();
+}
+
 // Rough US longitude → timezone bucketing so coast-to-coast departure times
 // aren't all shown as Eastern.
 function tzForUSLng(lng: number): string {
@@ -206,7 +217,7 @@ async function main() {
     out.push({
       iata,
       name: r.name,
-      city: r.municipality || r.name,
+      city: cleanMunicipality(r.municipality || r.name),
       country,
       countryCode: cc,
       lat,
@@ -238,14 +249,15 @@ async function main() {
     const lng = parseFloat(r.longitude_deg);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
     const cc = r.iso_country.toUpperCase();
-    const cityNorm = normalizePlaceName(r.municipality);
+    const cityClean = cleanMunicipality(r.municipality);
+    const cityNorm = normalizePlaceName(cityClean);
     if (!cityNorm) continue;
     // Dedupe by (normalized city, country) — multiple airports per city only
     // need one coord entry. Keeps the file slim (~1.8 MB).
     const key = `${cityNorm}|${cc}`;
     if (gazSeen.has(key)) continue;
     gazSeen.add(key);
-    gaz.push({ city: r.municipality, cityNorm, lat, lng, cc });
+    gaz.push({ city: cityClean, cityNorm, lat, lng, cc });
   }
   gaz.sort((a, b) => a.cityNorm.localeCompare(b.cityNorm));
   writeFileSync(GAZETTEER_PATH, JSON.stringify(gaz) + '\n');
