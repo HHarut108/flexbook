@@ -11,6 +11,7 @@ import { useAuthStore } from '../store/auth.store';
 import { formatYMD } from '../utils/date.utils';
 import { addDays, format } from 'date-fns';
 import { GoHomeLogo } from '../components/GoHomeLogo';
+import { HomeFlightFan } from '../components/HomeFlightFan';
 import {
   MapPin,
   Search,
@@ -524,6 +525,9 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
               Cheapest fares. Biggest adventures.
             </p>
           </div>
+
+          {/* Decorative flight-fan illustration — desktop only, sits between hero and trust bar */}
+          <HomeFlightFan className="hidden md:block mb-8 lg:mb-10 max-w-[480px] lg:max-w-[520px]" />
 
           {/* Trust bar — md+: always in left panel; mobile: hidden here, shown in right panel */}
           <div className="hidden md:block">
