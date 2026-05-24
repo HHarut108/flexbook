@@ -65,6 +65,24 @@
       "port": 5181
     },
     {
+      "name": "Frontend-hopeful (Vite :5182)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/hopeful-galileo-27162b/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5182"
+      ],
+      "port": 5182
+    },
+    {
+      "name": "Admin-hopeful (Vite :5183)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/hopeful-galileo-27162b/admin && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port 5183"
+      ],
+      "port": 5183
+    },
+    {
       "name": "Frontend-silly (Vite :5184)",
       "runtimeExecutable": "/bin/sh",
       "runtimeArgs": [
@@ -165,6 +183,25 @@
         "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/jolly-williams-fb508a/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port ${PORT}"
       ],
       "port": 5200,
+      "autoPort": true
+    },
+    {
+      "name": "Backend-musing-kapitsa (Fastify :3000)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/musing-kapitsa-e2362b/backend && VISA_SERVICE_URL=http://localhost:4100 /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/musing-kapitsa-e2362b/backend/node_modules/.bin/tsx watch src/index.ts"
+      ],
+      "port": 3001
+    },
+    {
+      "name": "Frontend-musing-kapitsa (Vite)",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/harut/Desktop/Fast-Travel-Assistant/.claude/worktrees/musing-kapitsa-e2362b/frontend && /usr/local/bin/node /Users/harut/Desktop/Fast-Travel-Assistant/node_modules/.bin/vite --port ${PORT}"
+      ],
+      "port": 5202,
       "autoPort": true
     }
   ]
