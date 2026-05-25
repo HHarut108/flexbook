@@ -297,11 +297,9 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const searchForm = (
     <div className="section-shell p-4 mb-4">
       <div className="mb-3">
-        {!showResults && (
-          <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold mb-1.5 ml-1">
-            Flying from
-          </p>
-        )}
+        <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold mb-1.5 ml-1">
+          Flying from
+        </p>
         <div className="relative">
           <PlaneTakeoff
             size={16}
@@ -347,93 +345,84 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
             autoFocus
             aria-label="Search origin airport"
           />
+
+          {/* Search results as a floating dropdown — no layout shift */}
+          {showResults && (
+            <div className="absolute top-full left-0 right-0 mt-2 z-20 section-shell overflow-hidden animate-fade-in max-h-[320px] overflow-y-auto">
+              {searchError && !loading && results.length === 0 && (
+                <p className="px-5 py-4 text-rose-400 text-sm" role="alert">
+                  {searchError}
+                </p>
+              )}
+              {!searchError && results.length === 0 && !loading && !fallback && (
+                <p className="px-5 py-4 text-text-muted text-sm">
+                  No airports found. Try a different city or code.
+                </p>
+              )}
+              {!searchError && results.length === 0 && !loading && fallback && (
+                <p className="px-5 py-4 text-text-muted text-sm">
+                  We found <strong className="text-text-primary">{fallback.matchedPlace}</strong>, but no
+                  commercial airport sits within {fallback.radiusKm} km.
+                </p>
+              )}
+              {loading && results.length === 0 && (
+                <div className="flex items-center gap-2.5 px-5 py-4 text-text-muted text-sm">
+                  <Loader2 size={14} className="animate-spin text-indigo-mid" />
+                  Searching airports...
+                </div>
+              )}
+              {fallback && results.length > 0 && !loading && (
+                <div className="px-5 py-3 border-b border-border bg-indigo-soft/40">
+                  <p className="text-[13px] text-text-primary">
+                    No commercial airport in <strong>{fallback.matchedPlace}</strong>.
+                  </p>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    Nearest commercial airports within {fallback.radiusKm} km:
+                  </p>
+                </div>
+              )}
+              {results.map((airport, i) => (
+                <AirportRow
+                  key={airport.iata}
+                  airport={airport}
+                  onSelect={() => selectAirport(airport)}
+                  delay={i * 20}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
-      {!showResults && (
-        <div className="grid grid-cols-2 gap-2.5">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold mb-1.5 ml-1">
-              Departure
-            </p>
-            <DateField value={departureDate} onChange={setDepartureDate} min={minDate} />
-          </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold mb-1.5 ml-1">
-              Travelers
-            </p>
-            <PassengerStepper value={passengers} onChange={setPassengers} />
-          </div>
+      <div className="grid grid-cols-2 gap-2.5">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold mb-1.5 ml-1">
+            Departure
+          </p>
+          <DateField value={departureDate} onChange={setDepartureDate} min={minDate} />
         </div>
-      )}
-      {!showResults && (
-        <button
-          type="button"
-          onClick={() => inputRef.current?.focus()}
-          className="w-full mt-3 h-12 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-          style={{
-            background: 'linear-gradient(135deg, #3730A3 0%, #4F46E5 100%)',
-            boxShadow: '0 8px 24px rgba(55,48,163,0.28)',
-          }}
-        >
-          Find a starting flight
-          <ArrowRight size={16} />
-        </button>
-      )}
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold mb-1.5 ml-1">
+            Travelers
+          </p>
+          <PassengerStepper value={passengers} onChange={setPassengers} />
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => inputRef.current?.focus()}
+        className="w-full mt-3 h-12 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+        style={{
+          background: 'linear-gradient(135deg, #3730A3 0%, #4F46E5 100%)',
+          boxShadow: '0 8px 24px rgba(55,48,163,0.28)',
+        }}
+      >
+        Find a starting flight
+        <ArrowRight size={16} />
+      </button>
     </div>
   );
 
-  const searchResults = showResults && (
-    <div className="section-shell overflow-hidden mb-4 animate-fade-in">
-      {searchError && !loading && results.length === 0 && (
-        <p className="px-5 py-4 text-rose-400 text-sm" role="alert">
-          {searchError}
-        </p>
-      )}
-      {!searchError && results.length === 0 && !loading && !fallback && (
-        <p className="px-5 py-4 text-text-muted text-sm">
-          No airports found. Try a different city or code.
-        </p>
-      )}
-      {/* We resolved the query to a known place (gazetteer hit) but no
-          commercial airport sits within 300 km — e.g. remote islands like
-          Diego Garcia. Tell the user honestly. */}
-      {!searchError && results.length === 0 && !loading && fallback && (
-        <p className="px-5 py-4 text-text-muted text-sm">
-          We found <strong className="text-text-primary">{fallback.matchedPlace}</strong>, but no
-          commercial airport sits within {fallback.radiusKm} km.
-        </p>
-      )}
-      {loading && results.length === 0 && (
-        <div className="flex items-center gap-2.5 px-5 py-4 text-text-muted text-sm">
-          <Loader2 size={14} className="animate-spin text-indigo-mid" />
-          Searching airports...
-        </div>
-      )}
-      {/* "Did you mean" header — only shown when the query matched a known
-          place that has no commercial airport (e.g. São Carlos) and we fell
-          back to nearest commercial airports within 300 km. */}
-      {fallback && results.length > 0 && !loading && (
-        <div className="px-5 py-3 border-b border-border bg-indigo-soft/40">
-          <p className="text-[13px] text-text-primary">
-            No commercial airport in <strong>{fallback.matchedPlace}</strong>.
-          </p>
-          <p className="text-xs text-text-muted mt-0.5">
-            Nearest commercial airports within {fallback.radiusKm} km:
-          </p>
-        </div>
-      )}
-      {results.map((airport, i) => (
-        <AirportRow
-          key={airport.iata}
-          airport={airport}
-          onSelect={() => selectAirport(airport)}
-          delay={i * 20}
-        />
-      ))}
-    </div>
-  );
-
-  const airportList = !showResults && (
+  const airportList = (
     <>
       <div className="flex items-center gap-2 mb-2.5 mt-2">
         <MapPin size={13} className="text-indigo-mid" />
@@ -668,7 +657,6 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
             </span>
           </div>
           {searchForm}
-          {searchResults}
           {airportList}
 
           {/* Trust signals — mobile only (md+ shows them in the left panel) */}
