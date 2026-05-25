@@ -7,6 +7,10 @@ import { useTripStore } from './store/trip.store';
 import { decodeItinerary } from './utils/url.utils';
 import './store/theme.store';
 import './index.css';
+import { prefetchAirportIndex } from './lib/airportIndex';
+
+// Start loading the airport index immediately so it's warm before the user types.
+prefetchAirportIndex();
 
 // Hydrate trip state from ?t= before React renders so that RequireOrigin
 // sees the correct store state when the user refreshes on an inner route.
