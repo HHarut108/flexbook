@@ -21,6 +21,8 @@ import { SignUpScreen } from './screens/SignUpScreen';
 import { VerifyOtpScreen } from './screens/VerifyOtpScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { AccountScreen } from './screens/AccountScreen';
+import { ComingSoonScreen } from './screens/ComingSoonScreen';
+import { AboutScreen } from './screens/AboutScreen';
 import { authApi } from './api/auth.api';
 import { useAuthStore } from './store/auth.store';
 import { hasSessionHint, clearSessionHint } from './utils/sessionHint';
@@ -81,6 +83,9 @@ export default function App() {
         <Route path="/verify-email" element={<VerifyOtpScreen />} />
         <Route path="/login" element={<LoginScreen />} />
         <Route path="/account" element={<AccountScreen />} />
+        <Route path="/trips" element={<ComingSoonScreen title="Trips" description="A dedicated space to manage all your past and upcoming trips in one place. Track where you've been, pick up where you left off, and share your journeys — coming soon." onMenuOpen={() => setDrawerOpen(true)} />} />
+        <Route path="/deals" element={<ComingSoonScreen title="Deals" description="Curated flight deals, fare alerts, and hand-picked routes at jaw-dropping prices. We're building the smartest deals engine for multi-stop travellers — stay tuned." onMenuOpen={() => setDrawerOpen(true)} />} />
+        <Route path="/about" element={<AboutScreen onMenuOpen={() => setDrawerOpen(true)} />} />
 
         <Route element={<RequireOrigin />}>
           <Route path="/date"         element={<DatePickerScreen />} />

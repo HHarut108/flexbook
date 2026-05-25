@@ -146,7 +146,7 @@ function AutoFitOnSize({ bounds }: { bounds: L.LatLngBoundsExpression }) {
    Main component
    ───────────────────────────────────────────────────────────── */
 
-export function HomeFlightFan({ className = '' }: { className?: string }) {
+export function HomeFlightFan({ className = '', bare = false }: { className?: string; bare?: boolean }) {
   const cheapestIata = DESTINATIONS[0].iata; // list is sorted by price asc
 
   const arcs = useMemo(
@@ -173,7 +173,10 @@ export function HomeFlightFan({ className = '' }: { className?: string }) {
           At md (~360px wide) → 180px (min); at lg (~480px) → 192px;
           at xl (~520px) → 208px. */}
       <div
-        className="rounded-3xl border border-border/60 overflow-hidden shadow-[0_18px_50px_-20px_rgba(15,23,42,0.18)] w-full aspect-[5/2] min-h-[180px]"
+        className={bare
+          ? 'w-full aspect-[5/2] min-h-[180px]'
+          : 'rounded-3xl border border-border/60 overflow-hidden shadow-[0_18px_50px_-20px_rgba(15,23,42,0.18)] w-full aspect-[5/2] min-h-[180px]'
+        }
       >
         <MapContainer
           center={[ORIGIN.lat, ORIGIN.lng]}
