@@ -602,8 +602,8 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
 
           {/* Flight fan — desktop only, wrapped in live-fares card */}
           <div
-            className="hidden md:block mb-8 lg:mb-10 rounded-[20px] border border-border/60 overflow-hidden"
-            style={{ boxShadow: '0 8px 28px -10px rgba(15,23,42,0.12)', background: 'rgba(255,255,255,0.6)' }}
+            className="hidden md:block mb-8 lg:mb-10 rounded-[20px] border border-border/60 overflow-hidden bg-surface/60"
+            style={{ boxShadow: '0 8px 28px -10px rgba(15,23,42,0.12)' }}
           >
             {/* Header */}
             <div className="px-4 py-2.5 flex items-center justify-between border-b border-border/40">
@@ -648,7 +648,7 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
             a hard rectangle running edge to edge. Content stays vertically
             centered (justify-center) to mirror the hero on the left. Mobile
             keeps the natural top-down flow (no card chrome). */}
-        <div className="px-5 pb-10 md:w-[400px] md:flex-shrink-0 md:bg-white/70 md:backdrop-blur-sm md:px-6 md:py-8 md:flex md:flex-col md:justify-center md:my-8 md:mr-6 md:rounded-[28px] md:border md:border-border/60 md:shadow-[0_18px_50px_-20px_rgba(15,23,42,0.18)] lg:w-[440px] lg:px-8 lg:my-10 lg:mr-8 xl:w-[480px]">
+        <div className="px-5 pb-10 md:w-[400px] md:flex-shrink-0 md:bg-surface/80 md:backdrop-blur-sm md:px-6 md:py-8 md:flex md:flex-col md:justify-center md:my-8 md:mr-6 md:rounded-[28px] md:border md:border-border/60 md:shadow-[0_18px_50px_-20px_rgba(15,23,42,0.18)] lg:w-[440px] lg:px-8 lg:my-10 lg:mr-8 xl:w-[480px]">
           {/* "Where to first?" panel header — desktop only */}
           <div className="hidden md:flex items-center justify-between mb-3 px-1">
             <h2 className="text-base font-bold text-text-primary">Where to first?</h2>
