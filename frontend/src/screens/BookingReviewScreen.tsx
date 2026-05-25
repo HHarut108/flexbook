@@ -95,7 +95,7 @@ function JourneyTimeline({ legs, origin }: { legs: TripLeg[]; origin: string }) 
                       ? 'bg-orange border-orange'
                       : isLast
                         ? 'bg-indigo border-indigo'
-                        : 'bg-white border-indigo/50'
+                        : 'bg-surface border-indigo/50'
                 }`}
               />
               <span
@@ -153,8 +153,8 @@ function FlightLegRow({
         onClick={() => setExpanded((v) => !v)}
         className={`w-full text-left rounded-2xl border transition-all duration-200 ${
           expanded
-            ? 'bg-white border-indigo-border shadow-md'
-            : 'bg-white/80 border-border hover:border-indigo-border hover:shadow-sm'
+            ? 'bg-surface border-indigo-border shadow-md'
+            : 'bg-surface/80 border-border hover:border-indigo-border hover:shadow-sm'
         }`}
         style={{ minHeight: '44px' }}
         aria-expanded={expanded}
@@ -238,7 +238,7 @@ function FlightLegRow({
         aria-hidden={!expanded}
       >
         <div className="px-4 pt-0 pb-4 mx-[1px]">
-          <div className="bg-white rounded-b-2xl border border-t-0 border-border px-4 pt-3 pb-4 -mt-2 shadow-sm">
+          <div className="bg-surface rounded-b-2xl border border-t-0 border-border px-4 pt-3 pb-4 -mt-2 shadow-sm">
             {/* Flight timeline visual */}
             <div className="flex items-stretch gap-3 mb-4">
               {/* Time column */}
@@ -252,7 +252,7 @@ function FlightLegRow({
               <div className="flex flex-col items-center py-1">
                 <div className={`w-2.5 h-2.5 rounded-full border-2 ${isReturn ? 'border-orange bg-orange' : 'border-indigo bg-indigo'}`} />
                 <div className={`w-[2px] flex-1 ${isReturn ? 'bg-orange/25' : 'bg-indigo/25'}`} />
-                <div className={`w-2.5 h-2.5 rounded-full border-2 ${isReturn ? 'border-orange' : 'border-indigo'} bg-white`} />
+                <div className={`w-2.5 h-2.5 rounded-full border-2 ${isReturn ? 'border-orange' : 'border-indigo'} bg-surface`} />
               </div>
 
               {/* City + date column */}
@@ -329,7 +329,7 @@ function FlightLegRow({
 function PriceBreakdown({ legs }: { legs: TripLeg[] }) {
   const total = totalPrice(legs);
   return (
-    <div className="rounded-2xl border border-border bg-white/80 px-4 py-3">
+    <div className="rounded-2xl border border-border bg-surface/80 px-4 py-3">
       <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold mb-2">
         Price breakdown
       </p>
@@ -498,7 +498,7 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
           <div className="flex items-start gap-3 mb-4">
             <button
               onClick={() => navigate(backScreen)}
-              className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white border border-border hover:bg-indigo-soft hover:border-indigo-border transition-all text-text-muted shrink-0"
+              className="w-10 h-10 flex items-center justify-center rounded-2xl bg-surface border border-border hover:bg-indigo-soft hover:border-indigo-border transition-all text-text-muted shrink-0"
               style={{ minHeight: '44px', minWidth: '44px' }}
               aria-label={partial ? 'Back to trip planning' : 'Back to trip overview'}
             >
@@ -515,11 +515,11 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
           </div>
 
           <div className="grid grid-cols-3 gap-2 mb-3">
-            <div className="rounded-xl bg-white border border-border px-3 py-2.5 text-center">
+            <div className="rounded-xl bg-surface border border-border px-3 py-2.5 text-center">
               <p className="text-[9px] uppercase tracking-[0.16em] text-text-muted mb-0.5">Flights</p>
               <p className="text-text-primary font-bold text-sm">{orderedLegs.length}</p>
             </div>
-            <div className="rounded-xl bg-white border border-border px-3 py-2.5 text-center">
+            <div className="rounded-xl bg-surface border border-border px-3 py-2.5 text-center">
               <p className="text-[9px] uppercase tracking-[0.16em] text-text-muted mb-0.5">Cities</p>
               <p className="text-text-primary font-bold text-sm">{tripCities.length}</p>
             </div>

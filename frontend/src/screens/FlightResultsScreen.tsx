@@ -433,7 +433,7 @@ export function FlightResultsScreen() {
 
           {/* Context strip */}
           <div className="mt-3 flex items-stretch gap-2">
-            <div className="flex-1 min-w-0 rounded-xl border border-border bg-white px-3 py-2">
+            <div className="flex-1 min-w-0 rounded-xl border border-border bg-surface px-3 py-2">
               <div className="text-[9px] uppercase tracking-[0.18em] text-text-muted">From</div>
               <div className="flex items-baseline gap-1.5 min-w-0">
                 <span className="font-mono text-sm font-black text-indigo">{currentIata}</span>
@@ -441,7 +441,7 @@ export function FlightResultsScreen() {
               </div>
             </div>
 
-            <div className="shrink-0 inline-flex items-stretch rounded-xl border border-border bg-white overflow-hidden">
+            <div className="shrink-0 inline-flex items-stretch rounded-xl border border-border bg-surface overflow-hidden">
               <button
                 onClick={() => shiftDate(-1)}
                 className="w-11 sm:w-9 flex items-center justify-center text-text-muted hover:text-indigo hover:bg-indigo-soft transition-colors min-h-[44px]"
