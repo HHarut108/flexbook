@@ -1,51 +1,30 @@
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { AirportSearchResponse } from '@fast-travel/shared';
+import { getAirportIndex, searchIndex } from '../lib/airportIndex';
 import { searchAirports } from '../api/airports.api';
-
-// Tiny in-memory LRU-ish cache for recently typed queries. Keeps the UI feeling
-// snappy when the user deletes/retypes and avoids hammering the backend.
-const RECENT_CACHE_MAX = 30;
-const RECENT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-type CacheEntry = { response: AirportSearchResponse; ts: number };
-const recentCache = new Map<string, CacheEntry>();
-
-function readCache(key: string): AirportSearchResponse | null {
-  const entry = recentCache.get(key);
-  if (!entry) return null;
-  if (Date.now() - entry.ts > RECENT_CACHE_TTL_MS) {
-    recentCache.delete(key);
-    return null;
-  }
-  // Touch for LRU ordering
-  recentCache.delete(key);
-  recentCache.set(key, entry);
-  return entry.response;
-}
-
-function writeCache(key: string, response: AirportSearchResponse): void {
-  recentCache.set(key, { response, ts: Date.now() });
-  if (recentCache.size > RECENT_CACHE_MAX) {
-    const oldest = recentCache.keys().next().value;
-    if (oldest !== undefined) recentCache.delete(oldest);
-  }
-}
 
 const EMPTY: AirportSearchResponse = { results: [] };
 
-export function useAirportSearch(query: string, debounceMs = 300) {
+export function useAirportSearch(query: string) {
   const [response, setResponse] = useState<AirportSearchResponse>(EMPTY);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
-  const controllerRef = useRef<AbortController | null>(null);
+
+  // Ref to track latest query so stale async results don't clobber newer ones.
+  const latestQuery = useRef(query);
+  latestQuery.current = query;
+
+  // Debounce timer only used for the server fallback (gazetteer) path.
+  const fallbackTimer = useRef<ReturnType<typeof setTimeout>>();
+  const fallbackController = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    // Abort any in-flight request — only the latest query should win.
-    if (controllerRef.current) controllerRef.current.abort();
+    clearTimeout(fallbackTimer.current);
+    fallbackController.current?.abort();
 
     const trimmed = query.trim();
+
     if (!trimmed) {
       setResponse(EMPTY);
       setError(null);
@@ -53,51 +32,59 @@ export function useAirportSearch(query: string, debounceMs = 300) {
       return;
     }
 
-    // Serve from cache instantly when available.
-    const key = trimmed.toLowerCase();
-    const cached = readCache(key);
-    if (cached) {
-      setResponse(cached);
-      setError(null);
-      setLoading(false);
-      return;
-    }
+    // Kick off the index load (no-op if already loaded/loading).
+    getAirportIndex().then((index) => {
+      // Guard: ignore if the user has already typed something else.
+      if (latestQuery.current.trim() !== trimmed) return;
 
-    timerRef.current = setTimeout(async () => {
-      const controller = new AbortController();
-      controllerRef.current = controller;
+      const local = searchIndex(index, trimmed);
+
+      if (local.length > 0) {
+        setResponse({ results: local });
+        setError(null);
+        setLoading(false);
+        return;
+      }
+
+      // No local hits — query is either very short or resolves only via the
+      // gazetteer (small city with no commercial airport nearby). Fall back to
+      // the backend which has the full gazetteer and "did you mean" logic.
+      if (trimmed.length < 3) {
+        setResponse(EMPTY);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setError(null);
-      try {
-        const data = await searchAirports(trimmed, controller.signal);
-        if (controller.signal.aborted) return;
-        writeCache(key, data);
-        setResponse(data);
-      } catch (err) {
-        // Cancellations are expected — ignore them.
-        if (
-          axios.isCancel(err) ||
-          (err as { code?: string })?.code === 'ERR_CANCELED' ||
-          (err as { name?: string })?.name === 'CanceledError' ||
-          (err as { name?: string })?.name === 'AbortError'
-        ) {
-          return;
-        }
-        setResponse(EMPTY);
-        setError(
-          err instanceof Error ? err.message : 'Could not load airports. Please try again.',
-        );
-      } finally {
-        if (controllerRef.current === controller) {
-          setLoading(false);
-        }
-      }
-    }, debounceMs);
 
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [query, debounceMs]);
+      fallbackTimer.current = setTimeout(async () => {
+        const controller = new AbortController();
+        fallbackController.current = controller;
+        try {
+          const data = await searchAirports(trimmed, controller.signal);
+          if (controller.signal.aborted) return;
+          if (latestQuery.current.trim() !== trimmed) return;
+          setResponse(data);
+        } catch (err) {
+          if (
+            axios.isCancel(err) ||
+            (err as { code?: string })?.code === 'ERR_CANCELED' ||
+            (err as { name?: string })?.name === 'CanceledError' ||
+            (err as { name?: string })?.name === 'AbortError'
+          ) {
+            return;
+          }
+          if (latestQuery.current.trim() !== trimmed) return;
+          setResponse(EMPTY);
+          setError(err instanceof Error ? err.message : 'Could not load airports. Please try again.');
+        } finally {
+          if (fallbackController.current === controller) setLoading(false);
+        }
+      }, 200);
+    });
+  }, [query]);
 
   return {
     results: response.results,
