@@ -12,6 +12,7 @@ import { formatYMD } from '../utils/date.utils';
 import { addDays, format } from 'date-fns';
 import { GoHomeLogo } from '../components/GoHomeLogo';
 import { HomeFlightFan } from '../components/HomeFlightFan';
+import { Link } from 'react-router-dom';
 import {
   MapPin,
   Search,
@@ -364,6 +365,20 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
           </div>
         </div>
       )}
+      {!showResults && (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.focus()}
+          className="w-full mt-3 h-12 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+          style={{
+            background: 'linear-gradient(135deg, #3730A3 0%, #4F46E5 100%)',
+            boxShadow: '0 8px 24px rgba(55,48,163,0.28)',
+          }}
+        >
+          Find a starting flight
+          <ArrowRight size={16} />
+        </button>
+      )}
     </div>
   );
 
@@ -471,20 +486,56 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
       />
 
       {/* ── Nav — full width across all breakpoints ── */}
-      <div className="relative flex items-center justify-between px-5 pt-7 pb-4 md:px-8 md:py-5 lg:px-10 lg:border-b lg:border-border/50">
+      <nav className="relative flex items-center justify-between px-5 pt-7 pb-4 md:px-8 md:py-5 lg:px-10 lg:border-b lg:border-border/50">
         <GoHomeLogo size="lg" variant="light" />
-        <button
-          onClick={onMenuOpen}
-          className="w-10 h-10 rounded-2xl bg-surface border border-border flex items-center justify-center text-indigo-mid transition-all hover:bg-indigo-soft hover:border-indigo-border"
-          style={{ boxShadow: '0 4px 12px rgba(15,23,42,0.08)' }}
-          aria-label="Account"
-        >
-          {initials
-            ? <span className="text-xs font-bold text-indigo leading-none">{initials}</span>
-            : <User size={16} />
-          }
-        </button>
-      </div>
+
+        {/* Desktop nav links */}
+        <div className="hidden lg:flex items-center gap-1">
+          <span className="px-4 py-2 rounded-xl text-sm font-semibold text-indigo bg-indigo-soft border border-indigo-border">
+            Plan
+          </span>
+          <Link
+            to="/trips"
+            className="px-4 py-2 rounded-xl text-sm font-semibold text-text-muted hover:text-text-primary hover:bg-surface-2 transition-all"
+          >
+            Trips
+          </Link>
+          <Link
+            to="/deals"
+            className="px-4 py-2 rounded-xl text-sm font-semibold text-text-muted hover:text-text-primary hover:bg-surface-2 transition-all"
+          >
+            Deals
+          </Link>
+          <Link
+            to="/about"
+            className="px-4 py-2 rounded-xl text-sm font-semibold text-text-muted hover:text-text-primary hover:bg-surface-2 transition-all"
+          >
+            About Us
+          </Link>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {!user && (
+            <Link
+              to="/login"
+              className="hidden lg:block text-sm font-semibold text-text-secondary hover:text-text-primary transition-colors"
+            >
+              Sign in
+            </Link>
+          )}
+          <button
+            onClick={onMenuOpen}
+            className="w-10 h-10 rounded-2xl bg-surface border border-border flex items-center justify-center text-indigo-mid transition-all hover:bg-indigo-soft hover:border-indigo-border"
+            style={{ boxShadow: '0 4px 12px rgba(15,23,42,0.08)' }}
+            aria-label="Account"
+          >
+            {initials
+              ? <span className="text-xs font-bold text-indigo leading-none">{initials}</span>
+              : <User size={16} />
+            }
+          </button>
+        </div>
+      </nav>
 
       {/* ── Body: single column on mobile, 2-panel from md: up ── */}
       <div
@@ -495,7 +546,13 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
         {/* ── Left panel: hero + trust (always visible on md+, stacked on mobile) ── */}
         <div className="px-5 pt-6 pb-2 md:flex-1 md:flex md:flex-col md:justify-center md:px-8 md:py-10 lg:px-12 lg:py-12">
           {/* Hero */}
-          <div className="mb-8 lg:mb-10">
+          <div className="mb-6 lg:mb-8">
+            {/* PLAN A TRIP label */}
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-0.5 w-5 bg-orange rounded-full" />
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-orange">Plan a trip</p>
+            </div>
+
             {user && (
               <p
                 className="text-text-secondary font-semibold mb-2"
@@ -521,23 +578,77 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
                 </span>
               </span>
             </h1>
-            <p className="mt-4 text-base md:text-lg leading-7 text-text-muted max-w-[30ch]">
-              Cheapest fares. Biggest adventures.
+            <p className="mt-4 text-base md:text-lg leading-7 text-text-muted max-w-[36ch]">
+              Cheapest fares. Biggest adventures. Hop between cities
+              on the lowest available next-leg fare — no return required.
             </p>
+
+            {/* Stats bar */}
+            <div className="flex items-center gap-5 mt-5">
+              <div>
+                <p className="font-black leading-none text-xl">
+                  <span className="text-orange">15</span>
+                  <span className="text-[0.5em] font-bold text-indigo-mid ml-1.5 uppercase tracking-wider">stops</span>
+                </p>
+                <p className="text-[11px] text-text-muted mt-1">Max per trip</p>
+              </div>
+              <div className="w-px h-7 bg-border/60 shrink-0" />
+              <div>
+                <p className="font-black leading-none text-xl">
+                  <span className="text-orange">$29</span>
+                  <span className="text-[0.5em] font-bold text-orange/70 ml-1.5">from</span>
+                </p>
+                <p className="text-[11px] text-text-muted mt-1">Cheapest hop today</p>
+              </div>
+              <div className="w-px h-7 bg-border/60 shrink-0" />
+              <div>
+                <p className="font-black leading-none text-xl">
+                  <span className="text-teal-500">0</span>
+                  <span className="text-[0.5em] font-bold text-teal-400 ml-1.5 uppercase tracking-wider">acct</span>
+                </p>
+                <p className="text-[11px] text-text-muted mt-1">No sign-up needed</p>
+              </div>
+            </div>
           </div>
 
-          {/* Decorative flight-fan banner — desktop only, fills the
-              left panel width between hero and trust bar */}
-          <HomeFlightFan className="hidden md:block mb-8 lg:mb-10" />
-
-          {/* Trust bar — md+: always in left panel; mobile: hidden here, shown in right panel */}
-          <div className="hidden md:block">
-            <TrustBar />
-            <p className="mt-6 text-xs text-text-muted/60 leading-5">
-              Up to 15 stops per trip. Always the cheapest next hop.
-              <br />
-              No sign-up required.
-            </p>
+          {/* Flight fan — desktop only, wrapped in live-fares card */}
+          <div
+            className="hidden md:block mb-8 lg:mb-10 rounded-[20px] border border-border/60 overflow-hidden"
+            style={{ boxShadow: '0 8px 28px -10px rgba(15,23,42,0.12)', background: 'rgba(255,255,255,0.6)' }}
+          >
+            {/* Header */}
+            <div className="px-4 py-2.5 flex items-center justify-between border-b border-border/40">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-text-muted">
+                Live fares · Departing {nearby[0]?.iata ?? 'EVN'} tonight
+              </p>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-text-secondary px-2.5 py-0.5 rounded-full bg-surface-2 border border-border">
+                  9 routes
+                </span>
+                <span className="text-[11px] font-semibold text-orange px-2.5 py-0.5 rounded-full bg-orange/10 border border-orange/20 flex items-center gap-1">
+                  ⚡ cheapest $29
+                </span>
+              </div>
+            </div>
+            {/* Map */}
+            <HomeFlightFan bare />
+            {/* Footer trust bar */}
+            <div className="px-4 py-2.5 flex items-center gap-4 border-t border-border/40 flex-wrap">
+              <div className="flex items-center gap-1.5">
+                <TrendingUp size={12} className="text-emerald shrink-0" />
+                <span className="text-xs text-text-muted"><strong className="text-text-secondary">Multi-stop</strong> trip planning</span>
+              </div>
+              <div className="w-px h-3 bg-border" />
+              <div className="flex items-center gap-1.5">
+                <Star size={12} className="text-gold shrink-0" />
+                <span className="text-xs text-text-muted">Always the <strong className="text-text-secondary">cheapest next hop</strong></span>
+              </div>
+              <div className="w-px h-3 bg-border" />
+              <div className="flex items-center gap-1.5">
+                <Shield size={12} className="text-indigo-mid shrink-0" />
+                <span className="text-xs text-text-muted"><strong className="text-text-secondary">No account</strong> needed</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -549,6 +660,13 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
             centered (justify-center) to mirror the hero on the left. Mobile
             keeps the natural top-down flow (no card chrome). */}
         <div className="px-5 pb-10 md:w-[400px] md:flex-shrink-0 md:bg-white/70 md:backdrop-blur-sm md:px-6 md:py-8 md:flex md:flex-col md:justify-center md:my-8 md:mr-6 md:rounded-[28px] md:border md:border-border/60 md:shadow-[0_18px_50px_-20px_rgba(15,23,42,0.18)] lg:w-[440px] lg:px-8 lg:my-10 lg:mr-8 xl:w-[480px]">
+          {/* "Where to first?" panel header — desktop only */}
+          <div className="hidden md:flex items-center justify-between mb-3 px-1">
+            <h2 className="text-base font-bold text-text-primary">Where to first?</h2>
+            <span className="text-xs text-text-muted">
+              One-way · <span className="font-semibold text-indigo-mid">cheapest hop</span>
+            </span>
+          </div>
           {searchForm}
           {searchResults}
           {airportList}
