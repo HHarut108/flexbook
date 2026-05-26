@@ -17,6 +17,8 @@ import { Airport } from '@fast-travel/shared';
 import { useAirportSearch } from '../hooks/useAirportSearch';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
+import { useAuthStore } from '../store/auth.store';
+import { clearSessionHint } from '../utils/sessionHint';
 import { planBudgetTrip, BudgetPlanResult, BudgetPlanLeg } from '../api/budgetTrip.api';
 
 /* ── helpers ── */
@@ -227,6 +229,7 @@ export function TripPlannerScreen() {
   const navigate = useNavigate();
   const { setOrigin, setPassengers } = useTripStore();
   const { setSelectedDate } = useSessionStore();
+  const { logout } = useAuthStore();
 
   // Form state
   const [originQuery, setOriginQuery] = useState('');
@@ -278,6 +281,11 @@ export function TripPlannerScreen() {
       const msg = status === 401
         ? 'Your session has expired. Please log in again.'
         : raw;
+      if (status === 401) {
+        // Sync frontend auth state with reality — cookie is gone/invalid.
+        clearSessionHint();
+        logout();
+      }
       setError(msg);
       setErrorStatus(status ?? null);
     } finally {
@@ -466,7 +474,7 @@ export function TripPlannerScreen() {
             <p className="text-sm text-red-600 dark:text-red-400 font-medium">{error}</p>
             {errorStatus === 401 ? (
               <button
-                onClick={() => navigate('/login')}
+                onClick={() => navigate('/login?from=/trip-planner')}
                 className="text-xs text-red-500 dark:text-red-400 hover:underline mt-1 font-semibold"
               >
                 Go to login →
