@@ -20,7 +20,9 @@ export interface BudgetPlanResult {
 }
 
 export async function planBudgetTrip(params: BudgetPlanParams): Promise<BudgetPlanResult> {
-  // apiClient interceptor already unwraps { success, data } → inner payload
-  const { data } = await apiClient.post<BudgetPlanResult>('/trips/budget-plan', params);
+  // Budget planning chains up to 4 sequential flight searches — allow 90 s.
+  const { data } = await apiClient.post<BudgetPlanResult>('/trips/budget-plan', params, {
+    timeout: 90_000,
+  });
   return data;
 }
