@@ -20,6 +20,7 @@ export interface BudgetPlanResult {
 }
 
 export async function planBudgetTrip(params: BudgetPlanParams): Promise<BudgetPlanResult> {
-  const { data } = await apiClient.post<{ data: BudgetPlanResult }>('/trips/budget-plan', params);
-  return data.data;
+  // apiClient interceptor already unwraps { success, data } → inner payload
+  const { data } = await apiClient.post<BudgetPlanResult>('/trips/budget-plan', params);
+  return data;
 }

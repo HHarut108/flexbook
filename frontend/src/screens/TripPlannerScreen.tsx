@@ -242,6 +242,7 @@ export function TripPlannerScreen() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<BudgetPlanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
 
   const { results: airportResults, loading: airportLoading } = useAirportSearch(
     dropdownOpen ? originQuery : '',
@@ -260,6 +261,7 @@ export function TripPlannerScreen() {
     if (!canSearch || !originAirport) return;
     setLoading(true);
     setError(null);
+    setErrorStatus(null);
     setResult(null);
     try {
       const data = await planBudgetTrip({
@@ -271,11 +273,13 @@ export function TripPlannerScreen() {
       });
       setResult(data);
     } catch (err: any) {
-      const msg =
-        err?.response?.data?.error?.message ??
-        err?.message ??
-        'Something went wrong. Please try again.';
+      const status = err?.status;
+      const raw = err?.message ?? 'Something went wrong. Please try again.';
+      const msg = status === 401
+        ? 'Your session has expired. Please log in again.'
+        : raw;
       setError(msg);
+      setErrorStatus(status ?? null);
     } finally {
       setLoading(false);
     }
@@ -293,6 +297,7 @@ export function TripPlannerScreen() {
   function handleRetry() {
     setResult(null);
     setError(null);
+    setErrorStatus(null);
   }
 
   return (
@@ -459,9 +464,18 @@ export function TripPlannerScreen() {
         {error && (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl px-4 py-3">
             <p className="text-sm text-red-600 dark:text-red-400 font-medium">{error}</p>
-            <button onClick={handleRetry} className="text-xs text-red-500 dark:text-red-400 hover:underline mt-1">
-              Try different inputs
-            </button>
+            {errorStatus === 401 ? (
+              <button
+                onClick={() => navigate('/login')}
+                className="text-xs text-red-500 dark:text-red-400 hover:underline mt-1 font-semibold"
+              >
+                Go to login →
+              </button>
+            ) : (
+              <button onClick={handleRetry} className="text-xs text-red-500 dark:text-red-400 hover:underline mt-1">
+                Try different inputs
+              </button>
+            )}
           </div>
         )}
 
