@@ -457,7 +457,10 @@ export function TripPlannerScreen() {
           {loading ? (
             <>
               <Loader2 size={18} className="animate-spin" />
-              Planning your adventure…
+              <span className="flex flex-col items-start leading-tight">
+                <span>Planning your adventure…</span>
+                <span className="text-xs font-normal opacity-70">This may take up to a minute</span>
+              </span>
             </>
           ) : (
             <>

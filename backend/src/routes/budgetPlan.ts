@@ -8,10 +8,10 @@ import { ok, fail } from '../utils/response';
 
 const MAX_STOPS = 3;
 const STAY_DAYS = 3;
-// Fraction of remaining budget reserved for the return leg before committing to each hop.
 const RETURN_RESERVE_RATIO = 0.35;
-// Minimum price buffer to bother searching another hop.
 const MIN_HOP_BUDGET = 50;
+// Hard wall-clock budget for the whole algorithm — must be less than the client timeout (90 s).
+const PLAN_DEADLINE_MS = 75_000;
 
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr);
@@ -41,9 +41,11 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
     let currentOriginIata = originIata;
     let currentDate = departureDateFrom;
     const visited = new Set<string>([originIata]);
+    const deadline = Date.now() + PLAN_DEADLINE_MS;
 
     // ── Outbound hops ─────────────────────────────────────────────────────────
     for (let i = 0; i < MAX_STOPS; i++) {
+      if (Date.now() >= deadline) break;
       const returnReserve = remainingBudget * RETURN_RESERVE_RATIO;
       const availableForHop = remainingBudget - returnReserve;
 
@@ -85,7 +87,7 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
     }
 
     // ── Return leg ────────────────────────────────────────────────────────────
-    if (currentOriginIata !== originIata) {
+    if (currentOriginIata !== originIata && Date.now() < deadline) {
       const returnOriginCity = airportService.getByIata(currentOriginIata)?.city.name ?? currentOriginIata;
 
       let returnFlights: FlightOption[] = [];
