@@ -14,6 +14,7 @@ import {
   COOKIE_NAME,
   cookieOptions,
 } from '../utils/userAuth';
+import { requireAuth } from '../utils/requireAuth';
 import { redis, recordRedisOk, recordRedisError } from '../utils/redisClient';
 import { encryptPii, decryptPii } from '../utils/pii';
 
@@ -533,11 +534,3 @@ async function createVisasForUser(
   }
 }
 
-async function requireAuth(req: any, reply: any) {
-  const token = req.cookies?.[COOKIE_NAME];
-  if (!token) return reply.status(401).send({ error: { message: 'Not authenticated' } });
-  const { verifyUserToken } = await import('../utils/userAuth');
-  const payload = verifyUserToken(token);
-  if (!payload) return reply.status(401).send({ error: { message: 'Session expired' } });
-  req.userId = payload.sub;
-}
