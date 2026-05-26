@@ -17,7 +17,6 @@ import { Airport } from '@fast-travel/shared';
 import { useAirportSearch } from '../hooks/useAirportSearch';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
-import { useAuthStore } from '../store/auth.store';
 import { clearSessionHint } from '../utils/sessionHint';
 import { planBudgetTrip, BudgetPlanResult, BudgetPlanLeg } from '../api/budgetTrip.api';
 
@@ -229,7 +228,6 @@ export function TripPlannerScreen() {
   const navigate = useNavigate();
   const { setOrigin, setPassengers } = useTripStore();
   const { setSelectedDate } = useSessionStore();
-  const { logout } = useAuthStore();
 
   // Form state
   const [originQuery, setOriginQuery] = useState('');
@@ -282,9 +280,10 @@ export function TripPlannerScreen() {
         ? 'Your session has expired. Please log in again.'
         : raw;
       if (status === 401) {
-        // Sync frontend auth state with reality — cookie is gone/invalid.
+        // Clear the hint so the next page load doesn't try to reuse the stale cookie.
+        // Do NOT call logout() here — that nulls out `user` and triggers RequireAuth
+        // to redirect before the error banner can render.
         clearSessionHint();
-        logout();
       }
       setError(msg);
       setErrorStatus(status ?? null);
