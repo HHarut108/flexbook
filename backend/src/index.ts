@@ -13,6 +13,7 @@ import { flightRoutes } from './routes/flights';
 import { weatherRoutes } from './routes/weather';
 import { airlineRoutes } from './routes/airlines';
 import { tripRoutes } from './routes/trips';
+import { budgetPlanRoutes } from './routes/budgetPlan';
 import { placesRoutes } from './routes/places';
 import { cityGuideRoutes } from './routes/cityGuide';
 import { metricsRoutes } from './routes/metrics';
@@ -142,6 +143,7 @@ async function start() {
   await app.register(weatherRoutes);
   await app.register(airlineRoutes);
   await app.register(tripRoutes);
+  await app.register(budgetPlanRoutes);
   await app.register(placesRoutes);
   await app.register(cityGuideRoutes);
   await app.register(metricsRoutes);

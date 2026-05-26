@@ -9,7 +9,7 @@ import { buildSlugShareUrl } from '../utils/url.utils';
 import { createTripShare } from '../api/trips.api';
 import { formatPrice } from '../utils/price.utils';
 import { useThemeStore } from '../store/theme.store';
-import { X, MapPin, Share2, Trash2, Plane, BookmarkCheck, Loader2, Sun, Moon, User, LogOut, ChevronRight } from 'lucide-react';
+import { X, MapPin, Share2, Trash2, Plane, BookmarkCheck, Loader2, Sun, Moon, User, LogOut, ChevronRight, Wallet } from 'lucide-react';
 import { GoHomeLogo } from './GoHomeLogo';
 
 interface Props {
@@ -291,6 +291,28 @@ export function AppDrawer({ open, onClose }: Props) {
                 </div>
               )}
             </div>
+
+            {/* Budget Planner — registered users only */}
+            {user && (
+              <div className="px-5 pb-4 pt-2 border-t border-border">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-text-muted mb-3 mt-3">Tools</h3>
+                <button
+                  onClick={() => goTo('/trip-planner')}
+                  className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl bg-indigo-soft border border-indigo-border hover:bg-indigo/10 transition-all"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-indigo/15 flex items-center justify-center shrink-0">
+                      <Wallet size={15} className="text-indigo" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-text-primary">Budget Planner</p>
+                      <p className="text-xs text-text-muted">Find a trip within your budget</p>
+                    </div>
+                  </div>
+                  <ChevronRight size={15} className="text-text-muted" />
+                </button>
+              </div>
+            )}
 
             {/* Settings section */}
             <div className="px-5 pb-5 pt-2 border-t border-border">
