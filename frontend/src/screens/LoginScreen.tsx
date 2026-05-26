@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { authApi } from '../api/auth.api';
 import { useAuthStore } from '../store/auth.store';
 
 export function LoginScreen() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get('from') ?? '/';
   const setUser = useAuthStore((s) => s.setUser);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -20,7 +22,7 @@ export function LoginScreen() {
     try {
       const { user } = await authApi.login(email, password);
       setUser(user);
-      navigate('/', { replace: true });
+      navigate(returnTo, { replace: true });
     } catch (err: any) {
       setError(err.message ?? 'Login failed');
     } finally {
