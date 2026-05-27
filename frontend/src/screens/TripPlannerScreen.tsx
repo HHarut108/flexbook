@@ -131,11 +131,13 @@ function LegRow({ leg }: { leg: BudgetPlanLeg }) {
 function PlanResult({
   result,
   passengers,
+  tripStyle,
   onStartTrip,
   onRetry,
 }: {
   result: BudgetPlanResult;
   passengers: number;
+  tripStyle: 'value' | 'surprise';
   onStartTrip: () => void;
   onRetry: () => void;
 }) {
@@ -153,7 +155,7 @@ function PlanResult({
           onClick={onRetry}
           className="text-sm text-indigo font-medium hover:underline"
         >
-          Try another
+          {tripStyle === 'value' ? 'Re-check prices' : 'Try another'}
         </button>
       </div>
 
@@ -236,6 +238,9 @@ export function TripPlannerScreen() {
   const [dateTo, setDateTo] = useState('');
   const [budget, setBudget] = useState('');
   const [passengers, setPassengersLocal] = useState(1);
+  const [maxStops, setMaxStops] = useState<1 | 2 | 3>(2);
+  const [nightsPerStop, setNightsPerStop] = useState(4);
+  const [tripStyle, setTripStyle] = useState<'value' | 'surprise'>('value');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const originRef = useRef<HTMLInputElement>(null);
 
@@ -271,6 +276,9 @@ export function TripPlannerScreen() {
         departureDateTo: dateTo,
         budgetPerPerson: Math.round(Number(budget)),
         passengers,
+        maxStops,
+        nightsPerStop,
+        tripStyle,
       });
       setResult(data);
     } catch (err: any) {
@@ -446,6 +454,76 @@ export function TripPlannerScreen() {
               <PassengerStepper value={passengers} onChange={setPassengersLocal} />
             </div>
           </div>
+
+          {/* Destination count */}
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-medium text-text-muted px-1">How many places do you want to visit?</span>
+            <div className="flex gap-2">
+              {([1, 2, 3] as const).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setMaxStops(n)}
+                  className={`flex-1 h-10 rounded-2xl border text-sm font-medium transition-all ${
+                    maxStops === n
+                      ? 'bg-indigo-soft border-indigo-border text-indigo'
+                      : 'bg-surface-2 border-border text-text-muted hover:border-indigo-border'
+                  }`}
+                >
+                  {n} destination{n > 1 ? 's' : ''}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Nights per stop */}
+          <div className="flex flex-col gap-2">
+            <div className="flex justify-between items-center px-1">
+              <span className="text-xs font-medium text-text-muted">How long do you want to spend at each stop?</span>
+              <span className="text-xs font-semibold text-indigo">{nightsPerStop} nights</span>
+            </div>
+            <input
+              type="range"
+              min={2}
+              max={14}
+              step={1}
+              value={nightsPerStop}
+              onChange={(e) => setNightsPerStop(Number(e.target.value))}
+              className="w-full accent-indigo"
+              aria-label={`${nightsPerStop} nights per stop`}
+            />
+            <div className="flex justify-between px-0.5">
+              <span className="text-xs text-text-xmuted">2 nights</span>
+              <span className="text-xs text-text-xmuted">14 nights</span>
+            </div>
+          </div>
+
+          {/* Trip style */}
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-medium text-text-muted px-1">What should we optimise for?</span>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { value: 'value' as const, label: 'Best value', sub: 'Cheapest possible route.' },
+                { value: 'surprise' as const, label: 'Surprise me', sub: "Creative routes — 'Try another' gives a different trip each time." },
+              ]).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setTripStyle(opt.value)}
+                  className={`flex flex-col items-start gap-1 p-3 rounded-2xl border text-left transition-all ${
+                    tripStyle === opt.value
+                      ? 'bg-indigo-soft border-indigo-border'
+                      : 'bg-surface-2 border-border hover:border-indigo-border'
+                  }`}
+                >
+                  <span className={`text-sm font-semibold ${tripStyle === opt.value ? 'text-indigo' : 'text-text-primary'}`}>
+                    {opt.label}
+                  </span>
+                  <span className="text-xs text-text-muted leading-snug">{opt.sub}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* ── Search button ── */}
@@ -494,6 +572,7 @@ export function TripPlannerScreen() {
           <PlanResult
             result={result}
             passengers={passengers}
+            tripStyle={tripStyle}
             onStartTrip={handleStartTrip}
             onRetry={handleRetry}
           />
