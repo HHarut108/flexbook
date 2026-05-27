@@ -528,9 +528,9 @@ const DEST_OPTIONS: { value: DestCount; label: string; sublabel: string }[] = [
 ];
 
 const STYLE_OPTIONS: { value: TripStyle; label: string; sub: string }[] = [
-  { value: 'value', label: 'Best value', sub: 'Cheapest route, every penny counts.' },
-  { value: 'surprise', label: 'Surprise me', sub: "Serendipitous picks — 'Try another' each time." },
-  { value: 'offpath', label: 'Off the beaten path', sub: 'Under-the-radar gems, fewer tourists.' },
+  { value: 'value', label: 'Best value', sub: 'Cheapest flight at every stop — maximum savings.' },
+  { value: 'surprise', label: 'Surprise me', sub: '2nd-best picks for a different angle — try again each time.' },
+  { value: 'offpath', label: 'Under the radar', sub: 'Longest direct hops — discover more distant destinations.' },
 ];
 
 /* ── Main screen ── */
@@ -585,7 +585,19 @@ export function TripPlannerScreen() {
   const showNightsSection = showMultiNights || showMaxNights;
   const tripStyleVisible = destCount !== null;
 
-  // Effective nights per stop sent to API
+  // Per-stop night counts derived from slider splits
+  const nightsPerDestArray = useMemo<number[]>(() => {
+    if (numericDests >= 2 && nightSplits.length === numericDests - 1) {
+      return Array.from({ length: numericDests }, (_, i) => {
+        const start = i === 0 ? 0 : nightSplits[i - 1];
+        const end = i === numericDests - 1 ? tripNights : nightSplits[i];
+        return Math.max(1, end - start);
+      });
+    }
+    return [];
+  }, [numericDests, nightSplits, tripNights]);
+
+  // Fallback single value for 'max' mode and validation
   const effectiveNightsForApi = useMemo(() => {
     if (destCount === 'max') return nightsPerStop;
     if (destCount === 1) return tripNights;
@@ -608,7 +620,6 @@ export function TripPlannerScreen() {
     setResult(null);
     try {
       const apiMaxStops: 1 | 2 | 3 = destCount === 'max' ? 3 : destCount;
-      const apiTripStyle: 'value' | 'surprise' = tripStyle === 'offpath' ? 'surprise' : tripStyle;
       const data = await planBudgetTrip({
         originIata: originAirport.iata,
         departureDateFrom: dateFrom,
@@ -617,7 +628,8 @@ export function TripPlannerScreen() {
         passengers,
         maxStops: apiMaxStops,
         nightsPerStop: effectiveNightsForApi,
-        tripStyle: apiTripStyle,
+        nightsPerStopArray: nightsPerDestArray.length > 0 ? nightsPerDestArray : undefined,
+        tripStyle,
       });
       setResult(data);
     } catch (err: any) {

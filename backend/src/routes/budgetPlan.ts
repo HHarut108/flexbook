@@ -31,8 +31,9 @@ const bodySchema = z.object({
   budgetPerPerson: z.number().int().min(100).max(100_000),
   passengers: z.coerce.number().int().min(1).max(9).default(1),
   maxStops: z.number().int().min(1).max(3).default(2),
-  nightsPerStop: z.number().int().min(2).max(14).default(4),
-  tripStyle: z.enum(['value', 'surprise']).default('value'),
+  nightsPerStop: z.number().int().min(1).max(60).default(4),
+  nightsPerStopArray: z.array(z.number().int().min(1).max(60)).optional(),
+  tripStyle: z.enum(['value', 'surprise', 'offpath']).default('value'),
 });
 
 type BeamState = {
@@ -50,10 +51,8 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send(fail('INVALID_PARAMS', parsed.error.issues[0]?.message ?? 'Invalid params'));
     }
 
-    const { originIata, departureDateFrom, departureDateTo, budgetPerPerson, passengers, maxStops, nightsPerStop, tripStyle } = parsed.data;
+    const { originIata, departureDateFrom, departureDateTo, budgetPerPerson, passengers, maxStops, nightsPerStop, nightsPerStopArray, tripStyle } = parsed.data;
     const deadline = Date.now() + PLAN_DEADLINE_MS;
-
-    const rng: (() => number) | null = tripStyle === 'surprise' ? seededRng(Date.now()) : null;
 
     let beam: BeamState[] = [{
       legs: [],
@@ -103,10 +102,14 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
         if (qualifying.length === 0) continue;
 
         let candidate: FlightOption;
-        if (rng) {
-          const threshold = qualifying[0].priceUsd * (1 + VARIATION_BAND);
-          const band = qualifying.filter((f) => f.priceUsd <= threshold);
-          candidate = band[Math.floor(rng() * band.length)];
+        if (tripStyle === 'surprise') {
+          // 2nd cheapest, fall back to cheapest if only one option
+          candidate = qualifying[1] ?? qualifying[0];
+        } else if (tripStyle === 'offpath') {
+          // Longest direct flight; fall back to longest overall
+          const directs = qualifying.filter((f) => f.stops === 0);
+          const pool = directs.length > 0 ? directs : qualifying;
+          candidate = pool.reduce((best, f) => f.durationMinutes > best.durationMinutes ? f : best, pool[0]);
         } else {
           candidate = qualifying[0];
         }
@@ -114,12 +117,13 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
         const newVisited = new Set(state.visited);
         newVisited.add(candidate.destinationIata);
         const arrivalDate = candidate.arrivalDatetime.slice(0, 10);
+        const stayNights = nightsPerStopArray?.[i] ?? nightsPerStop;
 
         nextBeam.push({
           legs: [...state.legs, candidate],
           remainingBudget: state.remainingBudget - candidate.priceUsd,
           currentOriginIata: candidate.destinationIata,
-          currentDate: addDays(arrivalDate, nightsPerStop),
+          currentDate: addDays(arrivalDate, stayNights),
           visited: newVisited,
         });
       }
