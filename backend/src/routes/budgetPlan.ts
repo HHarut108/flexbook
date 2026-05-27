@@ -157,11 +157,8 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
               true,
               { sort: 'price', passengers },
             );
-            // The provider may return multi-destination results; keep only flights home.
-            let returnFlights = result.flights.filter((f) => f.destinationIata === originIata);
-            // If provider deduplication removed the home airport, fall back to cheapest overall.
-            if (returnFlights.length === 0) returnFlights = result.flights;
-
+            // Keep only flights that actually return home — never substitute a random destination.
+            const returnFlights = result.flights.filter((f) => f.destinationIata === originIata);
             const returnFlight = returnFlights.find((f) => f.priceUsd <= state.remainingBudget);
             if (returnFlight) {
               return {
