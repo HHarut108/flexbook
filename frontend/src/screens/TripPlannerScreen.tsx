@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { format, addDays } from 'date-fns';
@@ -12,6 +12,7 @@ import {
   PlaneTakeoff,
   Users,
   Wallet,
+  Infinity,
 } from 'lucide-react';
 import { Airport } from '@fast-travel/shared';
 import { useAirportSearch } from '../hooks/useAirportSearch';
@@ -20,47 +21,105 @@ import { useSessionStore } from '../store/session.store';
 import { clearSessionHint } from '../utils/sessionHint';
 import { planBudgetTrip, BudgetPlanResult, BudgetPlanLeg } from '../api/budgetTrip.api';
 
+/* ── types ── */
+
+type DestCount = 1 | 2 | 3 | 'max';
+type TripStyle = 'value' | 'surprise' | 'offpath';
+
 /* ── helpers ── */
 
 function fmt(dateStr: string) {
   return format(new Date(dateStr.slice(0, 10) + 'T12:00:00'), 'EEE, MMM d');
 }
 
+function fmtDisplay(dateStr: string) {
+  const d = new Date(dateStr.slice(0, 10) + 'T12:00:00');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${dd}.${mm}.${yyyy}`;
+}
+
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function nightsBetween(from: string, to: string): number {
+  if (!from || !to) return 0;
+  const diff = Math.floor(
+    (new Date(to + 'T12:00:00').getTime() - new Date(from + 'T12:00:00').getTime()) /
+      (1000 * 60 * 60 * 24),
+  );
+  return Math.max(1, diff);
+}
+
 /* ── sub-components ── */
 
-function DatePicker({
-  label,
-  value,
-  min,
-  onChange,
+function DateRangeField({
+  dateFrom,
+  dateTo,
+  today,
+  onChangeFrom,
+  onChangeTo,
 }: {
-  label: string;
-  value: string;
-  min: string;
-  onChange: (v: string) => void;
+  dateFrom: string;
+  dateTo: string;
+  today: string;
+  onChangeFrom: (v: string) => void;
+  onChangeTo: (v: string) => void;
 }) {
-  const display = value ? fmt(value) : 'Pick a date';
+  const minDateTo = dateFrom ? addDays(new Date(dateFrom + 'T12:00:00'), 1).toISOString().slice(0, 10) : today;
+
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-text-muted px-1">{label}</span>
-      <label className="input-field relative flex items-center gap-2 px-3 rounded-2xl cursor-pointer" style={{ height: '48px' }}>
-        <CalendarDays size={16} className="text-text-xmuted shrink-0 pointer-events-none" />
-        <span className={`text-base flex-1 truncate pointer-events-none ${value ? 'text-text-primary font-medium' : 'text-text-xmuted'}`}>
-          {display}
-        </span>
-        <input
-          type="date"
-          className="absolute inset-0 opacity-0 cursor-pointer"
-          value={value}
-          min={min}
-          onChange={(e) => { if (e.target.value) onChange(e.target.value); }}
-          aria-label={label}
-        />
-      </label>
+      <span className="text-xs font-medium text-text-muted px-1">Travel window</span>
+      <div className="input-field rounded-2xl overflow-hidden divide-y divide-border" style={{ padding: 0 }}>
+        {/* Departure */}
+        <label className="relative flex items-center gap-2 px-3 cursor-pointer" style={{ height: '52px' }}>
+          <CalendarDays size={16} className="text-text-xmuted shrink-0 pointer-events-none" />
+          <div className="flex flex-col flex-1 pointer-events-none min-w-0">
+            <span className="text-[10px] font-medium text-text-xmuted uppercase tracking-wide leading-none">
+              Departure date
+            </span>
+            <span className={`text-[15px] truncate mt-0.5 ${dateFrom ? 'text-text-primary font-medium' : 'text-text-xmuted'}`}>
+              {dateFrom ? fmtDisplay(dateFrom) : 'dd.mm.yyyy'}
+            </span>
+          </div>
+          <input
+            type="date"
+            className="absolute inset-0 opacity-0 cursor-pointer"
+            value={dateFrom}
+            min={today}
+            onChange={(e) => {
+              if (e.target.value) onChangeFrom(e.target.value);
+            }}
+            aria-label="Departure date"
+          />
+        </label>
+
+        {/* Return */}
+        <label className="relative flex items-center gap-2 px-3 cursor-pointer" style={{ height: '52px' }}>
+          <CalendarDays size={16} className="text-text-xmuted shrink-0 pointer-events-none" />
+          <div className="flex flex-col flex-1 pointer-events-none min-w-0">
+            <span className="text-[10px] font-medium text-text-xmuted uppercase tracking-wide leading-none">
+              Arrival date
+            </span>
+            <span className={`text-[15px] truncate mt-0.5 ${dateTo ? 'text-text-primary font-medium' : 'text-text-xmuted'}`}>
+              {dateTo ? fmtDisplay(dateTo) : 'dd.mm.yyyy'}
+            </span>
+          </div>
+          <input
+            type="date"
+            className="absolute inset-0 opacity-0 cursor-pointer"
+            value={dateTo}
+            min={minDateTo}
+            onChange={(e) => {
+              if (e.target.value) onChangeTo(e.target.value);
+            }}
+            aria-label="Arrival date"
+          />
+        </label>
+      </div>
     </div>
   );
 }
@@ -137,7 +196,7 @@ function PlanResult({
 }: {
   result: BudgetPlanResult;
   passengers: number;
-  tripStyle: 'value' | 'surprise';
+  tripStyle: TripStyle;
   onStartTrip: () => void;
   onRetry: () => void;
 }) {
@@ -226,6 +285,19 @@ function PlanResult({
 
 /* ── Main screen ── */
 
+const DEST_OPTIONS: { value: DestCount; label: string; sublabel: string }[] = [
+  { value: 1, label: '1', sublabel: 'destination' },
+  { value: 2, label: '2', sublabel: 'destinations' },
+  { value: 3, label: '3', sublabel: 'destinations' },
+  { value: 'max', label: '∞', sublabel: 'as many as\npossible' },
+];
+
+const STYLE_OPTIONS: { value: TripStyle; label: string; sub: string }[] = [
+  { value: 'value', label: 'Best value', sub: 'Cheapest route, every penny counts.' },
+  { value: 'surprise', label: 'Surprise me', sub: "Serendipitous picks — 'Try another' each time." },
+  { value: 'offpath', label: 'Off the beaten path', sub: 'Under-the-radar gems, fewer tourists.' },
+];
+
 export function TripPlannerScreen() {
   const navigate = useNavigate();
   const { setOrigin, setPassengers } = useTripStore();
@@ -238,9 +310,9 @@ export function TripPlannerScreen() {
   const [dateTo, setDateTo] = useState('');
   const [budget, setBudget] = useState('');
   const [passengers, setPassengersLocal] = useState(1);
-  const [maxStops, setMaxStops] = useState<1 | 2 | 3>(2);
+  const [destCount, setDestCount] = useState<DestCount | null>(null);
   const [nightsPerStop, setNightsPerStop] = useState(4);
-  const [tripStyle, setTripStyle] = useState<'value' | 'surprise'>('value');
+  const [tripStyle, setTripStyle] = useState<TripStyle>('value');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const originRef = useRef<HTMLInputElement>(null);
 
@@ -255,30 +327,41 @@ export function TripPlannerScreen() {
   );
 
   const today = todayStr();
-  const minDateTo = dateFrom ? addDays(new Date(dateFrom), 1).toISOString().slice(0, 10) : today;
+
+  const tripNights = useMemo(() => nightsBetween(dateFrom, dateTo), [dateFrom, dateTo]);
+
+  // When 1 destination is chosen the nights are fixed to the total trip window
+  const nightsLocked = destCount === 1 && tripNights > 0;
+  const effectiveNights = nightsLocked ? tripNights : nightsPerStop;
+  // "as many as possible" hides the nights section
+  const showNightsSection = destCount !== null && destCount !== 'max';
 
   const canSearch =
     originAirport !== null &&
     dateFrom !== '' &&
     dateTo !== '' &&
-    Number(budget) >= 100;
+    Number(budget) >= 100 &&
+    destCount !== null;
 
   async function handleSearch() {
-    if (!canSearch || !originAirport) return;
+    if (!canSearch || !originAirport || destCount === null) return;
     setLoading(true);
     setError(null);
     setErrorStatus(null);
     setResult(null);
     try {
+      const apiMaxStops: 1 | 2 | 3 = destCount === 'max' ? 3 : destCount;
+      // 'offpath' maps to 'surprise' on the backend until the endpoint supports it natively
+      const apiTripStyle: 'value' | 'surprise' = tripStyle === 'offpath' ? 'surprise' : tripStyle;
       const data = await planBudgetTrip({
         originIata: originAirport.iata,
         departureDateFrom: dateFrom,
         departureDateTo: dateTo,
         budgetPerPerson: Math.round(Number(budget)),
         passengers,
-        maxStops,
-        nightsPerStop,
-        tripStyle,
+        maxStops: apiMaxStops,
+        nightsPerStop: effectiveNights,
+        tripStyle: apiTripStyle,
       });
       setResult(data);
     } catch (err: any) {
@@ -288,9 +371,6 @@ export function TripPlannerScreen() {
         ? 'Your session has expired. Please log in again.'
         : raw;
       if (status === 401) {
-        // Clear the hint so the next page load doesn't try to reuse the stale cookie.
-        // Do NOT call logout() here — that nulls out `user` and triggers RequireAuth
-        // to redirect before the error banner can render.
         clearSessionHint();
       }
       setError(msg);
@@ -339,6 +419,7 @@ export function TripPlannerScreen() {
       <div className="flex-1 px-4 py-6 space-y-5">
         {/* ── Form ── */}
         <div className="space-y-3">
+
           {/* Origin */}
           <div className="flex flex-col gap-1">
             <span className="text-xs font-medium text-text-muted px-1">Flying from</span>
@@ -406,28 +487,21 @@ export function TripPlannerScreen() {
             </div>
           </div>
 
-          {/* Date range */}
-          <div className="grid grid-cols-2 gap-2">
-            <DatePicker
-              label="Earliest departure"
-              value={dateFrom}
-              min={today}
-              onChange={(v) => {
-                setDateFrom(v);
-                if (dateTo && v >= dateTo) setDateTo('');
-              }}
-            />
-            <DatePicker
-              label="Latest return"
-              value={dateTo}
-              min={minDateTo}
-              onChange={setDateTo}
-            />
-          </div>
+          {/* Date range — unified card */}
+          <DateRangeField
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            today={today}
+            onChangeFrom={(v) => {
+              setDateFrom(v);
+              if (dateTo && v >= dateTo) setDateTo('');
+            }}
+            onChangeTo={setDateTo}
+          />
 
           {/* Budget */}
           <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-text-muted px-1">Budget per person</span>
+            <span className="text-xs font-medium text-text-muted px-1">Flight ticket budget per person</span>
             <label className="input-field flex items-center gap-2 px-3 rounded-2xl" style={{ height: '48px' }}>
               <DollarSign size={16} className="text-text-xmuted shrink-0" />
               <input
@@ -437,10 +511,10 @@ export function TripPlannerScreen() {
                 placeholder="500"
                 value={budget}
                 onChange={(e) => setBudget(e.target.value)}
-                className="flex-1 bg-transparent text-text-primary placeholder:text-text-xmuted text-base outline-none"
-                aria-label="Budget per person in USD"
+                className="flex-1 bg-transparent text-text-primary placeholder:text-text-xmuted text-base outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                aria-label="Flight budget per person in USD"
               />
-              <span className="text-sm text-text-muted shrink-0">USD · flights only</span>
+              <span className="text-sm text-text-muted shrink-0">USD</span>
             </label>
           </div>
 
@@ -458,68 +532,93 @@ export function TripPlannerScreen() {
           {/* Destination count */}
           <div className="flex flex-col gap-2">
             <span className="text-xs font-medium text-text-muted px-1">How many places do you want to visit?</span>
-            <div className="flex gap-2">
-              {([1, 2, 3] as const).map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setMaxStops(n)}
-                  className={`flex-1 h-10 rounded-2xl border text-sm font-medium transition-all ${
-                    maxStops === n
-                      ? 'bg-indigo-soft border-indigo-border text-indigo'
-                      : 'bg-surface-2 border-border text-text-muted hover:border-indigo-border'
-                  }`}
-                >
-                  {n} destination{n > 1 ? 's' : ''}
-                </button>
-              ))}
+            <div className="grid grid-cols-4 gap-2">
+              {DEST_OPTIONS.map((opt) => {
+                const active = destCount === opt.value;
+                return (
+                  <button
+                    key={String(opt.value)}
+                    type="button"
+                    onClick={() => setDestCount(opt.value)}
+                    className={`flex flex-col items-center justify-center gap-0.5 py-3 px-1 rounded-2xl border text-center transition-all ${
+                      active
+                        ? 'bg-indigo-soft border-indigo-border'
+                        : 'bg-surface-2 border-border hover:border-indigo-border'
+                    }`}
+                  >
+                    <span className={`text-xl font-bold leading-none ${active ? 'text-indigo' : 'text-text-primary'}`}>
+                      {opt.label}
+                    </span>
+                    <span className={`text-[10px] leading-tight whitespace-pre-line mt-0.5 ${active ? 'text-indigo/80' : 'text-text-muted'}`}>
+                      {opt.sublabel}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Nights per stop */}
-          <div className="flex flex-col gap-2">
-            <div className="flex justify-between items-center px-1">
-              <span className="text-xs font-medium text-text-muted">How long do you want to spend at each stop?</span>
-              <span className="text-xs font-semibold text-indigo">{nightsPerStop} nights</span>
+          {/* Nights per stop — conditional */}
+          {showNightsSection && (
+            <div className={`flex flex-col gap-2 transition-opacity ${nightsLocked ? 'opacity-60' : ''}`}>
+              <div className="flex justify-between items-center px-1">
+                <span className="text-xs font-medium text-text-muted">How long at each stop?</span>
+                <span className={`text-xs font-semibold ${nightsLocked ? 'text-text-muted' : 'text-indigo'}`}>
+                  {effectiveNights} night{effectiveNights !== 1 ? 's' : ''}
+                  {nightsLocked && ' · auto'}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={2}
+                max={14}
+                step={1}
+                value={effectiveNights}
+                disabled={nightsLocked}
+                onChange={(e) => !nightsLocked && setNightsPerStop(Number(e.target.value))}
+                className="w-full accent-indigo disabled:cursor-not-allowed"
+                aria-label={`${effectiveNights} nights per stop`}
+              />
+              <div className="flex justify-between px-0.5">
+                <span className="text-xs text-text-xmuted">2 nights</span>
+                <span className="text-xs text-text-xmuted">14 nights</span>
+              </div>
+              {nightsLocked && dateFrom && dateTo && (
+                <p className="text-[11px] text-text-xmuted px-1">
+                  Fixed to your {tripNights}-night trip window. Choose more destinations to split it up.
+                </p>
+              )}
             </div>
-            <input
-              type="range"
-              min={2}
-              max={14}
-              step={1}
-              value={nightsPerStop}
-              onChange={(e) => setNightsPerStop(Number(e.target.value))}
-              className="w-full accent-indigo"
-              aria-label={`${nightsPerStop} nights per stop`}
-            />
-            <div className="flex justify-between px-0.5">
-              <span className="text-xs text-text-xmuted">2 nights</span>
-              <span className="text-xs text-text-xmuted">14 nights</span>
-            </div>
-          </div>
+          )}
 
           {/* Trip style */}
           <div className="flex flex-col gap-2">
             <span className="text-xs font-medium text-text-muted px-1">What should we optimise for?</span>
-            <div className="grid grid-cols-2 gap-2">
-              {([
-                { value: 'value' as const, label: 'Best value', sub: 'Cheapest possible route.' },
-                { value: 'surprise' as const, label: 'Surprise me', sub: "Creative routes — 'Try another' gives a different trip each time." },
-              ]).map((opt) => (
+            <div className="flex flex-col gap-2">
+              {STYLE_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
                   onClick={() => setTripStyle(opt.value)}
-                  className={`flex flex-col items-start gap-1 p-3 rounded-2xl border text-left transition-all ${
+                  className={`flex items-start gap-3 p-3 rounded-2xl border text-left transition-all ${
                     tripStyle === opt.value
                       ? 'bg-indigo-soft border-indigo-border'
                       : 'bg-surface-2 border-border hover:border-indigo-border'
                   }`}
                 >
-                  <span className={`text-sm font-semibold ${tripStyle === opt.value ? 'text-indigo' : 'text-text-primary'}`}>
-                    {opt.label}
-                  </span>
-                  <span className="text-xs text-text-muted leading-snug">{opt.sub}</span>
+                  <div className={`w-4 h-4 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center transition-all ${
+                    tripStyle === opt.value ? 'border-indigo bg-indigo' : 'border-border'
+                  }`}>
+                    {tripStyle === opt.value && (
+                      <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className={`text-sm font-semibold block ${tripStyle === opt.value ? 'text-indigo' : 'text-text-primary'}`}>
+                      {opt.label}
+                    </span>
+                    <span className="text-xs text-text-muted leading-snug">{opt.sub}</span>
+                  </div>
                 </button>
               ))}
             </div>
