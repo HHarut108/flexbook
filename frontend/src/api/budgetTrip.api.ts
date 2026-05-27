@@ -7,6 +7,9 @@ export interface BudgetPlanParams {
   departureDateTo: string;
   budgetPerPerson: number;
   passengers: number;
+  maxStops: 1 | 2 | 3;
+  nightsPerStop: number;
+  tripStyle: 'value' | 'surprise';
 }
 
 export interface BudgetPlanLeg extends FlightOption {
