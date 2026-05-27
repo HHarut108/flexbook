@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { format } from 'date-fns';
@@ -7,7 +7,9 @@ import {
   ChevronLeft,
   ChevronRight,
   DollarSign,
+  List as ListIcon,
   Loader2,
+  Map as MapIcon,
   MapPin,
   PlaneLanding,
   PlaneTakeoff,
@@ -15,12 +17,22 @@ import {
   Wallet,
   CalendarDays,
 } from 'lucide-react';
-import { Airport } from '@fast-travel/shared';
+import { Airport, TripLeg } from '@fast-travel/shared';
 import { useAirportSearch } from '../hooks/useAirportSearch';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
 import { clearSessionHint } from '../utils/sessionHint';
 import { planBudgetTrip, BudgetPlanResult, BudgetPlanLeg } from '../api/budgetTrip.api';
+import { nearbyAirportsByCoords } from '../api/airports.api';
+import { resolveUserCoords, readCachedCoords, readCachedNearby, cacheNearby } from '../utils/geolocation.utils';
+
+const TripMap = lazy(() => import('../components/TripMap').then((m) => ({ default: m.TripMap })));
+
+const POPULAR_AIRPORTS: Pick<Airport, 'iata' | 'name' | 'city'>[] = [
+  { iata: 'IST', name: 'Istanbul Airport', city: { id: 'ist', name: 'Istanbul', countryCode: 'TR', countryName: 'Turkey', lat: 41.01, lng: 28.98 } },
+  { iata: 'LHR', name: 'Heathrow Airport', city: { id: 'lon', name: 'London', countryCode: 'GB', countryName: 'United Kingdom', lat: 51.47, lng: -0.46 } },
+  { iata: 'CDG', name: 'Charles de Gaulle', city: { id: 'par', name: 'Paris', countryCode: 'FR', countryName: 'France', lat: 49.01, lng: 2.55 } },
+];
 
 /* ── types ── */
 
@@ -74,7 +86,7 @@ const MONTH_NAMES = [
 ];
 const DAY_NAMES = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
-/* ── DateRangePicker ── */
+/* ── DateRangePicker — shows two months so end-of-month users never need to click ► ── */
 
 function DateRangePicker({
   dateFrom,
@@ -89,18 +101,30 @@ function DateRangePicker({
   onChangeFrom: (v: string) => void;
   onChangeTo: (v: string) => void;
 }) {
-  const seed = dateFrom ? new Date(dateFrom + 'T12:00:00') : new Date(today + 'T12:00:00');
-  const [displayMonth, setDisplayMonth] = useState(seed.getMonth());
-  const [displayYear, setDisplayYear] = useState(seed.getFullYear());
+  const todayObj = new Date(today + 'T12:00:00');
+  const [displayMonth, setDisplayMonth] = useState(todayObj.getMonth());
+  const [displayYear, setDisplayYear] = useState(todayObj.getFullYear());
   const [phase, setPhase] = useState<'from' | 'to'>(dateFrom && !dateTo ? 'to' : 'from');
 
-  const daysInMonth = new Date(displayYear, displayMonth + 1, 0).getDate();
-  const firstDayOfWeek = new Date(displayYear, displayMonth, 1).getDay();
+  // Second visible month (always month+1)
+  const m2 = displayMonth === 11 ? 0 : displayMonth + 1;
+  const y2 = displayMonth === 11 ? displayYear + 1 : displayYear;
 
-  function handleDayClick(day: number) {
-    const dateStr = `${displayYear}-${String(displayMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const canGoPrev = !(displayYear === todayObj.getFullYear() && displayMonth === todayObj.getMonth());
+
+  function prevMonth() {
+    if (!canGoPrev) return;
+    if (displayMonth === 0) { setDisplayMonth(11); setDisplayYear(y => y - 1); }
+    else setDisplayMonth(m => m - 1);
+  }
+  function nextMonth() {
+    if (displayMonth === 11) { setDisplayMonth(0); setDisplayYear(y => y + 1); }
+    else setDisplayMonth(m => m + 1);
+  }
+
+  function handleDayClick(day: number, month: number, year: number) {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     if (dateStr < today) return;
-
     if (phase === 'from' || (dateFrom && dateTo)) {
       onChangeFrom(dateStr);
       onChangeTo('');
@@ -114,14 +138,66 @@ function DateRangePicker({
     }
   }
 
-  function prevMonth() {
-    if (displayMonth === 0) { setDisplayMonth(11); setDisplayYear(y => y - 1); }
-    else setDisplayMonth(m => m - 1);
+  function renderMonthGrid(month: number, year: number) {
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDayOfWeek = new Date(year, month, 1).getDay();
+    return (
+      <div>
+        <p className="text-center text-sm font-semibold text-text-primary mb-3">
+          {MONTH_NAMES[month]} {year}
+        </p>
+        <div className="grid grid-cols-7 mb-1">
+          {DAY_NAMES.map(d => (
+            <div key={d} className="text-center text-[10px] font-semibold text-text-xmuted py-1">{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7">
+          {Array.from({ length: firstDayOfWeek }).map((_, i) => <div key={`e-${month}-${i}`} />)}
+          {Array.from({ length: daysInMonth }).map((_, i) => {
+            const day = i + 1;
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const isPast = dateStr < today;
+            const isFrom = dateStr === dateFrom;
+            const isTo = dateStr === dateTo;
+            const inRange = !!(dateFrom && dateTo && dateStr > dateFrom && dateStr < dateTo);
+            const isToday = dateStr === today;
+
+            let cls = 'relative flex items-center justify-center h-9 w-full text-sm transition-colors select-none ';
+            if (isPast) {
+              cls += 'opacity-25 cursor-not-allowed ';
+            } else if (isFrom || isTo) {
+              cls += 'bg-indigo text-white font-semibold rounded-xl cursor-pointer ';
+            } else if (inRange) {
+              cls += 'bg-indigo/10 text-indigo cursor-pointer ';
+            } else {
+              cls += 'hover:bg-surface-2 text-text-primary cursor-pointer ';
+            }
+
+            return (
+              <button
+                key={day}
+                type="button"
+                disabled={isPast}
+                onClick={() => handleDayClick(day, month, year)}
+                className={cls}
+                aria-label={dateStr}
+                aria-pressed={isFrom || isTo}
+              >
+                {day}
+                {isToday && !isFrom && !isTo && (
+                  <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-indigo" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
   }
-  function nextMonth() {
-    if (displayMonth === 11) { setDisplayMonth(0); setDisplayYear(y => y + 1); }
-    else setDisplayMonth(m => m + 1);
-  }
+
+  const rangeLabel = m2 < displayMonth
+    ? `${MONTH_NAMES[displayMonth]} ${displayYear} – ${MONTH_NAMES[m2]} ${y2}`
+    : `${MONTH_NAMES[displayMonth]} – ${MONTH_NAMES[m2]} ${y2}`;
 
   return (
     <div className="flex flex-col gap-2">
@@ -156,21 +232,19 @@ function DateRangePicker({
         </button>
       </div>
 
-      {/* Calendar */}
+      {/* Calendar — two months stacked */}
       <div className="bg-surface border border-border rounded-2xl p-4">
-        {/* Month nav */}
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-4">
           <button
             type="button"
             onClick={prevMonth}
-            className="p-1.5 rounded-xl hover:bg-surface-2 transition-colors text-text-muted"
+            disabled={!canGoPrev}
+            className="p-1.5 rounded-xl hover:bg-surface-2 transition-colors text-text-muted disabled:opacity-30 disabled:cursor-not-allowed"
             aria-label="Previous month"
           >
             <ChevronLeft size={16} />
           </button>
-          <span className="text-sm font-semibold text-text-primary">
-            {MONTH_NAMES[displayMonth]} {displayYear}
-          </span>
+          <span className="text-sm font-semibold text-text-primary">{rangeLabel}</span>
           <button
             type="button"
             onClick={nextMonth}
@@ -181,53 +255,10 @@ function DateRangePicker({
           </button>
         </div>
 
-        {/* Day-of-week headers */}
-        <div className="grid grid-cols-7 mb-1">
-          {DAY_NAMES.map(d => (
-            <div key={d} className="text-center text-[10px] font-semibold text-text-xmuted py-1">{d}</div>
-          ))}
-        </div>
-
-        {/* Days */}
-        <div className="grid grid-cols-7">
-          {Array.from({ length: firstDayOfWeek }).map((_, i) => <div key={`empty-${i}`} />)}
-          {Array.from({ length: daysInMonth }).map((_, i) => {
-            const day = i + 1;
-            const dateStr = `${displayYear}-${String(displayMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const isPast = dateStr < today;
-            const isFrom = dateStr === dateFrom;
-            const isTo = dateStr === dateTo;
-            const inRange = !!(dateFrom && dateTo && dateStr > dateFrom && dateStr < dateTo);
-            const isToday = dateStr === today;
-
-            let cls = 'relative flex items-center justify-center h-9 w-full text-sm transition-colors select-none ';
-            if (isPast) {
-              cls += 'opacity-25 cursor-not-allowed ';
-            } else if (isFrom || isTo) {
-              cls += 'bg-indigo text-white font-semibold rounded-xl cursor-pointer ';
-            } else if (inRange) {
-              cls += 'bg-indigo/10 text-indigo cursor-pointer ';
-            } else {
-              cls += 'hover:bg-surface-2 text-text-primary cursor-pointer ';
-            }
-
-            return (
-              <button
-                key={day}
-                type="button"
-                disabled={isPast}
-                onClick={() => handleDayClick(day)}
-                className={cls}
-                aria-label={dateStr}
-                aria-pressed={isFrom || isTo}
-              >
-                {day}
-                {isToday && !isFrom && !isTo && (
-                  <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-indigo" />
-                )}
-              </button>
-            );
-          })}
+        <div className="flex flex-col gap-5">
+          {renderMonthGrid(displayMonth, displayYear)}
+          <div className="border-t border-border/40" />
+          {renderMonthGrid(m2, y2)}
         </div>
       </div>
 
@@ -394,6 +425,18 @@ function PassengerStepper({ value, onChange }: { value: number; onChange: (v: nu
   );
 }
 
+/* ── Budget legs → TripLeg adapter (for TripMap) ── */
+
+function budgetLegsToTripLegs(legs: BudgetPlanLeg[]): TripLeg[] {
+  return legs.map((leg, i) => ({
+    ...leg,
+    isReturn: leg.isReturn ?? false,
+    stopIndex: i + 1,
+    stayDurationDays: 0,
+    nextDepartureDate: leg.departureDatetime.slice(0, 10),
+  }));
+}
+
 /* ── LegRow ── */
 
 function LegRow({ leg }: { leg: BudgetPlanLeg }) {
@@ -549,8 +592,10 @@ export function TripPlannerScreen() {
   const [passengers, setPassengersLocal] = useState(1);
   const [destCount, setDestCount] = useState<DestCount | null>(null);
   const [nightSplits, setNightSplits] = useState<number[]>([]);
-  const [nightsPerStop, setNightsPerStop] = useState(4); // for 'max' mode only
   const [tripStyle, setTripStyle] = useState<TripStyle>('value');
+  const [nearby, setNearby] = useState<Airport[]>([]);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [mobileResultTab, setMobileResultTab] = useState<'list' | 'map'>('list');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const originRef = useRef<HTMLInputElement>(null);
 
@@ -573,6 +618,32 @@ export function TripPlannerScreen() {
     if (n < 2 || tripNights < n) { setNightSplits([]); return; }
     setNightSplits(defaultSplits(n, tripNights));
   }, [destCount, tripNights]);
+
+  // Geolocation — serve nearby airports for the origin picker
+  useEffect(() => {
+    let cancelled = false;
+    const cachedCoords = readCachedCoords();
+    if (cachedCoords) {
+      const cached = readCachedNearby<Airport>(cachedCoords.lat, cachedCoords.lng);
+      if (cached) { setNearby(cached.slice(0, 3)); return; }
+    }
+    setGeoLoading(true);
+    (async () => {
+      try {
+        const coords = await resolveUserCoords();
+        if (cancelled) return;
+        const airports = await nearbyAirportsByCoords(coords.lat, coords.lng);
+        if (cancelled) return;
+        cacheNearby(coords.lat, coords.lng, airports);
+        setNearby(airports.slice(0, 3));
+      } catch {
+        // geolocation unavailable — POPULAR_AIRPORTS shown as fallback
+      } finally {
+        if (!cancelled) setGeoLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Progressive section visibility
   const datesVisible = !!originAirport;
@@ -597,13 +668,22 @@ export function TripPlannerScreen() {
     return [];
   }, [numericDests, nightSplits, tripNights]);
 
-  // Fallback single value for 'max' mode and validation
+  // Max mode: auto-calculate 3-night stops; remainder goes to last city
+  const { maxModeNumHops, maxModeNightsArray } = useMemo(() => {
+    if (destCount !== 'max' || tripNights <= 0) return { maxModeNumHops: 0, maxModeNightsArray: [] as number[] };
+    const numHops = Math.min(3, Math.max(1, Math.ceil(tripNights / 3)));
+    const arr = Array.from({ length: numHops }, (_, i) =>
+      i < numHops - 1 ? 3 : tripNights - (numHops - 1) * 3,
+    );
+    return { maxModeNumHops: numHops, maxModeNightsArray: arr };
+  }, [destCount, tripNights]);
+
   const effectiveNightsForApi = useMemo(() => {
-    if (destCount === 'max') return nightsPerStop;
+    if (destCount === 'max') return 3;
     if (destCount === 1) return tripNights;
     if (numericDests >= 2 && tripNights > 0) return Math.round(tripNights / numericDests);
-    return nightsPerStop;
-  }, [destCount, numericDests, tripNights, nightsPerStop]);
+    return 4;
+  }, [destCount, numericDests, tripNights]);
 
   const canSearch =
     originAirport !== null &&
@@ -618,8 +698,11 @@ export function TripPlannerScreen() {
     setError(null);
     setErrorStatus(null);
     setResult(null);
+    setMobileResultTab('list');
     try {
-      const apiMaxStops: 1 | 2 | 3 = destCount === 'max' ? 3 : destCount;
+      const apiMaxStops: 1 | 2 | 3 = destCount === 'max'
+        ? (Math.min(3, Math.max(1, maxModeNumHops)) as 1 | 2 | 3)
+        : destCount;
       const data = await planBudgetTrip({
         originIata: originAirport.iata,
         departureDateFrom: dateFrom,
@@ -628,7 +711,9 @@ export function TripPlannerScreen() {
         passengers,
         maxStops: apiMaxStops,
         nightsPerStop: effectiveNightsForApi,
-        nightsPerStopArray: nightsPerDestArray.length > 0 ? nightsPerDestArray : undefined,
+        nightsPerStopArray: destCount === 'max'
+          ? (maxModeNightsArray.length > 0 ? maxModeNightsArray : undefined)
+          : (nightsPerDestArray.length > 0 ? nightsPerDestArray : undefined),
         tripStyle,
       });
       setResult(data);
@@ -657,6 +742,7 @@ export function TripPlannerScreen() {
     setResult(null);
     setError(null);
     setErrorStatus(null);
+    setMobileResultTab('list');
   }
 
   function renderResults() {
@@ -811,6 +897,43 @@ export function TripPlannerScreen() {
             </div>
           </div>
 
+          {/* Nearby airports — visible until the user picks one */}
+          {!originAirport && (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <MapPin size={12} className="text-indigo-mid shrink-0" />
+                <span className="text-[10px] uppercase tracking-[0.14em] font-semibold text-text-muted">
+                  {geoLoading ? 'Detecting nearby airports…' : 'Nearby airports'}
+                </span>
+                {geoLoading && <Loader2 size={11} className="text-indigo animate-spin shrink-0" />}
+              </div>
+              {!geoLoading && (nearby.length > 0 ? nearby : POPULAR_AIRPORTS).map((airport) => (
+                <button
+                  key={airport.iata}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setOriginAirport(airport as Airport);
+                    setOriginQuery('');
+                    setDropdownOpen(false);
+                  }}
+                  className="flex items-center gap-3 px-4 py-3 bg-surface-2 hover:bg-indigo-soft/50 border border-border rounded-2xl transition-all text-left"
+                >
+                  <div className="w-8 h-8 rounded-xl bg-indigo-soft border border-indigo-border flex items-center justify-center shrink-0">
+                    <MapPin size={13} className="text-indigo" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-text-primary truncate">
+                      {airport.city.name}
+                      <span className="ml-2 text-xs font-mono font-bold text-indigo-mid">{airport.iata}</span>
+                    </p>
+                    <p className="text-xs text-text-muted truncate">{airport.name}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* 2. Dates — unlocked after origin */}
           {datesVisible && (
             <DateRangePicker
@@ -890,9 +1013,9 @@ export function TripPlannerScreen() {
             <div className="flex flex-col gap-2">
               <div className="flex justify-between items-center px-1">
                 <span className="text-xs font-medium text-text-muted">How long at each stop?</span>
-                {showMaxNights && (
+                {showMaxNights && maxModeNumHops > 0 && (
                   <span className="text-xs font-semibold text-indigo">
-                    {nightsPerStop} night{nightsPerStop !== 1 ? 's' : ''}
+                    {maxModeNumHops} stop{maxModeNumHops !== 1 ? 's' : ''}
                   </span>
                 )}
                 {showMultiNights && (
@@ -901,22 +1024,22 @@ export function TripPlannerScreen() {
               </div>
 
               {showMaxNights && (
-                <>
-                  <input
-                    type="range"
-                    min={2}
-                    max={14}
-                    step={1}
-                    value={nightsPerStop}
-                    onChange={(e) => setNightsPerStop(Number(e.target.value))}
-                    className="w-full accent-indigo"
-                    aria-label={`${nightsPerStop} nights per stop`}
-                  />
-                  <div className="flex justify-between px-0.5">
-                    <span className="text-xs text-text-xmuted">2 nights</span>
-                    <span className="text-xs text-text-xmuted">14 nights</span>
-                  </div>
-                </>
+                <div className="bg-indigo-soft border border-indigo-border rounded-2xl px-4 py-3">
+                  {maxModeNumHops > 0 ? (
+                    <p className="text-sm text-text-primary">
+                      <strong className="text-indigo">{maxModeNumHops} stop{maxModeNumHops !== 1 ? 's' : ''}</strong>
+                      {' — '}
+                      {maxModeNightsArray.map((n, i) => (
+                        <span key={i}>{i > 0 ? ', ' : ''}<span className="font-medium">{n} night{n !== 1 ? 's' : ''}</span></span>
+                      ))}
+                      {maxModeNightsArray[maxModeNightsArray.length - 1] !== 3 && (
+                        <span className="text-text-muted text-xs ml-1">(last stop gets remaining days)</span>
+                      )}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-text-muted">Select travel dates to see the planned stops.</p>
+                  )}
+                </div>
               )}
 
               {showMultiNights && nightSplits.length > 0 && (
@@ -995,12 +1118,53 @@ export function TripPlannerScreen() {
 
           {/* Results — mobile only (shown below form) */}
           <div className="md:hidden">
-            {renderResults()}
+            {result && (
+              <div className="flex gap-2 mb-3 border-b border-border pb-3">
+                <button
+                  type="button"
+                  onClick={() => setMobileResultTab('list')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all border ${
+                    mobileResultTab === 'list'
+                      ? 'bg-indigo-soft border-indigo-border text-indigo'
+                      : 'bg-surface-2 border-border text-text-muted hover:border-indigo-border'
+                  }`}
+                >
+                  <ListIcon size={15} />
+                  Flights
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileResultTab('map')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all border ${
+                    mobileResultTab === 'map'
+                      ? 'bg-indigo-soft border-indigo-border text-indigo'
+                      : 'bg-surface-2 border-border text-text-muted hover:border-indigo-border'
+                  }`}
+                >
+                  <MapIcon size={15} />
+                  Map
+                </button>
+              </div>
+            )}
+            {mobileResultTab === 'map' && result && originAirport ? (
+              <div className="h-72 rounded-2xl overflow-hidden border border-border">
+                <Suspense fallback={<div className="h-full flex items-center justify-center text-sm text-text-muted"><Loader2 size={18} className="animate-spin text-indigo" /></div>}>
+                  <TripMap origin={originAirport} legs={budgetLegsToTripLegs(result.legs)} />
+                </Suspense>
+              </div>
+            ) : renderResults()}
           </div>
         </div>
 
         {/* ── Results column — desktop only ── */}
         <div className="hidden md:block sticky top-[73px]">
+          {result && originAirport && (
+            <div className="h-56 rounded-2xl overflow-hidden border border-border mb-4">
+              <Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 size={20} className="animate-spin text-indigo" /></div>}>
+                <TripMap origin={originAirport} legs={budgetLegsToTripLegs(result.legs)} />
+              </Suspense>
+            </div>
+          )}
           {renderResults()}
         </div>
       </div>
