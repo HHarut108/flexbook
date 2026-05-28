@@ -519,9 +519,9 @@ function PlanResult({
 
 
 const STYLE_OPTIONS: { value: TripStyle; label: string; sub: string }[] = [
-  { value: 'value', label: 'Best value', sub: 'Cheapest flight at every stop — maximum savings.' },
-  { value: 'surprise', label: 'Surprise me', sub: '2nd-best picks for a different angle — try again each time.' },
-  { value: 'offpath', label: 'Under the radar', sub: 'Longest direct hops — discover more distant destinations. May go slightly over budget to include a return flight.' },
+  { value: 'value', label: 'Best value', sub: 'Cheapest direct flight at every stop — stretch your budget as far as possible.' },
+  { value: 'surprise', label: 'Furthest for the price', sub: 'Best distance-to-cost ratio — flies you far without overpaying on any single leg.' },
+  { value: 'offpath', label: 'Under the radar', sub: 'Longest direct hops — prioritises the most distant destinations regardless of cost. May go slightly over budget on the return.' },
 ];
 
 /* ── Main screen ── */

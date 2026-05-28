@@ -96,21 +96,27 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
         if (!res) continue;
         const { state, flights, availableForHop } = res;
 
+        // Direct-only: only non-stop flights are offered
         const qualifying = flights.filter(
-          (f) => f.priceUsd <= availableForHop && !state.visited.has(f.destinationIata),
+          (f) => f.priceUsd <= availableForHop && !state.visited.has(f.destinationIata) && f.stops === 0,
         );
         if (qualifying.length === 0) continue;
 
         let candidate: FlightOption;
         if (tripStyle === 'surprise') {
-          // 2nd cheapest, fall back to cheapest if only one option
-          candidate = qualifying[1] ?? qualifying[0];
+          // Best duration-to-price ratio: most flight minutes per dollar
+          candidate = qualifying.reduce(
+            (best, f) => (f.durationMinutes / f.priceUsd) > (best.durationMinutes / best.priceUsd) ? f : best,
+            qualifying[0],
+          );
         } else if (tripStyle === 'offpath') {
-          // Longest direct flight; fall back to longest overall
-          const directs = qualifying.filter((f) => f.stops === 0);
-          const pool = directs.length > 0 ? directs : qualifying;
-          candidate = pool.reduce((best, f) => f.durationMinutes > best.durationMinutes ? f : best, pool[0]);
+          // Longest direct flight (all qualifying are already direct)
+          candidate = qualifying.reduce(
+            (best, f) => f.durationMinutes > best.durationMinutes ? f : best,
+            qualifying[0],
+          );
         } else {
+          // value: cheapest direct
           candidate = qualifying[0];
         }
 
@@ -137,7 +143,7 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
     const activeBeam = beam.filter((s) => s.legs.length > 0);
 
     if (activeBeam.length === 0) {
-      return reply.status(422).send(fail('NO_TRIPS_FOUND', 'No flights found within your budget. Try a higher budget or wider date range.'));
+      return reply.status(422).send(fail('NO_TRIPS_FOUND', 'No direct flights found within your budget. Try a higher budget or a wider date range.'));
     }
 
     // ── Return legs (all beam states concurrently) ────────────────────────────
@@ -157,8 +163,11 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
               true,
               { sort: 'price', passengers },
             );
-            // Keep only flights that actually return home — never substitute a random destination.
-            const returnFlights = result.flights.filter((f) => f.destinationIata === originIata);
+            // Keep only direct flights actually returning home — never substitute a random destination.
+            const allReturnHome = result.flights.filter((f) => f.destinationIata === originIata);
+            const returnFlights = allReturnHome.filter((f) => f.stops === 0).length > 0
+              ? allReturnHome.filter((f) => f.stops === 0)
+              : allReturnHome; // fall back to any if no direct return exists
             // offpath: always take the cheapest return even if it goes over budget
             const returnFlight = tripStyle === 'offpath'
               ? returnFlights[0]
