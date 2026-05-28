@@ -10,7 +10,7 @@ export interface BudgetPlanParams {
   maxStops: number; // 1–15
   nightsPerStop: number;
   nightsPerStopArray?: number[];
-  tripStyle: 'value' | 'surprise' | 'offpath';
+  tripStyle: 'value' | 'offpath' | 'sunny' | 'short';
 }
 
 export interface BudgetPlanLeg extends FlightOption {

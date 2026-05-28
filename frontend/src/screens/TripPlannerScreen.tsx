@@ -37,7 +37,7 @@ const POPULAR_AIRPORTS: Pick<Airport, 'iata' | 'name' | 'city'>[] = [
 /* ── types ── */
 
 type DestCount = number | 'max'; // number = 1-15; 'max' = let algorithm decide
-type TripStyle = 'value' | 'surprise' | 'offpath';
+type TripStyle = 'value' | 'offpath' | 'sunny' | 'short';
 
 /* ── helpers ── */
 
@@ -519,9 +519,10 @@ function PlanResult({
 
 
 const STYLE_OPTIONS: { value: TripStyle; label: string; sub: string }[] = [
-  { value: 'value', label: 'Best value', sub: 'Cheapest direct flight at every stop — stretch your budget as far as possible.' },
-  { value: 'surprise', label: 'Furthest for the price', sub: 'Best distance-to-cost ratio — flies you far without overpaying on any single leg.' },
-  { value: 'offpath', label: 'Under the radar', sub: 'Longest direct hops — prioritises the most distant destinations regardless of cost. May go slightly over budget on the return.' },
+  { value: 'value',  label: 'Best value',      sub: 'Cheapest direct flight at every stop — stretch your budget as far as possible.' },
+  { value: 'offpath', label: 'Furthest',        sub: 'Longest direct hop at each stop — budget spread evenly so later stops never run dry. May go slightly over budget on the return.' },
+  { value: 'sunny',  label: 'Sun chaser',       sub: 'Picks the warmest, clearest destination available at each hop — best for winter escapes.' },
+  { value: 'short',  label: 'Shortest flights', sub: 'Quickest direct hop at each stop — spend less time in the air and more time on the ground.' },
 ];
 
 /* ── Main screen ── */

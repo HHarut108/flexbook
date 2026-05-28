@@ -1,13 +1,13 @@
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { FlightOption } from '@fast-travel/shared';
+import { FlightOption, WeatherSummary } from '@fast-travel/shared';
 import { flightService } from '../services/FlightService';
 import { airportService } from '../services/AirportService';
+import { weatherService } from '../services/WeatherService';
 import { requireAuth } from '../utils/requireAuth';
 import { ok, fail } from '../utils/response';
 
 const BEAM_WIDTH = 3;
-const VARIATION_BAND = 0.15;
 const RETURN_RESERVE_RATIO = 0.35;
 const MIN_HOP_BUDGET = 50;
 // Hard wall-clock budget for the whole algorithm — must be less than the client timeout (90 s).
@@ -19,9 +19,18 @@ function addDays(dateStr: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function seededRng(seed: number): () => number {
-  let s = seed >>> 0;
-  return () => { s ^= s << 13; s ^= s >> 17; s ^= s << 5; return (s >>> 0) / 0x100000000; };
+/** Composite score for sun-chasing: warm temperature + clear sky beats cheap + cloudy. */
+function sunWeatherScore(weather: WeatherSummary | null | undefined): number {
+  if (!weather) return 0;
+  const conditionBonus: Record<string, number> = {
+    clear: 15,
+    cloudy: 5,
+    rain: -5,
+    snow: -15,
+    storm: -25,
+    unknown: 0,
+  };
+  return weather.temperatureC + (conditionBonus[weather.condition] ?? 0);
 }
 
 const bodySchema = z.object({
@@ -33,7 +42,7 @@ const bodySchema = z.object({
   maxStops: z.number().int().min(1).max(15).default(2),
   nightsPerStop: z.number().int().min(1).max(60).default(4),
   nightsPerStopArray: z.array(z.number().int().min(1).max(60)).optional(),
-  tripStyle: z.enum(['value', 'surprise', 'offpath']).default('value'),
+  tripStyle: z.enum(['value', 'offpath', 'sunny', 'short']).default('value'),
 });
 
 type BeamState = {
@@ -66,16 +75,25 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
     for (let i = 0; i < maxStops; i++) {
       if (Date.now() >= deadline) break;
 
-      const searchResults = await Promise.all(
-        beam.map(async (state) => {
-          const returnReserve = state.remainingBudget * RETURN_RESERVE_RATIO;
-          const availableForHop = state.remainingBudget - returnReserve;
+      const nextBeam = (await Promise.all(
+        beam.map(async (state): Promise<BeamState | null> => {
+
+          // ── Budget available for this hop ────────────────────────────────
+          // offpath: split remaining budget evenly across all legs still to fly
+          // (remaining outbound hops + 1 return) so no single long flight starves later hops.
+          // All other modes: reserve a flat 35% for the return leg.
+          const totalLegsLeft = (maxStops - i) + 1; // remaining outbound + return
+          const availableForHop = tripStyle === 'offpath'
+            ? state.remainingBudget / totalLegsLeft
+            : state.remainingBudget - state.remainingBudget * RETURN_RESERVE_RATIO;
 
           if (availableForHop < MIN_HOP_BUDGET) return null;
           if (state.currentDate > departureDateTo) return null;
 
           const originCity = airportService.getByIata(state.currentOriginIata)?.city.name ?? state.currentOriginIata;
 
+          // ── Fetch flights ────────────────────────────────────────────────
+          let flights: FlightOption[];
           try {
             const result = await flightService.search(
               state.currentOriginIata, originCity, state.currentDate,
@@ -83,59 +101,75 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
               true,      // deduplicate
               { sort: 'price', passengers },
             );
-            return { state, flights: result.flights, availableForHop };
+            flights = result.flights;
           } catch {
             return null;
           }
+
+          // ── Direct-only qualifying filter ────────────────────────────────
+          const qualifying = flights.filter(
+            (f) => f.priceUsd <= availableForHop
+              && !state.visited.has(f.destinationIata)
+              && f.stops === 0,
+          );
+          if (qualifying.length === 0) return null;
+
+          // ── Candidate selection by trip style ────────────────────────────
+          let candidate: FlightOption;
+
+          if (tripStyle === 'sunny') {
+            // Fetch weather for all qualifying destinations in parallel (cached, 1 h TTL)
+            const weatherResults = await weatherService.getBatch(
+              qualifying.map((f) => ({
+                iata: f.destinationIata,
+                lat: f.destinationLat,
+                lng: f.destinationLng,
+                date: state.currentDate,
+              })),
+            );
+            const wMap = new Map(weatherResults.map((r) => [r.iata, r.weather]));
+            candidate = qualifying.reduce((best, f) =>
+              sunWeatherScore(wMap.get(f.destinationIata)) > sunWeatherScore(wMap.get(best.destinationIata))
+                ? f : best,
+              qualifying[0],
+            );
+
+          } else if (tripStyle === 'offpath') {
+            // Furthest: longest direct flight within per-hop budget
+            candidate = qualifying.reduce(
+              (best, f) => f.durationMinutes > best.durationMinutes ? f : best,
+              qualifying[0],
+            );
+
+          } else if (tripStyle === 'short') {
+            // Shortest: quickest direct flight — maximises time on the ground
+            candidate = qualifying.reduce(
+              (best, f) => f.durationMinutes < best.durationMinutes ? f : best,
+              qualifying[0],
+            );
+
+          } else {
+            // value: cheapest direct flight
+            candidate = qualifying[0];
+          }
+
+          // ── Advance beam state ───────────────────────────────────────────
+          const newVisited = new Set(state.visited);
+          newVisited.add(candidate.destinationIata);
+          const arrivalDate = candidate.arrivalDatetime.slice(0, 10);
+          const stayNights = nightsPerStopArray?.[i] ?? nightsPerStop;
+
+          return {
+            legs: [...state.legs, candidate],
+            remainingBudget: state.remainingBudget - candidate.priceUsd,
+            currentOriginIata: candidate.destinationIata,
+            currentDate: addDays(arrivalDate, stayNights),
+            visited: newVisited,
+          };
         }),
-      );
-
-      const nextBeam: BeamState[] = [];
-
-      for (const res of searchResults) {
-        if (!res) continue;
-        const { state, flights, availableForHop } = res;
-
-        // Direct-only: only non-stop flights are offered
-        const qualifying = flights.filter(
-          (f) => f.priceUsd <= availableForHop && !state.visited.has(f.destinationIata) && f.stops === 0,
-        );
-        if (qualifying.length === 0) continue;
-
-        let candidate: FlightOption;
-        if (tripStyle === 'surprise') {
-          // Best duration-to-price ratio: most flight minutes per dollar
-          candidate = qualifying.reduce(
-            (best, f) => (f.durationMinutes / f.priceUsd) > (best.durationMinutes / best.priceUsd) ? f : best,
-            qualifying[0],
-          );
-        } else if (tripStyle === 'offpath') {
-          // Longest direct flight (all qualifying are already direct)
-          candidate = qualifying.reduce(
-            (best, f) => f.durationMinutes > best.durationMinutes ? f : best,
-            qualifying[0],
-          );
-        } else {
-          // value: cheapest direct
-          candidate = qualifying[0];
-        }
-
-        const newVisited = new Set(state.visited);
-        newVisited.add(candidate.destinationIata);
-        const arrivalDate = candidate.arrivalDatetime.slice(0, 10);
-        const stayNights = nightsPerStopArray?.[i] ?? nightsPerStop;
-
-        nextBeam.push({
-          legs: [...state.legs, candidate],
-          remainingBudget: state.remainingBudget - candidate.priceUsd,
-          currentOriginIata: candidate.destinationIata,
-          currentDate: addDays(arrivalDate, stayNights),
-          visited: newVisited,
-        });
-      }
+      )).filter((s): s is BeamState => s !== null);
 
       if (nextBeam.length === 0) break;
-
       nextBeam.sort((a, b) => b.remainingBudget - a.remainingBudget);
       beam = nextBeam.slice(0, BEAM_WIDTH);
     }
@@ -163,15 +197,16 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
               true,
               { sort: 'price', passengers },
             );
-            // Keep only direct flights actually returning home — never substitute a random destination.
+            // Prefer direct return; fall back to any if no direct home flight exists.
             const allReturnHome = result.flights.filter((f) => f.destinationIata === originIata);
-            const returnFlights = allReturnHome.filter((f) => f.stops === 0).length > 0
-              ? allReturnHome.filter((f) => f.stops === 0)
-              : allReturnHome; // fall back to any if no direct return exists
-            // offpath: always take the cheapest return even if it goes over budget
+            const directReturn = allReturnHome.filter((f) => f.stops === 0);
+            const returnPool = directReturn.length > 0 ? directReturn : allReturnHome;
+
+            // offpath forces the return even over budget; all other modes require it to fit.
             const returnFlight = tripStyle === 'offpath'
-              ? returnFlights[0]
-              : returnFlights.find((f) => f.priceUsd <= state.remainingBudget);
+              ? returnPool[0]
+              : returnPool.find((f) => f.priceUsd <= state.remainingBudget);
+
             if (returnFlight) {
               return {
                 ...state,
@@ -180,7 +215,7 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
               };
             }
           } catch {
-            // no return found — still return outbound legs
+            // no return found — still surface outbound legs
           }
           return state;
         }),
