@@ -292,27 +292,25 @@ export function AppDrawer({ open, onClose }: Props) {
               )}
             </div>
 
-            {/* Budget Planner — registered users only */}
-            {user && (
-              <div className="px-5 pb-4 pt-2 border-t border-border">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-text-muted mb-3 mt-3">Tools</h3>
-                <button
-                  onClick={() => goTo('/trip-planner')}
-                  className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl bg-indigo-soft border border-indigo-border hover:bg-indigo/10 transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-indigo/15 flex items-center justify-center shrink-0">
-                      <Wallet size={15} className="text-indigo" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm font-semibold text-text-primary">Budget Planner</p>
-                      <p className="text-xs text-text-muted">Find a trip within your budget</p>
-                    </div>
+            {/* Tools hub — available to everyone */}
+            <div className="px-5 pb-4 pt-2 border-t border-border">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-text-muted mb-3 mt-3">Tools</h3>
+              <button
+                onClick={() => goTo('/tools')}
+                className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl bg-indigo-soft border border-indigo-border hover:bg-indigo/10 transition-all"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-indigo/15 flex items-center justify-center shrink-0">
+                    <Wallet size={15} className="text-indigo" />
                   </div>
-                  <ChevronRight size={15} className="text-text-muted" />
-                </button>
-              </div>
-            )}
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-text-primary">FlexBook Tools</p>
+                    <p className="text-xs text-text-muted">Budget Planner &amp; more</p>
+                  </div>
+                </div>
+                <ChevronRight size={15} className="text-text-muted" />
+              </button>
+            </div>
 
             {/* Settings section */}
             <div className="px-5 pb-5 pt-2 border-t border-border">

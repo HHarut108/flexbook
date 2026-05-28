@@ -63,6 +63,12 @@ export function ComingSoonScreen({ title, description, onMenuOpen }: Props) {
             Deals
           </Link>
           <Link
+            to="/tools"
+            className="px-4 py-2 rounded-xl text-sm font-semibold text-text-muted hover:text-text-primary hover:bg-surface-2 transition-all"
+          >
+            Tools
+          </Link>
+          <Link
             to="/about"
             className="px-4 py-2 rounded-xl text-sm font-semibold text-text-muted hover:text-text-primary hover:bg-surface-2 transition-all"
           >
