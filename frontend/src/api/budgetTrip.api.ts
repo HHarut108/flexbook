@@ -7,7 +7,7 @@ export interface BudgetPlanParams {
   departureDateTo: string;
   budgetPerPerson: number;
   passengers: number;
-  maxStops: 1 | 2 | 3;
+  maxStops: number; // 1–15
   nightsPerStop: number;
   nightsPerStopArray?: number[];
   tripStyle: 'value' | 'surprise' | 'offpath';

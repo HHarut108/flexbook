@@ -30,7 +30,7 @@ const bodySchema = z.object({
   departureDateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   budgetPerPerson: z.number().int().min(100).max(100_000),
   passengers: z.coerce.number().int().min(1).max(9).default(1),
-  maxStops: z.number().int().min(1).max(3).default(2),
+  maxStops: z.number().int().min(1).max(15).default(2),
   nightsPerStop: z.number().int().min(1).max(60).default(4),
   nightsPerStopArray: z.array(z.number().int().min(1).max(60)).optional(),
   tripStyle: z.enum(['value', 'surprise', 'offpath']).default('value'),
