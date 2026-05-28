@@ -345,10 +345,14 @@ export async function userAuthRoutes(app: FastifyInstance) {
       return reply.status(403).send({ error: { message: 'Please verify your email before logging in' } });
     }
 
-    await clearLoginAttempts(ip);
-    // Stamp the last successful login. Fire-and-forget; failure here shouldn't
-    // block the login response.
-    await db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    // Reset the failed-attempt counter and stamp the last login, but don't await
+    // either — they're best-effort side effects that each add a network round-trip
+    // (Redis + Turso) to the response path. On our long-running server these
+    // promises still settle after the reply is sent.
+    void clearLoginAttempts(ip).catch((err) => req.log.error({ err }, 'clearLoginAttempts failed'));
+    void db.user
+      .update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
+      .catch((err) => req.log.error({ err }, 'lastLoginAt stamp failed'));
     const token = signUserToken({ sub: user.id, email: user.email });
     return reply
       .setCookie(COOKIE_NAME, token, cookieOptions)
