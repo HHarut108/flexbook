@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { format } from 'date-fns';
 import {
+  AlertTriangle,
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
   DollarSign,
+  Info,
   List as ListIcon,
   Loader2,
   Map as MapIcon,
@@ -506,6 +508,7 @@ function PlanResult({
   passengers,
   tripStyle,
   onRetry,
+  onNewSearch,
   onSwap,
   swapLoading,
 }: {
@@ -513,11 +516,15 @@ function PlanResult({
   passengers: number;
   tripStyle: TripStyle;
   onRetry: () => void;
+  onNewSearch: () => void;
   onSwap: (excludedIata: string) => void;
   swapLoading: boolean;
 }) {
   const [swapWarningIndex, setSwapWarningIndex] = useState<number | null>(null);
+  const [hintOpen, setHintOpen] = useState(false);
 
+  const isOverBudget = result.overBudget ?? false;
+  const overBy = isOverBudget ? result.totalCostPerPerson - result.budgetPerPerson : 0;
   const usedPct = Math.min(100, Math.round((result.totalCostPerPerson / result.budgetPerPerson) * 100));
   const totalForGroup = result.totalCostPerPerson * passengers;
   const outboundLegs = result.legs.filter((l) => !l.isReturn);
@@ -532,6 +539,46 @@ function PlanResult({
           {tripStyle === 'value' ? 'Re-check prices' : 'Try another'}
         </button>
       </div>
+
+      {/* Over-budget notice */}
+      {isOverBudget && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl px-4 py-3 space-y-2">
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle size={15} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                Sorry, this is over your budget by ${overBy}
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                This is the cheapest complete round trip we could find.
+              </p>
+            </div>
+            <button
+              onClick={() => setHintOpen((v) => !v)}
+              className="shrink-0 p-0.5 rounded text-amber-500 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
+              title="How to adjust"
+            >
+              <Info size={14} />
+            </button>
+          </div>
+          {hintOpen && (
+            <div className="text-xs text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 rounded-xl px-3 py-2 space-y-1">
+              <p className="font-semibold">Tips to fit your budget:</p>
+              <ul className="list-disc list-inside space-y-0.5">
+                <li>Reduce the number of destinations</li>
+                <li>Shorten your stay (fewer nights per stop)</li>
+                <li>Try different travel dates</li>
+              </ul>
+            </div>
+          )}
+          <button
+            onClick={onNewSearch}
+            className="text-xs font-semibold text-amber-700 dark:text-amber-300 hover:underline"
+          >
+            Make a new search →
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-surface-2 border border-border text-text-muted px-3 py-1.5 rounded-full">
@@ -577,24 +624,32 @@ function PlanResult({
       <div className="bg-surface border border-border rounded-3xl p-4 space-y-3">
         <div className="flex justify-between items-baseline">
           <span className="text-sm font-medium text-text-muted">Per person</span>
-          <span className="text-xl font-bold text-text-primary">${result.totalCostPerPerson}</span>
+          <span className={`text-xl font-bold ${isOverBudget ? 'text-amber-600 dark:text-amber-400' : 'text-text-primary'}`}>
+            ${result.totalCostPerPerson}
+          </span>
         </div>
         {passengers > 1 && (
           <div className="flex justify-between items-baseline">
             <span className="text-sm font-medium text-text-muted">{passengers} passengers total</span>
-            <span className="text-base font-semibold text-text-primary">${totalForGroup}</span>
+            <span className={`text-base font-semibold ${isOverBudget ? 'text-amber-600 dark:text-amber-400' : 'text-text-primary'}`}>
+              ${totalForGroup}
+            </span>
           </div>
         )}
         <div>
           <div className="h-2 bg-surface-2 rounded-full overflow-hidden">
             <div
-              className="h-full bg-indigo rounded-full transition-all duration-700"
+              className={`h-full rounded-full transition-all duration-700 ${isOverBudget ? 'bg-amber-500' : 'bg-indigo'}`}
               style={{ width: `${usedPct}%` }}
             />
           </div>
           <div className="flex justify-between mt-1.5">
             <span className="text-xs text-text-muted">{usedPct}% of ${result.budgetPerPerson} budget</span>
-            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">${result.budgetPerPerson - result.totalCostPerPerson} saved</span>
+            {isOverBudget ? (
+              <span className="text-xs font-medium text-amber-600 dark:text-amber-400">+${overBy} over budget</span>
+            ) : (
+              <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">${result.budgetPerPerson - result.totalCostPerPerson} saved</span>
+            )}
           </div>
         </div>
       </div>
@@ -888,6 +943,7 @@ export function TripPlannerScreen() {
             passengers={passengers}
             tripStyle={tripStyle}
             onRetry={handleRetry}
+            onNewSearch={handleRetry}
             onSwap={handleSwap}
             swapLoading={swapLoading}
           />

@@ -22,6 +22,7 @@ export interface BudgetPlanResult {
   legs: BudgetPlanLeg[];
   totalCostPerPerson: number;
   budgetPerPerson: number;
+  overBudget?: boolean;
 }
 
 export async function planBudgetTrip(params: BudgetPlanParams): Promise<BudgetPlanResult> {
