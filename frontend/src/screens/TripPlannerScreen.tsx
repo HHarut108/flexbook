@@ -402,34 +402,86 @@ function budgetLegsToTripLegs(legs: BudgetPlanLeg[]): TripLeg[] {
 
 /* ── LegRow ── */
 
-function LegRow({ leg }: { leg: BudgetPlanLeg }) {
+function LegRow({
+  leg,
+  showSwapButton,
+  isSwapWarning,
+  onSwapRequest,
+  onSwapConfirm,
+  onSwapCancel,
+}: {
+  leg: BudgetPlanLeg;
+  showSwapButton: boolean;
+  isSwapWarning: boolean;
+  onSwapRequest: () => void;
+  onSwapConfirm: () => void;
+  onSwapCancel: () => void;
+}) {
   const isReturn = leg.isReturn;
   const departureDate = fmt(leg.departureDatetime);
 
   return (
-    <div className="flex items-start gap-3 py-3 border-b border-border/40 last:border-0">
-      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${isReturn ? 'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700' : 'bg-indigo-soft border border-indigo-border'}`}>
-        {isReturn
-          ? <PlaneLanding size={14} className="text-emerald-600 dark:text-emerald-400" />
-          : <PlaneTakeoff size={14} className="text-indigo" />
-        }
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-2 flex-wrap">
-          <span className="text-[15px] font-semibold text-text-primary">
-            {leg.originCity} → {leg.destinationCity}
-          </span>
-          {isReturn && (
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 px-1.5 py-0.5 rounded-full">
-              Return
+    <div className="py-3 border-b border-border/40 last:border-0">
+      <div className="flex items-start gap-3">
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${isReturn ? 'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700' : 'bg-indigo-soft border border-indigo-border'}`}>
+          {isReturn
+            ? <PlaneLanding size={14} className="text-emerald-600 dark:text-emerald-400" />
+            : <PlaneTakeoff size={14} className="text-indigo" />
+          }
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span className="text-[15px] font-semibold text-text-primary">
+              {leg.originCity} → {leg.destinationCity}
             </span>
+            {isReturn && (
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 px-1.5 py-0.5 rounded-full">
+                Return
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-text-muted mt-0.5">
+            {leg.airlineName} · {departureDate} · {leg.stops === 0 ? 'Direct' : `${leg.stops} stop${leg.stops > 1 ? 's' : ''}`}
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <span className="text-[15px] font-bold text-text-primary">${leg.priceUsd}</span>
+          {showSwapButton && (
+            <button
+              type="button"
+              onClick={onSwapRequest}
+              className="text-[11px] text-text-muted hover:text-indigo transition-colors underline-offset-2 hover:underline"
+            >
+              Something else
+            </button>
           )}
         </div>
-        <p className="text-xs text-text-muted mt-0.5">
-          {leg.airlineName} · {departureDate} · {leg.stops === 0 ? 'Direct' : `${leg.stops} stop${leg.stops > 1 ? 's' : ''}`}
-        </p>
       </div>
-      <span className="text-[15px] font-bold text-text-primary shrink-0">${leg.priceUsd}</span>
+
+      {/* Inline swap warning */}
+      {isSwapWarning && (
+        <div className="mt-2 mx-0 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 flex items-center justify-between gap-3">
+          <p className="text-xs text-amber-700 dark:text-amber-300 leading-snug">
+            This will regenerate the full trip — a different destination will be chosen instead of {leg.destinationCity}.
+          </p>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={onSwapConfirm}
+              className="text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-800/50 hover:bg-amber-200 dark:hover:bg-amber-700/50 px-2.5 py-1 rounded-lg transition-colors"
+            >
+              Try another
+            </button>
+            <button
+              type="button"
+              onClick={onSwapCancel}
+              className="text-xs text-amber-600 dark:text-amber-400 px-1.5 py-1 hover:underline"
+            >
+              Keep
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -441,12 +493,18 @@ function PlanResult({
   passengers,
   tripStyle,
   onRetry,
+  onSwap,
+  swapLoading,
 }: {
   result: BudgetPlanResult;
   passengers: number;
   tripStyle: TripStyle;
   onRetry: () => void;
+  onSwap: (excludedIata: string) => void;
+  swapLoading: boolean;
 }) {
+  const [swapWarningIndex, setSwapWarningIndex] = useState<number | null>(null);
+
   const usedPct = Math.min(100, Math.round((result.totalCostPerPerson / result.budgetPerPerson) * 100));
   const totalForGroup = result.totalCostPerPerson * passengers;
   const outboundLegs = result.legs.filter((l) => !l.isReturn);
@@ -480,10 +538,27 @@ function PlanResult({
         </span>
       </div>
 
-      <div className="bg-surface border border-border rounded-3xl px-4 py-1">
+      <div className={`bg-surface border border-border rounded-3xl px-4 py-1 transition-opacity ${swapLoading ? 'opacity-50 pointer-events-none' : ''}`}>
         {result.legs.map((leg, i) => (
-          <LegRow key={`${leg.flightId}-${i}`} leg={leg} />
+          <LegRow
+            key={`${leg.flightId}-${i}`}
+            leg={leg}
+            showSwapButton={!leg.isReturn && !swapLoading}
+            isSwapWarning={swapWarningIndex === i}
+            onSwapRequest={() => setSwapWarningIndex(i)}
+            onSwapConfirm={() => {
+              setSwapWarningIndex(null);
+              onSwap(leg.destinationIata);
+            }}
+            onSwapCancel={() => setSwapWarningIndex(null)}
+          />
         ))}
+        {swapLoading && (
+          <div className="flex items-center gap-2 py-3">
+            <Loader2 size={14} className="animate-spin text-indigo shrink-0" />
+            <span className="text-xs text-text-muted">Finding a different route…</span>
+          </div>
+        )}
       </div>
 
       <div className="bg-surface border border-border rounded-3xl p-4 space-y-3">
@@ -553,6 +628,8 @@ export function TripPlannerScreen() {
   const [result, setResult] = useState<BudgetPlanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [errorStatus, setErrorStatus] = useState<number | null>(null);
+  const [excludedDestinations, setExcludedDestinations] = useState<string[]>([]);
+  const [swapLoading, setSwapLoading] = useState(false);
 
   const { results: airportResults, loading: airportLoading } = useAirportSearch(
     dropdownOpen ? originQuery : '',
@@ -658,6 +735,7 @@ export function TripPlannerScreen() {
     setError(null);
     setErrorStatus(null);
     setResult(null);
+    setExcludedDestinations([]);
     setMobileResultTab('list');
     try {
       const apiMaxStops = destCount === 'max'
@@ -675,6 +753,7 @@ export function TripPlannerScreen() {
           ? (maxModeNightsArray.length > 0 ? maxModeNightsArray : undefined)
           : (nightsPerDestArray.length > 0 ? nightsPerDestArray : undefined),
         tripStyle,
+        excludedDestinations: excludedDestinations.length > 0 ? excludedDestinations : undefined,
       });
       setResult(data);
     } catch (err: any) {
@@ -702,7 +781,44 @@ export function TripPlannerScreen() {
     setResult(null);
     setError(null);
     setErrorStatus(null);
+    setExcludedDestinations([]);
     setMobileResultTab('list');
+  }
+
+  async function handleSwap(excludedIata: string) {
+    if (!originAirport || destCount === null) return;
+    const nextExcluded = [...excludedDestinations, excludedIata];
+    setExcludedDestinations(nextExcluded);
+    setSwapLoading(true);
+    setError(null);
+    try {
+      const apiMaxStops = destCount === 'max'
+        ? Math.max(1, maxModeNumHops)
+        : (typeof destCount === 'number' ? destCount : 1);
+      const data = await planBudgetTrip({
+        originIata: originAirport.iata,
+        departureDateFrom: dateFrom,
+        departureDateTo: dateTo,
+        budgetPerPerson: Math.round(Number(budget)),
+        passengers,
+        maxStops: apiMaxStops,
+        nightsPerStop: effectiveNightsForApi,
+        nightsPerStopArray: destCount === 'max'
+          ? (maxModeNightsArray.length > 0 ? maxModeNightsArray : undefined)
+          : (nightsPerDestArray.length > 0 ? nightsPerDestArray : undefined),
+        tripStyle,
+        excludedDestinations: nextExcluded,
+      });
+      setResult(data);
+    } catch (err: any) {
+      const status = err?.status;
+      const raw = err?.message ?? 'No alternative found. Try adjusting your budget or dates.';
+      setError(status === 401 ? 'Your session has expired. Please log in again.' : raw);
+      setErrorStatus(status ?? null);
+      if (status === 401) clearSessionHint();
+    } finally {
+      setSwapLoading(false);
+    }
   }
 
   function renderResults() {
@@ -713,6 +829,8 @@ export function TripPlannerScreen() {
           passengers={passengers}
           tripStyle={tripStyle}
           onRetry={handleRetry}
+          onSwap={handleSwap}
+          swapLoading={swapLoading}
         />
       );
     }

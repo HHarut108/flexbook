@@ -43,6 +43,7 @@ const bodySchema = z.object({
   nightsPerStop: z.number().int().min(1).max(60).default(4),
   nightsPerStopArray: z.array(z.number().int().min(1).max(60)).optional(),
   tripStyle: z.enum(['value', 'offpath', 'sunny', 'short']).default('value'),
+  excludedDestinations: z.array(z.string().length(3).toUpperCase()).optional().default([]),
 });
 
 type BeamState = {
@@ -60,7 +61,7 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send(fail('INVALID_PARAMS', parsed.error.issues[0]?.message ?? 'Invalid params'));
     }
 
-    const { originIata, departureDateFrom, departureDateTo, budgetPerPerson, passengers, maxStops, nightsPerStop, nightsPerStopArray, tripStyle } = parsed.data;
+    const { originIata, departureDateFrom, departureDateTo, budgetPerPerson, passengers, maxStops, nightsPerStop, nightsPerStopArray, tripStyle, excludedDestinations } = parsed.data;
     const deadline = Date.now() + PLAN_DEADLINE_MS;
 
     let beam: BeamState[] = [{
@@ -110,7 +111,8 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
           const qualifying = flights.filter(
             (f) => f.priceUsd <= availableForHop
               && !state.visited.has(f.destinationIata)
-              && f.stops === 0,
+              && f.stops === 0
+              && !excludedDestinations.includes(f.destinationIata),
           );
           if (qualifying.length === 0) return null;
 
