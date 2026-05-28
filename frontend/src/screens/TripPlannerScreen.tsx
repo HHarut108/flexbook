@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback, useEffect, lazy, Suspense } from 'react';
+import { useState, useRef, useMemo, useEffect, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { format } from 'date-fns';
@@ -36,8 +36,8 @@ const POPULAR_AIRPORTS: Pick<Airport, 'iata' | 'name' | 'city'>[] = [
 
 /* ── types ── */
 
-type DestCount = 1 | 2 | 3 | 'max';
-type TripStyle = 'value' | 'surprise' | 'offpath';
+type DestCount = number | 'max'; // number = 1-15; 'max' = let algorithm decide
+type TripStyle = 'value' | 'offpath' | 'sunny' | 'short';
 
 /* ── helpers ── */
 
@@ -66,18 +66,13 @@ function nightsBetween(from: string, to: string): number {
   return Math.max(1, diff);
 }
 
-/** Returns cumulative split positions dividing totalNights into numDests parts.
- *  Remainder nights go to the first destinations (+1 each). */
-function defaultSplits(numDests: number, totalNights: number): number[] {
+/** Returns per-stop night counts dividing totalNights into numDests parts.
+ *  Remainder nights are distributed one-each to the first stops. */
+function defaultNightsArr(numDests: number, totalNights: number): number[] {
+  if (numDests <= 0 || totalNights <= 0) return [];
   const base = Math.floor(totalNights / numDests);
-  const remainder = totalNights % numDests;
-  const splits: number[] = [];
-  let cumulative = 0;
-  for (let i = 0; i < numDests - 1; i++) {
-    cumulative += base + (i < remainder ? 1 : 0);
-    splits.push(cumulative);
-  }
-  return splits;
+  const rem = totalNights % numDests;
+  return Array.from({ length: numDests }, (_, i) => base + (i < rem ? 1 : 0));
 }
 
 const MONTH_NAMES = [
@@ -287,123 +282,75 @@ function DateRangePicker({
 
 /* ── NightsSlider — multi-handle range ── */
 
-const SEG_COLORS = ['bg-indigo', 'bg-violet-500', 'bg-sky-500'] as const;
 const SEG_TEXT = ['text-indigo', 'text-violet-500', 'text-sky-500'] as const;
-const SEG_BORDER = ['border-indigo/30', 'border-violet-500/30', 'border-sky-500/30'] as const;
+const SEG_SOFT = [
+  'bg-indigo-soft border-indigo-border',
+  'bg-violet-500/10 border-violet-500/20',
+  'bg-sky-500/10 border-sky-500/20',
+] as const;
 
-function NightsSlider({
+/* ── NightsPerStopEditor — per-stop +/− steppers, adjacent absorption ── */
+
+function NightsPerStopEditor({
+  nights,
   totalNights,
-  numDestinations,
-  splits,
   onChange,
 }: {
+  nights: number[];
   totalNights: number;
-  numDestinations: number;
-  splits: number[];
-  onChange: (s: number[]) => void;
+  onChange: (nights: number[]) => void;
 }) {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const draggingIdx = useRef<number | null>(null);
-
-  // Keep mutable refs so pointer-event handlers always see latest values
-  const splitsRef = useRef(splits);
-  useEffect(() => { splitsRef.current = splits; });
-  const totalRef = useRef(totalNights);
-  useEffect(() => { totalRef.current = totalNights; });
-  const cbRef = useRef(onChange);
-  useEffect(() => { cbRef.current = onChange; });
-
-  const handleMove = useCallback((e: PointerEvent) => {
-    if (draggingIdx.current === null || !trackRef.current) return;
-    const rect = trackRef.current.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const total = totalRef.current;
-    const rawNights = Math.round(ratio * total);
-    const idx = draggingIdx.current;
-    const s = splitsRef.current;
-    const min = idx === 0 ? 1 : s[idx - 1] + 1;
-    const max = idx === s.length - 1 ? total - 1 : s[idx + 1] - 1;
-    const clamped = Math.max(min, Math.min(max, rawNights));
-    const next = [...s];
-    next[idx] = clamped;
-    cbRef.current(next);
-  }, []);
-
-  const handleUp = useCallback(() => {
-    draggingIdx.current = null;
-    document.removeEventListener('pointermove', handleMove);
-    document.removeEventListener('pointerup', handleUp);
-  }, [handleMove]);
-
-  useEffect(() => () => {
-    document.removeEventListener('pointermove', handleMove);
-    document.removeEventListener('pointerup', handleUp);
-  }, [handleMove, handleUp]);
-
-  function onPointerDown(e: React.PointerEvent, idx: number) {
-    e.preventDefault();
-    draggingIdx.current = idx;
-    document.addEventListener('pointermove', handleMove);
-    document.addEventListener('pointerup', handleUp);
+  function changeStop(idx: number, delta: number) {
+    const next = [...nights];
+    const proposed = next[idx] + delta;
+    if (proposed < 1) return;
+    // Absorb from the next stop; fall back to previous for the last stop
+    const absorbIdx = idx < nights.length - 1 ? idx + 1 : idx - 1;
+    if (absorbIdx < 0) return;
+    const absorbNew = next[absorbIdx] - delta;
+    if (absorbNew < 1) return;
+    next[idx] = proposed;
+    next[absorbIdx] = absorbNew;
+    onChange(next);
   }
 
-  const nightsPerDest = Array.from({ length: numDestinations }, (_, i) => {
-    const start = i === 0 ? 0 : splits[i - 1];
-    const end = i === numDestinations - 1 ? totalNights : splits[i];
-    return end - start;
-  });
-
   return (
-    <div className="flex flex-col gap-3">
-      {/* Per-stop chips */}
-      <div className="flex gap-2 flex-wrap">
-        {nightsPerDest.map((n, i) => (
-          <span
-            key={i}
-            className={`text-xs px-2.5 py-1 rounded-full border font-medium bg-surface-2 ${SEG_TEXT[i % SEG_TEXT.length]} ${SEG_BORDER[i % SEG_BORDER.length]}`}
-          >
-            Stop {i + 1}: {n} night{n !== 1 ? 's' : ''}
-          </span>
-        ))}
-      </div>
-
-      {/* Track */}
-      <div className="relative py-3">
-        <div ref={trackRef} className="relative h-3 bg-surface-2 rounded-full">
-          {nightsPerDest.map((nights, i) => {
-            const startNight = i === 0 ? 0 : splits[i - 1];
-            const left = (startNight / totalNights) * 100;
-            const width = (nights / totalNights) * 100;
-            const isFirst = i === 0;
-            const isLast = i === numDestinations - 1;
-            const br = isFirst && isLast ? '9999px'
-              : isFirst ? '9999px 0 0 9999px'
-              : isLast ? '0 9999px 9999px 0'
-              : '0';
-            return (
-              <div
-                key={i}
-                className={`absolute h-full ${SEG_COLORS[i % SEG_COLORS.length]}`}
-                style={{ left: `${left}%`, width: `${width}%`, borderRadius: br }}
-              />
-            );
-          })}
-
-          {splits.map((split, i) => (
-            <div
-              key={i}
-              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 bg-white border-[2.5px] border-indigo rounded-full shadow-md cursor-grab active:cursor-grabbing touch-none z-10 transition-transform hover:scale-110"
-              style={{ left: `${(split / totalNights) * 100}%` }}
-              onPointerDown={(e) => onPointerDown(e, i)}
-              aria-label={`Split at night ${split}`}
-            />
-          ))}
-        </div>
-        <div className="flex justify-between mt-2 px-0.5">
-          <span className="text-xs text-text-xmuted">Night 1</span>
-          <span className="text-xs text-text-xmuted">Night {totalNights}</span>
-        </div>
-      </div>
+    <div className="flex flex-col gap-2">
+      {nights.map((n, i) => {
+        const segIdx = i % SEG_TEXT.length;
+        const absorbIdx = i < nights.length - 1 ? i + 1 : i - 1;
+        const canInc = absorbIdx >= 0 && nights[absorbIdx] > 1;
+        const canDec = n > 1;
+        return (
+          <div key={i} className={`flex items-center justify-between rounded-2xl border px-4 py-2.5 ${SEG_SOFT[segIdx]}`}>
+            <span className={`text-sm font-semibold ${SEG_TEXT[segIdx]}`}>Stop {i + 1}</span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => changeStop(i, -1)}
+                disabled={!canDec}
+                className="w-8 h-8 rounded-xl bg-surface border border-border flex items-center justify-center text-text-primary font-semibold text-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed hover:border-indigo-border"
+              >
+                &minus;
+              </button>
+              <span className="text-sm font-semibold text-text-primary w-20 text-center">
+                {n} night{n !== 1 ? 's' : ''}
+              </span>
+              <button
+                type="button"
+                onClick={() => changeStop(i, 1)}
+                disabled={!canInc}
+                className="w-8 h-8 rounded-xl bg-surface border border-border flex items-center justify-center text-text-primary font-semibold text-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed hover:border-indigo-border"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        );
+      })}
+      <p className="text-[11px] text-text-xmuted px-1">
+        {totalNights} nights total · changing one stop shifts the adjacent
+      </p>
     </div>
   );
 }
@@ -455,34 +402,86 @@ function budgetLegsToTripLegs(legs: BudgetPlanLeg[]): TripLeg[] {
 
 /* ── LegRow ── */
 
-function LegRow({ leg }: { leg: BudgetPlanLeg }) {
+function LegRow({
+  leg,
+  showSwapButton,
+  isSwapWarning,
+  onSwapRequest,
+  onSwapConfirm,
+  onSwapCancel,
+}: {
+  leg: BudgetPlanLeg;
+  showSwapButton: boolean;
+  isSwapWarning: boolean;
+  onSwapRequest: () => void;
+  onSwapConfirm: () => void;
+  onSwapCancel: () => void;
+}) {
   const isReturn = leg.isReturn;
   const departureDate = fmt(leg.departureDatetime);
 
   return (
-    <div className="flex items-start gap-3 py-3 border-b border-border/40 last:border-0">
-      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${isReturn ? 'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700' : 'bg-indigo-soft border border-indigo-border'}`}>
-        {isReturn
-          ? <PlaneLanding size={14} className="text-emerald-600 dark:text-emerald-400" />
-          : <PlaneTakeoff size={14} className="text-indigo" />
-        }
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-2 flex-wrap">
-          <span className="text-[15px] font-semibold text-text-primary">
-            {leg.originCity} → {leg.destinationCity}
-          </span>
-          {isReturn && (
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 px-1.5 py-0.5 rounded-full">
-              Return
+    <div className="py-3 border-b border-border/40 last:border-0">
+      <div className="flex items-start gap-3">
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${isReturn ? 'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700' : 'bg-indigo-soft border border-indigo-border'}`}>
+          {isReturn
+            ? <PlaneLanding size={14} className="text-emerald-600 dark:text-emerald-400" />
+            : <PlaneTakeoff size={14} className="text-indigo" />
+          }
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span className="text-[15px] font-semibold text-text-primary">
+              {leg.originCity} → {leg.destinationCity}
             </span>
+            {isReturn && (
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 px-1.5 py-0.5 rounded-full">
+                Return
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-text-muted mt-0.5">
+            {leg.airlineName} · {departureDate} · {leg.stops === 0 ? 'Direct' : `${leg.stops} stop${leg.stops > 1 ? 's' : ''}`}
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <span className="text-[15px] font-bold text-text-primary">${leg.priceUsd}</span>
+          {showSwapButton && (
+            <button
+              type="button"
+              onClick={onSwapRequest}
+              className="text-[11px] text-text-muted hover:text-indigo transition-colors underline-offset-2 hover:underline"
+            >
+              Something else
+            </button>
           )}
         </div>
-        <p className="text-xs text-text-muted mt-0.5">
-          {leg.airlineName} · {departureDate} · {leg.stops === 0 ? 'Direct' : `${leg.stops} stop${leg.stops > 1 ? 's' : ''}`}
-        </p>
       </div>
-      <span className="text-[15px] font-bold text-text-primary shrink-0">${leg.priceUsd}</span>
+
+      {/* Inline swap warning */}
+      {isSwapWarning && (
+        <div className="mt-2 mx-0 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 flex items-center justify-between gap-3">
+          <p className="text-xs text-amber-700 dark:text-amber-300 leading-snug">
+            This will regenerate the full trip — a different destination will be chosen instead of {leg.destinationCity}.
+          </p>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={onSwapConfirm}
+              className="text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-800/50 hover:bg-amber-200 dark:hover:bg-amber-700/50 px-2.5 py-1 rounded-lg transition-colors"
+            >
+              Try another
+            </button>
+            <button
+              type="button"
+              onClick={onSwapCancel}
+              className="text-xs text-amber-600 dark:text-amber-400 px-1.5 py-1 hover:underline"
+            >
+              Keep
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -493,15 +492,19 @@ function PlanResult({
   result,
   passengers,
   tripStyle,
-  onStartTrip,
   onRetry,
+  onSwap,
+  swapLoading,
 }: {
   result: BudgetPlanResult;
   passengers: number;
   tripStyle: TripStyle;
-  onStartTrip: () => void;
   onRetry: () => void;
+  onSwap: (excludedIata: string) => void;
+  swapLoading: boolean;
 }) {
+  const [swapWarningIndex, setSwapWarningIndex] = useState<number | null>(null);
+
   const usedPct = Math.min(100, Math.round((result.totalCostPerPerson / result.budgetPerPerson) * 100));
   const totalForGroup = result.totalCostPerPerson * passengers;
   const outboundLegs = result.legs.filter((l) => !l.isReturn);
@@ -535,10 +538,27 @@ function PlanResult({
         </span>
       </div>
 
-      <div className="bg-surface border border-border rounded-3xl px-4 py-1">
+      <div className={`bg-surface border border-border rounded-3xl px-4 py-1 transition-opacity ${swapLoading ? 'opacity-50 pointer-events-none' : ''}`}>
         {result.legs.map((leg, i) => (
-          <LegRow key={`${leg.flightId}-${i}`} leg={leg} />
+          <LegRow
+            key={`${leg.flightId}-${i}`}
+            leg={leg}
+            showSwapButton={!leg.isReturn && !swapLoading}
+            isSwapWarning={swapWarningIndex === i}
+            onSwapRequest={() => setSwapWarningIndex(i)}
+            onSwapConfirm={() => {
+              setSwapWarningIndex(null);
+              onSwap(leg.destinationIata);
+            }}
+            onSwapCancel={() => setSwapWarningIndex(null)}
+          />
         ))}
+        {swapLoading && (
+          <div className="flex items-center gap-2 py-3">
+            <Loader2 size={14} className="animate-spin text-indigo shrink-0" />
+            <span className="text-xs text-text-muted">Finding a different route…</span>
+          </div>
+        )}
       </div>
 
       <div className="bg-surface border border-border rounded-3xl p-4 space-y-3">
@@ -566,30 +586,18 @@ function PlanResult({
         </div>
       </div>
 
-      <button
-        onClick={onStartTrip}
-        className="w-full h-14 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-base rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-sm"
-      >
-        <PlaneTakeoff size={18} />
-        Plan this trip
-      </button>
     </div>
   );
 }
 
 /* ── Constants ── */
 
-const DEST_OPTIONS: { value: DestCount; label: string; sublabel: string }[] = [
-  { value: 1, label: '1', sublabel: 'destination' },
-  { value: 2, label: '2', sublabel: 'destinations' },
-  { value: 3, label: '3', sublabel: 'destinations' },
-  { value: 'max', label: '∞', sublabel: 'as many as\npossible' },
-];
 
 const STYLE_OPTIONS: { value: TripStyle; label: string; sub: string }[] = [
-  { value: 'value', label: 'Best value', sub: 'Cheapest flight at every stop — maximum savings.' },
-  { value: 'surprise', label: 'Surprise me', sub: '2nd-best picks for a different angle — try again each time.' },
-  { value: 'offpath', label: 'Under the radar', sub: 'Longest direct hops — discover more distant destinations. May go slightly over budget to include a return flight.' },
+  { value: 'value',  label: 'Best value',      sub: 'Cheapest direct flight at every stop — stretch your budget as far as possible.' },
+  { value: 'offpath', label: 'Furthest',        sub: 'Longest direct hop at each stop — budget spread evenly so later stops never run dry. May go slightly over budget on the return.' },
+  { value: 'sunny',  label: 'Sun chaser',       sub: 'Picks the warmest, clearest destination available at each hop — best for winter escapes.' },
+  { value: 'short',  label: 'Shortest flights', sub: 'Quickest direct hop at each stop — spend less time in the air and more time on the ground.' },
 ];
 
 /* ── Main screen ── */
@@ -607,7 +615,7 @@ export function TripPlannerScreen() {
   const [budget, setBudget] = useState('');
   const [passengers, setPassengersLocal] = useState(1);
   const [destCount, setDestCount] = useState<DestCount | null>(null);
-  const [nightSplits, setNightSplits] = useState<number[]>([]);
+  const [nightsPerStopArr, setNightsPerStopArr] = useState<number[]>([]);
   const [tripStyle, setTripStyle] = useState<TripStyle>('value');
   const [nearby, setNearby] = useState<Airport[]>([]);
   const [geoLoading, setGeoLoading] = useState(false);
@@ -620,6 +628,8 @@ export function TripPlannerScreen() {
   const [result, setResult] = useState<BudgetPlanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [errorStatus, setErrorStatus] = useState<number | null>(null);
+  const [excludedDestinations, setExcludedDestinations] = useState<string[]>([]);
+  const [swapLoading, setSwapLoading] = useState(false);
 
   const { results: airportResults, loading: airportLoading } = useAirportSearch(
     dropdownOpen ? originQuery : '',
@@ -628,11 +638,34 @@ export function TripPlannerScreen() {
   const today = todayStr();
   const tripNights = useMemo(() => nightsBetween(dateFrom, dateTo), [dateFrom, dateTo]);
 
-  // Recompute splits whenever destination count or total nights change
+  // Max destinations = floor(tripNights / 2), soft-min 2 nights per stop, cap 15
+  const maxDestinations = useMemo(
+    () => tripNights < 2 ? 1 : Math.min(15, Math.floor(tripNights / 2)),
+    [tripNights],
+  );
+
+  // Auto-initialise destCount to 2 when the section first appears
+  // (use passengersVisible directly — destCountVisible is declared further down)
+  const passengersVisible = Number(budget) >= 100;
+  useEffect(() => {
+    if (passengersVisible && destCount === null) {
+      setDestCount(Math.min(2, maxDestinations));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [passengersVisible]);
+
+  // Clamp destCount when maxDestinations shrinks (user narrows the date window)
+  useEffect(() => {
+    if (typeof destCount === 'number' && destCount > maxDestinations) {
+      setDestCount(maxDestinations);
+    }
+  }, [maxDestinations, destCount]);
+
+  // Recompute per-stop nights whenever destination count or total nights change
   useEffect(() => {
     const n = typeof destCount === 'number' ? destCount : 0;
-    if (n < 2 || tripNights < n) { setNightSplits([]); return; }
-    setNightSplits(defaultSplits(n, tripNights));
+    if (n < 1 || tripNights < n) { setNightsPerStopArr([]); return; }
+    setNightsPerStopArr(defaultNightsArr(n, tripNights));
   }, [destCount, tripNights]);
 
   // Geolocation — serve nearby airports for the origin picker
@@ -664,42 +697,30 @@ export function TripPlannerScreen() {
   // Progressive section visibility
   const datesVisible = !!originAirport;
   const budgetVisible = !!(dateFrom && dateTo);
-  const passengersVisible = Number(budget) >= 100;
   const destCountVisible = passengersVisible;
   const numericDests = typeof destCount === 'number' ? destCount : 0;
-  const showMultiNights = destCount !== null && numericDests >= 2 && tripNights >= numericDests;
-  const showMaxNights = destCount === 'max';
-  const showNightsSection = showMultiNights || showMaxNights;
+  const showNightsSection = destCount !== null && tripNights > 0;
   const tripStyleVisible = destCount !== null;
 
-  // Per-stop night counts derived from slider splits
-  const nightsPerDestArray = useMemo<number[]>(() => {
-    if (numericDests >= 2 && nightSplits.length === numericDests - 1) {
-      return Array.from({ length: numericDests }, (_, i) => {
-        const start = i === 0 ? 0 : nightSplits[i - 1];
-        const end = i === numericDests - 1 ? tripNights : nightSplits[i];
-        return Math.max(1, end - start);
-      });
-    }
-    return [];
-  }, [numericDests, nightSplits, tripNights]);
+  // Per-stop nights come directly from state (managed by NightsPerStopEditor or auto-init)
+  const nightsPerDestArray = nightsPerStopArr;
 
-  // Max mode: auto-calculate 3-night stops; remainder goes to last city
+  // Auto mode: spread tripNights evenly across maxDestinations hops
   const { maxModeNumHops, maxModeNightsArray } = useMemo(() => {
     if (destCount !== 'max' || tripNights <= 0) return { maxModeNumHops: 0, maxModeNightsArray: [] as number[] };
-    const numHops = Math.min(3, Math.max(1, Math.ceil(tripNights / 3)));
-    const arr = Array.from({ length: numHops }, (_, i) =>
-      i < numHops - 1 ? 3 : tripNights - (numHops - 1) * 3,
-    );
+    const numHops = Math.max(1, maxDestinations);
+    const base = Math.floor(tripNights / numHops);
+    const rem = tripNights % numHops;
+    const arr = Array.from({ length: numHops }, (_, i) => base + (i < rem ? 1 : 0));
     return { maxModeNumHops: numHops, maxModeNightsArray: arr };
-  }, [destCount, tripNights]);
+  }, [destCount, tripNights, maxDestinations]);
 
   const effectiveNightsForApi = useMemo(() => {
-    if (destCount === 'max') return 3;
-    if (destCount === 1) return tripNights;
+    if (destCount === 'max') return Math.floor(tripNights / Math.max(1, maxModeNumHops));
+    if (numericDests === 1) return tripNights;
     if (numericDests >= 2 && tripNights > 0) return Math.round(tripNights / numericDests);
     return 4;
-  }, [destCount, numericDests, tripNights]);
+  }, [destCount, numericDests, tripNights, maxModeNumHops]);
 
   const canSearch =
     originAirport !== null &&
@@ -714,11 +735,12 @@ export function TripPlannerScreen() {
     setError(null);
     setErrorStatus(null);
     setResult(null);
+    setExcludedDestinations([]);
     setMobileResultTab('list');
     try {
-      const apiMaxStops: 1 | 2 | 3 = destCount === 'max'
-        ? (Math.min(3, Math.max(1, maxModeNumHops)) as 1 | 2 | 3)
-        : destCount;
+      const apiMaxStops = destCount === 'max'
+        ? Math.max(1, maxModeNumHops)
+        : (typeof destCount === 'number' ? destCount : 1);
       const data = await planBudgetTrip({
         originIata: originAirport.iata,
         departureDateFrom: dateFrom,
@@ -731,6 +753,7 @@ export function TripPlannerScreen() {
           ? (maxModeNightsArray.length > 0 ? maxModeNightsArray : undefined)
           : (nightsPerDestArray.length > 0 ? nightsPerDestArray : undefined),
         tripStyle,
+        excludedDestinations: excludedDestinations.length > 0 ? excludedDestinations : undefined,
       });
       setResult(data);
     } catch (err: any) {
@@ -758,7 +781,44 @@ export function TripPlannerScreen() {
     setResult(null);
     setError(null);
     setErrorStatus(null);
+    setExcludedDestinations([]);
     setMobileResultTab('list');
+  }
+
+  async function handleSwap(excludedIata: string) {
+    if (!originAirport || destCount === null) return;
+    const nextExcluded = [...excludedDestinations, excludedIata];
+    setExcludedDestinations(nextExcluded);
+    setSwapLoading(true);
+    setError(null);
+    try {
+      const apiMaxStops = destCount === 'max'
+        ? Math.max(1, maxModeNumHops)
+        : (typeof destCount === 'number' ? destCount : 1);
+      const data = await planBudgetTrip({
+        originIata: originAirport.iata,
+        departureDateFrom: dateFrom,
+        departureDateTo: dateTo,
+        budgetPerPerson: Math.round(Number(budget)),
+        passengers,
+        maxStops: apiMaxStops,
+        nightsPerStop: effectiveNightsForApi,
+        nightsPerStopArray: destCount === 'max'
+          ? (maxModeNightsArray.length > 0 ? maxModeNightsArray : undefined)
+          : (nightsPerDestArray.length > 0 ? nightsPerDestArray : undefined),
+        tripStyle,
+        excludedDestinations: nextExcluded,
+      });
+      setResult(data);
+    } catch (err: any) {
+      const status = err?.status;
+      const raw = err?.message ?? 'No alternative found. Try adjusting your budget or dates.';
+      setError(status === 401 ? 'Your session has expired. Please log in again.' : raw);
+      setErrorStatus(status ?? null);
+      if (status === 401) clearSessionHint();
+    } finally {
+      setSwapLoading(false);
+    }
   }
 
   function renderResults() {
@@ -768,8 +828,9 @@ export function TripPlannerScreen() {
           result={result}
           passengers={passengers}
           tripStyle={tripStyle}
-          onStartTrip={handleStartTrip}
           onRetry={handleRetry}
+          onSwap={handleSwap}
+          swapLoading={swapLoading}
         />
       );
     }
@@ -830,10 +891,19 @@ export function TripPlannerScreen() {
         >
           <ArrowLeft size={20} />
         </button>
-        <div>
+        <div className="flex-1 min-w-0">
           <h1 className="text-lg font-semibold text-text-primary">Budget Planner</h1>
           <p className="text-xs text-text-muted">Find a multi-stop adventure within your budget</p>
         </div>
+        {result && (
+          <button
+            onClick={handleStartTrip}
+            className="flex items-center gap-1.5 h-9 px-4 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl transition-all active:scale-95 shrink-0 shadow-sm"
+          >
+            <PlaneTakeoff size={14} />
+            Plan this trip
+          </button>
+        )}
       </header>
 
       {/* Content — single column on mobile, two columns on desktop */}
@@ -996,31 +1066,58 @@ export function TripPlannerScreen() {
           {/* 5. Destination count — unlocked after passengers */}
           {destCountVisible && (
             <div className="flex flex-col gap-2">
-              <span className="text-xs font-medium text-text-muted px-1">How many places do you want to visit?</span>
-              <div className="grid grid-cols-4 gap-2">
-                {DEST_OPTIONS.map((opt) => {
-                  const active = destCount === opt.value;
-                  return (
-                    <button
-                      key={String(opt.value)}
-                      type="button"
-                      onClick={() => setDestCount(opt.value)}
-                      className={`flex flex-col items-center justify-center gap-0.5 py-3 px-1 rounded-2xl border text-center transition-all ${
-                        active
-                          ? 'bg-indigo-soft border-indigo-border'
-                          : 'bg-surface-2 border-border hover:border-indigo-border'
-                      }`}
-                    >
-                      <span className={`text-xl font-bold leading-none ${active ? 'text-indigo' : 'text-text-primary'}`}>
-                        {opt.label}
-                      </span>
-                      <span className={`text-[10px] leading-tight whitespace-pre-line mt-0.5 ${active ? 'text-indigo/80' : 'text-text-muted'}`}>
-                        {opt.sublabel}
-                      </span>
-                    </button>
-                  );
-                })}
+              <div className="flex items-baseline justify-between px-1">
+                <span className="text-xs font-medium text-text-muted">How many destinations?</span>
+                {tripNights >= 2 && (
+                  <span className="text-[11px] text-text-xmuted">
+                    up to {maxDestinations} with {tripNights} nights
+                  </span>
+                )}
               </div>
+              <div className="flex gap-2">
+                {/* Number stepper */}
+                <div
+                  className={`input-field flex-1 flex items-center justify-between gap-1 px-2 rounded-2xl transition-opacity ${destCount === 'max' ? 'opacity-40 pointer-events-none' : ''}`}
+                  style={{ height: '48px' }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setDestCount(Math.max(1, numericDests - 1))}
+                    disabled={numericDests <= 1}
+                    className="w-8 h-8 rounded-xl bg-surface-2 border border-border flex items-center justify-center text-text-primary font-semibold text-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed hover:border-indigo-border shrink-0"
+                  >
+                    &minus;
+                  </button>
+                  <span className="text-text-primary font-semibold text-base text-center flex-1">
+                    {destCount === 'max' ? '—' : numericDests}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setDestCount(Math.min(maxDestinations, numericDests + 1))}
+                    disabled={numericDests >= maxDestinations}
+                    className="w-8 h-8 rounded-xl bg-surface-2 border border-border flex items-center justify-center text-text-primary font-semibold text-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed hover:border-indigo-border shrink-0"
+                  >
+                    +
+                  </button>
+                </div>
+                {/* Auto toggle */}
+                <button
+                  type="button"
+                  onClick={() => setDestCount(destCount === 'max' ? Math.min(2, maxDestinations) : 'max')}
+                  className={`h-12 px-5 rounded-2xl border text-sm font-semibold transition-all shrink-0 ${
+                    destCount === 'max'
+                      ? 'bg-indigo-soft border-indigo-border text-indigo'
+                      : 'bg-surface-2 border-border text-text-muted hover:border-indigo-border'
+                  }`}
+                >
+                  Auto
+                </button>
+              </div>
+              {destCount === 'max' && (
+                <p className="text-[11px] text-indigo px-1">
+                  Algorithm will find as many stops as the budget allows
+                </p>
+              )}
             </div>
           )}
 
@@ -1029,17 +1126,11 @@ export function TripPlannerScreen() {
             <div className="flex flex-col gap-2">
               <div className="flex justify-between items-center px-1">
                 <span className="text-xs font-medium text-text-muted">How long at each stop?</span>
-                {showMaxNights && maxModeNumHops > 0 && (
-                  <span className="text-xs font-semibold text-indigo">
-                    {maxModeNumHops} stop{maxModeNumHops !== 1 ? 's' : ''}
-                  </span>
-                )}
-                {showMultiNights && (
-                  <span className="text-xs font-semibold text-indigo">{tripNights} nights total</span>
-                )}
+                <span className="text-xs font-semibold text-indigo">{tripNights} nights total</span>
               </div>
 
-              {showMaxNights && (
+              {/* Auto mode — info panel */}
+              {destCount === 'max' && (
                 <div className="bg-indigo-soft border border-indigo-border rounded-2xl px-4 py-3">
                   {maxModeNumHops > 0 ? (
                     <p className="text-sm text-text-primary">
@@ -1048,9 +1139,6 @@ export function TripPlannerScreen() {
                       {maxModeNightsArray.map((n, i) => (
                         <span key={i}>{i > 0 ? ', ' : ''}<span className="font-medium">{n} night{n !== 1 ? 's' : ''}</span></span>
                       ))}
-                      {maxModeNightsArray[maxModeNightsArray.length - 1] !== 3 && (
-                        <span className="text-text-muted text-xs ml-1">(last stop gets remaining days)</span>
-                      )}
                     </p>
                   ) : (
                     <p className="text-sm text-text-muted">Select travel dates to see the planned stops.</p>
@@ -1058,19 +1146,20 @@ export function TripPlannerScreen() {
                 </div>
               )}
 
-              {showMultiNights && nightSplits.length > 0 && (
-                <NightsSlider
-                  totalNights={tripNights}
-                  numDestinations={numericDests}
-                  splits={nightSplits}
-                  onChange={setNightSplits}
-                />
-              )}
-
-              {destCount === 1 && tripNights > 0 && (
+              {/* Single destination */}
+              {numericDests === 1 && (
                 <p className="text-xs text-text-muted px-1">
                   You'll spend all <strong className="text-text-primary">{tripNights} nights</strong> at your destination.
                 </p>
+              )}
+
+              {/* 2+ destinations — per-stop steppers */}
+              {numericDests >= 2 && nightsPerStopArr.length === numericDests && (
+                <NightsPerStopEditor
+                  nights={nightsPerStopArr}
+                  totalNights={tripNights}
+                  onChange={setNightsPerStopArr}
+                />
               )}
             </div>
           )}
