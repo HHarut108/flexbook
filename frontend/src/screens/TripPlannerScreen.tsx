@@ -13,6 +13,7 @@ import {
   MapPin,
   PlaneLanding,
   PlaneTakeoff,
+  RefreshCw,
   Users,
   Wallet,
   CalendarDays,
@@ -444,15 +445,27 @@ function LegRow({
             {leg.airlineName} · {departureDate} · {leg.stops === 0 ? 'Direct' : `${leg.stops} stop${leg.stops > 1 ? 's' : ''}`}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <span className="text-[15px] font-bold text-text-primary">${leg.priceUsd}</span>
           {showSwapButton && (
+            /* Desktop: icon + label pill; Mobile: icon-only circle */
             <button
               type="button"
               onClick={onSwapRequest}
-              className="text-[11px] text-text-muted hover:text-indigo transition-colors underline-offset-2 hover:underline"
+              title="Try a different destination"
+              className={`
+                flex items-center gap-1.5 transition-all active:scale-95
+                ${isSwapWarning
+                  ? 'bg-amber-100 dark:bg-amber-800/50 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700'
+                  : 'bg-surface-2 border border-border text-text-muted hover:text-indigo hover:border-indigo-border hover:bg-indigo-soft'
+                }
+                rounded-full
+                w-7 h-7 justify-center
+                md:w-auto md:h-auto md:px-2.5 md:py-1 md:rounded-lg
+              `}
             >
-              Something else
+              <RefreshCw size={12} className="shrink-0" />
+              <span className="hidden md:inline text-[11px] font-medium">Try different</span>
             </button>
           )}
         </div>
@@ -460,9 +473,9 @@ function LegRow({
 
       {/* Inline swap warning */}
       {isSwapWarning && (
-        <div className="mt-2 mx-0 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 flex items-center justify-between gap-3">
+        <div className="mt-2 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 flex items-center justify-between gap-3">
           <p className="text-xs text-amber-700 dark:text-amber-300 leading-snug">
-            This will regenerate the full trip — a different destination will be chosen instead of {leg.destinationCity}.
+            {leg.destinationCity} and all stops after it will be replaced.
           </p>
           <div className="flex items-center gap-1.5 shrink-0">
             <button
@@ -470,7 +483,7 @@ function LegRow({
               onClick={onSwapConfirm}
               className="text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-800/50 hover:bg-amber-200 dark:hover:bg-amber-700/50 px-2.5 py-1 rounded-lg transition-colors"
             >
-              Try another
+              Replace
             </button>
             <button
               type="button"
@@ -824,14 +837,28 @@ export function TripPlannerScreen() {
   function renderResults() {
     if (result) {
       return (
-        <PlanResult
-          result={result}
-          passengers={passengers}
-          tripStyle={tripStyle}
-          onRetry={handleRetry}
-          onSwap={handleSwap}
-          swapLoading={swapLoading}
-        />
+        <div className="space-y-3">
+          {/* Swap error — shown above the still-visible result so user keeps their plan */}
+          {error && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl px-4 py-3">
+              <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">{error}</p>
+              <button
+                onClick={() => setError(null)}
+                className="text-xs text-amber-600 dark:text-amber-400 hover:underline mt-1"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+          <PlanResult
+            result={result}
+            passengers={passengers}
+            tripStyle={tripStyle}
+            onRetry={handleRetry}
+            onSwap={handleSwap}
+            swapLoading={swapLoading}
+          />
+        </div>
       );
     }
     if (error) {
@@ -898,10 +925,13 @@ export function TripPlannerScreen() {
         {result && (
           <button
             onClick={handleStartTrip}
-            className="flex items-center gap-1.5 h-9 px-4 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl transition-all active:scale-95 shrink-0 shadow-sm"
+            className="flex flex-col items-end text-right group shrink-0 min-w-0"
           >
-            <PlaneTakeoff size={14} />
-            Plan this trip
+            <span className="flex items-center gap-1 text-sm font-semibold text-indigo group-hover:underline leading-tight">
+              Plan this trip
+              <PlaneTakeoff size={13} className="shrink-0" />
+            </span>
+            <span className="text-xs text-text-muted leading-tight">Start booking your adventure</span>
           </button>
         )}
       </header>
