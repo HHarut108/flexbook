@@ -159,7 +159,10 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
             );
             // Keep only flights that actually return home — never substitute a random destination.
             const returnFlights = result.flights.filter((f) => f.destinationIata === originIata);
-            const returnFlight = returnFlights.find((f) => f.priceUsd <= state.remainingBudget);
+            // offpath: always take the cheapest return even if it goes over budget
+            const returnFlight = tripStyle === 'offpath'
+              ? returnFlights[0]
+              : returnFlights.find((f) => f.priceUsd <= state.remainingBudget);
             if (returnFlight) {
               return {
                 ...state,
