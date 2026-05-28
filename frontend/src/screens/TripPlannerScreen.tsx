@@ -617,8 +617,8 @@ const STYLE_OPTIONS: { value: TripStyle; label: string; sub: string }[] = [
 
 export function TripPlannerScreen() {
   const navigate = useNavigate();
-  const { setOrigin, setPassengers } = useTripStore();
-  const { setSelectedDate } = useSessionStore();
+  const { setOrigin, setPassengers, reset: resetTrip, addLeg, finalize } = useTripStore();
+  const { reset: resetSession } = useSessionStore();
 
   // Form state
   const [originQuery, setOriginQuery] = useState('');
@@ -783,11 +783,44 @@ export function TripPlannerScreen() {
 
   function handleStartTrip() {
     if (!result || !originAirport) return;
+
+    // Wipe any previous trip and session state so we start clean.
+    resetTrip();
+    resetSession();
+
+    // Re-hydrate stores with the Budget Planner's computed plan.
     setOrigin(originAirport);
     setPassengers(passengers);
-    const firstLeg = result.legs[0];
-    if (firstLeg) setSelectedDate(firstLeg.departureDatetime.slice(0, 10));
-    navigate('/flights');
+
+    const outbound = result.legs.filter((l) => !l.isReturn);
+    const returnLeg = result.legs.find((l) => l.isReturn);
+    const allLegsOrdered = [...outbound, ...(returnLeg ? [returnLeg] : [])];
+
+    allLegsOrdered.forEach((leg, i) => {
+      // nextDepartureDate = when the NEXT flight departs (= this stop's check-out day).
+      // For the last leg (return), it equals its own departure date.
+      const nextDepDatetime = allLegsOrdered[i + 1]?.departureDatetime ?? leg.departureDatetime;
+      const nextDepartureDate = nextDepDatetime.slice(0, 10);
+
+      // stayDurationDays = nights between arriving at this stop and flying out again.
+      const arrivalMs = new Date(leg.arrivalDatetime).getTime();
+      const nextDepMs  = new Date(nextDepDatetime).getTime();
+      const stayDurationDays = leg.isReturn
+        ? 0
+        : Math.max(1, Math.round((nextDepMs - arrivalMs) / 86_400_000));
+
+      addLeg({
+        ...leg,
+        stopIndex: i + 1,
+        stayDurationDays,
+        nextDepartureDate,
+        isReturn: leg.isReturn ?? false,
+      });
+    });
+
+    // Mark trip complete so ItineraryScreen shows the full summary.
+    finalize();
+    navigate('/itinerary');
   }
 
   function handleRetry() {
