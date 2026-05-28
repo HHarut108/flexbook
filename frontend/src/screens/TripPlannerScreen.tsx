@@ -898,10 +898,13 @@ export function TripPlannerScreen() {
         {result && (
           <button
             onClick={handleStartTrip}
-            className="flex items-center gap-1.5 h-9 px-4 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl transition-all active:scale-95 shrink-0 shadow-sm"
+            className="flex flex-col items-end text-right group shrink-0 min-w-0"
           >
-            <PlaneTakeoff size={14} />
-            Plan this trip
+            <span className="flex items-center gap-1 text-sm font-semibold text-indigo group-hover:underline leading-tight">
+              Plan this trip
+              <PlaneTakeoff size={13} className="shrink-0" />
+            </span>
+            <span className="text-xs text-text-muted leading-tight">Start booking your adventure</span>
           </button>
         )}
       </header>
