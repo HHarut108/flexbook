@@ -52,6 +52,7 @@ type BeamState = {
   currentOriginIata: string;
   currentDate: string;
   visited: Set<string>;
+  overBudget?: boolean;
 };
 
 export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
@@ -185,8 +186,8 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
     // ── Return legs (always run — return home is mandatory) ──────────────────
     // Do NOT gate on deadline here: return leg search is only 1 API call per
     // beam state (≤ BEAM_WIDTH = 3) and must complete so the cycle closes.
-    const finalBeam = await Promise.all(
-      activeBeam.map(async (state) => {
+    const finalBeam = (await Promise.all(
+      activeBeam.map(async (state): Promise<BeamState | null> => {
         // Already back at origin (single-hop loop) — nothing to do.
         if (state.currentOriginIata === originIata) return state;
 
@@ -204,39 +205,41 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
           const directReturn = allReturnHome.filter((f) => f.stops === 0);
           const returnPool = directReturn.length > 0 ? directReturn : allReturnHome;
 
-          // offpath forces the return even if it blows the budget;
-          // all other modes require it to fit within remaining budget.
-          const returnFlight = tripStyle === 'offpath'
-            ? returnPool[0]
-            : returnPool.find((f) => f.priceUsd <= state.remainingBudget);
-
-          if (returnFlight) {
+          // Always take the cheapest available return — never leave the trip open-ended.
+          // Mark overBudget if the return leg exceeds the remaining budget.
+          const cheapestReturn = returnPool[0];
+          if (cheapestReturn) {
+            const overBudget = cheapestReturn.priceUsd > state.remainingBudget;
             return {
               ...state,
-              legs: [...state.legs, { ...returnFlight, isReturn: true }],
-              remainingBudget: state.remainingBudget - returnFlight.priceUsd,
+              legs: [...state.legs, { ...cheapestReturn, isReturn: true }],
+              remainingBudget: state.remainingBudget - cheapestReturn.priceUsd,
+              overBudget,
             };
           }
         } catch {
-          // Flight search failed — state carries no return leg (filtered below).
+          // Flight search failed — discard this beam state.
         }
-        return state; // no return flight found
+        return null; // no return flight found at all — discard
       }),
-    );
+    )).filter((s): s is BeamState => s !== null);
 
-    // Prefer states that have a closed cycle (return leg present).
-    // Fall back to open-ended states only if nothing closed was found.
-    const hasReturn = (s: BeamState) =>
-      s.legs.some((l) => l.isReturn) || s.currentOriginIata === originIata;
-    const closedBeam = finalBeam.filter(hasReturn);
-    const beamToRank = closedBeam.length > 0 ? closedBeam : finalBeam;
+    // All returned states now have a closed cycle. No open-ended fallback.
+    if (finalBeam.length === 0) {
+      return reply.status(422).send(fail('NO_RETURN_FOUND', 'Could not find a return flight home. Try a wider date range.'));
+    }
+
+    const beamToRank = finalBeam;
 
     // Pick winner: most legs first, then most remaining budget as tiebreaker
+    // (within-budget states naturally rank above over-budget ones because their
+    // remainingBudget is positive while over-budget states carry a negative value)
     beamToRank.sort((a, b) => b.legs.length - a.legs.length || b.remainingBudget - a.remainingBudget);
     const winner = beamToRank[0];
 
     const totalCostPerPerson = budgetPerPerson - winner.remainingBudget;
+    const overBudget = winner.overBudget ?? false;
 
-    return ok({ legs: winner.legs, totalCostPerPerson, budgetPerPerson });
+    return ok({ legs: winner.legs, totalCostPerPerson, budgetPerPerson, overBudget });
   });
 };
