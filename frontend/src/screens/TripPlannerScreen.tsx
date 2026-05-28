@@ -970,7 +970,7 @@ export function TripPlannerScreen() {
       </header>
 
       {/* Content — single column on mobile, two columns on desktop */}
-      <div className="max-w-screen-lg mx-auto px-4 md:px-8 py-6 md:grid md:grid-cols-2 md:gap-10 md:items-start">
+      <div className="max-w-screen-lg mx-auto px-4 md:px-8 py-6 md:grid md:grid-cols-[400px_1fr] md:gap-10 md:items-start">
 
         {/* ── Form column ── */}
         <div className="space-y-5">
@@ -1118,69 +1118,64 @@ export function TripPlannerScreen() {
             </div>
           )}
 
-          {/* 4. Passengers — unlocked after budget ≥ $100 */}
-          {passengersVisible && (
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-text-muted px-1">Passengers</span>
-              <PassengerStepper value={passengers} onChange={setPassengersLocal} />
-            </div>
-          )}
-
-          {/* 5. Destination count — unlocked after passengers */}
+          {/* 4 + 5. Passengers & Destination count — unlocked together after budget ≥ $100 */}
           {destCountVisible && (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-baseline justify-between px-1">
-                <span className="text-xs font-medium text-text-muted">How many destinations?</span>
-                {tripNights >= 2 && (
-                  <span className="text-[11px] text-text-xmuted">
-                    up to {maxDestinations} with {tripNights} nights
-                  </span>
-                )}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Passengers */}
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-text-muted px-1">Passengers</span>
+                <PassengerStepper value={passengers} onChange={setPassengersLocal} />
               </div>
-              <div className="flex gap-2">
-                {/* Number stepper */}
-                <div
-                  className={`input-field flex-1 flex items-center justify-between gap-1 px-2 rounded-2xl transition-opacity ${destCount === 'max' ? 'opacity-40 pointer-events-none' : ''}`}
-                  style={{ height: '48px' }}
-                >
+
+              {/* Destination count */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-baseline justify-between px-1">
+                  <span className="text-xs font-medium text-text-muted">Destinations</span>
+                  {tripNights >= 2 && (
+                    <span className="text-[10px] text-text-xmuted">≤ {maxDestinations}</span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <div
+                    className={`input-field flex-1 flex items-center justify-between gap-1 px-2 rounded-2xl transition-opacity ${destCount === 'max' ? 'opacity-40 pointer-events-none' : ''}`}
+                    style={{ height: '48px' }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setDestCount(Math.max(1, numericDests - 1))}
+                      disabled={numericDests <= 1}
+                      className="w-8 h-8 rounded-xl bg-surface-2 border border-border flex items-center justify-center text-text-primary font-semibold text-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed hover:border-indigo-border shrink-0"
+                    >
+                      &minus;
+                    </button>
+                    <span className="text-text-primary font-semibold text-base text-center flex-1">
+                      {destCount === 'max' ? '—' : numericDests}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setDestCount(Math.min(maxDestinations, numericDests + 1))}
+                      disabled={numericDests >= maxDestinations}
+                      className="w-8 h-8 rounded-xl bg-surface-2 border border-border flex items-center justify-center text-text-primary font-semibold text-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed hover:border-indigo-border shrink-0"
+                    >
+                      +
+                    </button>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setDestCount(Math.max(1, numericDests - 1))}
-                    disabled={numericDests <= 1}
-                    className="w-8 h-8 rounded-xl bg-surface-2 border border-border flex items-center justify-center text-text-primary font-semibold text-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed hover:border-indigo-border shrink-0"
+                    onClick={() => setDestCount(destCount === 'max' ? Math.min(2, maxDestinations) : 'max')}
+                    className={`h-12 px-3 rounded-2xl border text-sm font-semibold transition-all shrink-0 ${
+                      destCount === 'max'
+                        ? 'bg-indigo-soft border-indigo-border text-indigo'
+                        : 'bg-surface-2 border-border text-text-muted hover:border-indigo-border'
+                    }`}
                   >
-                    &minus;
-                  </button>
-                  <span className="text-text-primary font-semibold text-base text-center flex-1">
-                    {destCount === 'max' ? '—' : numericDests}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setDestCount(Math.min(maxDestinations, numericDests + 1))}
-                    disabled={numericDests >= maxDestinations}
-                    className="w-8 h-8 rounded-xl bg-surface-2 border border-border flex items-center justify-center text-text-primary font-semibold text-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed hover:border-indigo-border shrink-0"
-                  >
-                    +
+                    Auto
                   </button>
                 </div>
-                {/* Auto toggle */}
-                <button
-                  type="button"
-                  onClick={() => setDestCount(destCount === 'max' ? Math.min(2, maxDestinations) : 'max')}
-                  className={`h-12 px-5 rounded-2xl border text-sm font-semibold transition-all shrink-0 ${
-                    destCount === 'max'
-                      ? 'bg-indigo-soft border-indigo-border text-indigo'
-                      : 'bg-surface-2 border-border text-text-muted hover:border-indigo-border'
-                  }`}
-                >
-                  Auto
-                </button>
+                {destCount === 'max' && (
+                  <p className="text-[10px] text-indigo px-1">Algorithm finds max stops</p>
+                )}
               </div>
-              {destCount === 'max' && (
-                <p className="text-[11px] text-indigo px-1">
-                  Algorithm will find as many stops as the budget allows
-                </p>
-              )}
             </div>
           )}
 
@@ -1326,13 +1321,19 @@ export function TripPlannerScreen() {
 
         {/* ── Results column — desktop only ── */}
         <div className="hidden md:block sticky top-[73px]">
-          {result && originAirport && (
+          {result && originAirport ? (
             <div className="h-56 rounded-2xl overflow-hidden border border-border mb-4">
               <Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 size={20} className="animate-spin text-indigo" /></div>}>
                 <TripMap origin={originAirport} legs={budgetLegsToTripLegs(result.legs)} />
               </Suspense>
             </div>
-          )}
+          ) : !originAirport && !geoLoading && (nearby.length > 0 || true) ? (
+            <div className="h-56 rounded-2xl overflow-hidden border border-border mb-4 opacity-60">
+              <Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 size={20} className="animate-spin text-indigo" /></div>}>
+                <TripMap origin={(nearby[0] ?? POPULAR_AIRPORTS[0]) as Airport} legs={[]} />
+              </Suspense>
+            </div>
+          ) : null}
           {renderResults()}
         </div>
       </div>
