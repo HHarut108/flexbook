@@ -169,13 +169,13 @@ function DateRangePicker({
     <div className="flex flex-col gap-2">
       <span className="text-xs font-medium text-text-muted px-1">Travel window</span>
 
-      {/* Departure / Return chips */}
+      {/* Departure / Return chips — only highlight whichever date is actively being picked */}
       <div className="grid grid-cols-2 gap-2">
         <button
           type="button"
           onClick={() => setPhase('from')}
           className={`flex flex-col p-3 rounded-2xl border transition-all text-left ${
-            phase === 'from' ? 'border-indigo bg-indigo-soft' : 'border-border bg-surface-2'
+            phase === 'from' && !(dateFrom && dateTo) ? 'border-indigo bg-indigo-soft' : 'border-border bg-surface-2'
           }`}
         >
           <span className="text-[10px] uppercase tracking-wide font-semibold text-text-xmuted">Departure</span>
@@ -188,7 +188,7 @@ function DateRangePicker({
           onClick={() => { if (dateFrom) setPhase('to'); }}
           disabled={!dateFrom}
           className={`flex flex-col p-3 rounded-2xl border transition-all text-left ${
-            phase === 'to' ? 'border-indigo bg-indigo-soft' : 'border-border bg-surface-2'
+            phase === 'to' && !(dateFrom && dateTo) ? 'border-indigo bg-indigo-soft' : 'border-border bg-surface-2'
           } ${!dateFrom ? 'opacity-40 cursor-not-allowed' : ''}`}
         >
           <span className="text-[10px] uppercase tracking-wide font-semibold text-text-xmuted">Return</span>
@@ -1321,13 +1321,20 @@ export function TripPlannerScreen() {
 
         {/* ── Results column — desktop only ── */}
         <div className="hidden md:block sticky top-[73px]">
+          {/* Map: shows a result route, the chosen origin, or a nearby-airports preview */}
           {result && originAirport ? (
             <div className="h-56 rounded-2xl overflow-hidden border border-border mb-4">
               <Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 size={20} className="animate-spin text-indigo" /></div>}>
                 <TripMap origin={originAirport} legs={budgetLegsToTripLegs(result.legs)} />
               </Suspense>
             </div>
-          ) : !originAirport && !geoLoading && (nearby.length > 0 || true) ? (
+          ) : originAirport ? (
+            <div className="h-56 rounded-2xl overflow-hidden border border-border mb-4">
+              <Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 size={20} className="animate-spin text-indigo" /></div>}>
+                <TripMap origin={originAirport} legs={[]} />
+              </Suspense>
+            </div>
+          ) : !geoLoading ? (
             <div className="h-56 rounded-2xl overflow-hidden border border-border mb-4 opacity-60">
               <Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 size={20} className="animate-spin text-indigo" /></div>}>
                 <TripMap origin={(nearby[0] ?? POPULAR_AIRPORTS[0]) as Airport} legs={[]} />

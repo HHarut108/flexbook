@@ -9,6 +9,7 @@ export interface MapPin {
   tooltip: string;
   isOrigin: boolean;
   isReturn: boolean;
+  isViaStop: boolean;
 }
 
 export interface MapLine {
@@ -37,6 +38,7 @@ export function buildMapData(origin: Airport, legs: TripLeg[]): { pins: MapPin[]
     tooltip: `${origin.city.name} (origin)`,
     isOrigin: true,
     isReturn: false,
+    isViaStop: false,
   });
 
   let prevLat = originLat;
@@ -55,11 +57,35 @@ export function buildMapData(origin: Airport, legs: TripLeg[]): { pins: MapPin[]
 
     if (!hasCoords(destLat, destLng)) continue;
 
-    lines.push({
-      from: [prevLat, prevLng],
-      to: [destLat, destLng],
-      dashed: leg.isReturn,
-    });
+    // Draw arcs through any intermediate via stops, then to destination
+    const viaPoints: Array<{ lat: number; lng: number; iata: string }> = [];
+    if (leg.viaCoords && leg.viaIatas) {
+      leg.viaCoords.forEach((coord, i) => {
+        if (hasCoords(coord.lat, coord.lng)) {
+          viaPoints.push({ lat: coord.lat, lng: coord.lng, iata: leg.viaIatas![i] ?? '?' });
+        }
+      });
+    }
+
+    let curLat = prevLat;
+    let curLng = prevLng;
+
+    for (const via of viaPoints) {
+      lines.push({ from: [curLat, curLng], to: [via.lat, via.lng], dashed: leg.isReturn });
+      pins.push({
+        lat: via.lat,
+        lng: via.lng,
+        label: via.iata,
+        tooltip: via.iata,
+        isOrigin: false,
+        isReturn: leg.isReturn,
+        isViaStop: true,
+      });
+      curLat = via.lat;
+      curLng = via.lng;
+    }
+
+    lines.push({ from: [curLat, curLng], to: [destLat, destLng], dashed: leg.isReturn });
 
     // Don't add a duplicate pin at origin for return legs
     if (!isReturnToOrigin) {
@@ -70,6 +96,7 @@ export function buildMapData(origin: Airport, legs: TripLeg[]): { pins: MapPin[]
         tooltip: `${leg.destinationCity}, ${countryDisplayName(leg.destinationCountry)}`,
         isOrigin: false,
         isReturn: leg.isReturn,
+        isViaStop: false,
       });
     }
 

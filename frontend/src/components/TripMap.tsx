@@ -47,6 +47,15 @@ function createStopIcon(label: string, isReturn: boolean) {
   });
 }
 
+function createViaStopIcon(iata: string) {
+  return L.divIcon({
+    html: `<div class="trip-map-pin trip-map-pin--via"><span>${iata}</span></div>`,
+    className: '',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  });
+}
+
 function createCityLabel(name: string, isOrigin: boolean) {
   return L.divIcon({
     html: `<div class="trip-map-label ${isOrigin ? 'trip-map-label--origin' : ''}">${name}</div>`,
@@ -262,12 +271,18 @@ export function TripMap({ origin, legs }: Props) {
           <Marker
             key={`pin-${i}`}
             position={[pin.lat, pin.lng]}
-            icon={pin.isOrigin ? createOriginIcon() : createStopIcon(pin.label, pin.isReturn)}
+            icon={
+              pin.isOrigin
+                ? createOriginIcon()
+                : pin.isViaStop
+                  ? createViaStopIcon(pin.label)
+                  : createStopIcon(pin.label, pin.isReturn)
+            }
           />
         ))}
 
-        {/* City name labels */}
-        {pins.map((pin, i) => (
+        {/* City name labels — skip via stop labels to avoid clutter */}
+        {pins.filter((pin) => !pin.isViaStop).map((pin, i) => (
           <Marker
             key={`label-${i}`}
             position={[pin.lat, pin.lng]}

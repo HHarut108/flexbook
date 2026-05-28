@@ -377,6 +377,16 @@ html[data-theme="dark"] .leaflet-container::after {
 .leaflet-control-zoom a:first-child {
   border-bottom: 1px solid rgba(226,232,240,0.8) !important;
 }
+.leaflet-control-zoom a.leaflet-disabled {
+  opacity: 0.3 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  color: #94a3b8 !important;
+}
+.leaflet-control-zoom a.leaflet-disabled:hover {
+  background: #ffffff !important;
+  color: #94a3b8 !important;
+}
 @media (max-width: 640px) {
   .leaflet-control-zoom a {
     width: 24px !important;
@@ -395,6 +405,15 @@ html[data-theme="dark"] .leaflet-control-zoom a {
 html[data-theme="dark"] .leaflet-control-zoom a:hover {
   background: #2A3758 !important;
   color: #C7D2FE !important;
+}
+html[data-theme="dark"] .leaflet-control-zoom a.leaflet-disabled {
+  opacity: 0.3 !important;
+  color: #4B5563 !important;
+  pointer-events: none !important;
+}
+html[data-theme="dark"] .leaflet-control-zoom a.leaflet-disabled:hover {
+  background: #1F2A44 !important;
+  color: #4B5563 !important;
 }
 html[data-theme="dark"] .leaflet-control-zoom a:first-child {
   border-bottom: 1px solid rgba(99,102,241,0.2) !important;
@@ -433,6 +452,19 @@ html[data-theme="dark"] .leaflet-control-zoom a:first-child {
 
 .trip-map-pin--stop span {
   line-height: 1;
+}
+
+.trip-map-pin--via {
+  width: 28px;
+  height: 28px;
+  background: rgba(249,115,22,0.12);
+  border: 2px solid #F97316;
+  color: #F97316;
+  font-weight: 700;
+  font-size: 8px;
+  font-family: 'Courier New', monospace;
+  letter-spacing: -0.5px;
+  box-shadow: 0 2px 8px rgba(249,115,22,0.25);
 }
 
 /* ── Price-chip pin used by FlightFanMap ── */

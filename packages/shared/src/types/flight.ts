@@ -27,6 +27,7 @@ export interface FlightOption {
   airlineCode?: string;
   stops: number;             // 0 = direct
   viaIatas?: string[];       // intermediate airport codes, e.g. ['BUD'] for BCN→BUD→EVN
+  viaCoords?: Array<{ lat: number; lng: number }>;  // coordinates for each entry in viaIatas
   priceUsd: number;
   bookingUrl: string;
   priceInfo?: PriceInfo;     // enriched price metadata populated by the cache layer
