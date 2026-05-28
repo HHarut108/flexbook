@@ -1,5 +1,4 @@
 import { apiClient, getApiMode } from './client';
-import { mockAirlines } from './mock-data';
 
 export async function fetchAirlineLogos(
   codes: string[],

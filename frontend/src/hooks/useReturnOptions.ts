@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { FlightOption } from '@fast-travel/shared';
 import { searchFlights } from '../api/flights.api';
 import { useTripStore } from '../store/trip.store';

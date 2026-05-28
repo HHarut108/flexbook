@@ -56,19 +56,3 @@ apiClient.interceptors.response.use(
 export const getApiMode = () => {
   return useApiSwitcher.getState().mode;
 };
-
-/**
- * Wrapper for API calls that respects the current mode
- * Returns mock data if in mock mode, otherwise makes real API call
- */
-export const createMockableClient = (realFetch: () => Promise<any>, mockData: any) => {
-  return async () => {
-    const mode = getApiMode();
-    if (mode === 'mock') {
-      // Simulate network delay
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      return mockData;
-    }
-    return realFetch();
-  };
-};

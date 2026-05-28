@@ -21,7 +21,6 @@ import {
   ArrowRight,
   PlaneTakeoff,
   CalendarDays,
-  Users,
   Star,
   TrendingUp,
   Shield,
