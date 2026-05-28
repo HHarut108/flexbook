@@ -168,6 +168,11 @@ export async function fetchRapidApiKiwiFlights(
       const viaIatas = segments.length > 1
         ? segments.slice(0, -1).map((s) => s.destination.station.code)
         : undefined;
+      const viaCoords = segments.length > 1
+        ? segments.slice(0, -1)
+            .map((s) => ({ lat: s.destination.station.gps?.lat ?? 0, lng: s.destination.station.gps?.lng ?? 0 }))
+            .filter((c) => c.lat !== 0 || c.lng !== 0)
+        : undefined;
 
       const rawBookingUrl = it.bookingOptions?.edges?.[0]?.node?.bookingUrl ?? '';
       const absoluteUrl = rawBookingUrl.startsWith('http')
@@ -198,6 +203,7 @@ export async function fetchRapidApiKiwiFlights(
         airlineCode: first.carrier.code,
         stops: segments.length - 1,
         viaIatas,
+        viaCoords: viaCoords?.length ? viaCoords : undefined,
         priceUsd: parseFloat(it.price.amount) * passengers,
         bookingUrl,
       };
