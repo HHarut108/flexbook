@@ -86,7 +86,17 @@ const MONTH_NAMES = [
 ];
 const DAY_NAMES = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
-/* ── DateRangePicker — shows two months so end-of-month users never need to click ► ── */
+/* ── DateRangePicker — compact 5-row week-view, today centred in row 2 ── */
+
+function makeSundayOf(d: Date): Date {
+  const s = new Date(d);
+  s.setDate(s.getDate() - s.getDay());
+  return s;
+}
+
+function dateStrOf(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
 
 function DateRangePicker({
   dateFrom,
@@ -102,28 +112,49 @@ function DateRangePicker({
   onChangeTo: (v: string) => void;
 }) {
   const todayObj = new Date(today + 'T12:00:00');
-  const [displayMonth, setDisplayMonth] = useState(todayObj.getMonth());
-  const [displayYear, setDisplayYear] = useState(todayObj.getFullYear());
   const [phase, setPhase] = useState<'from' | 'to'>(dateFrom && !dateTo ? 'to' : 'from');
 
-  // Second visible month (always month+1)
-  const m2 = displayMonth === 11 ? 0 : displayMonth + 1;
-  const y2 = displayMonth === 11 ? displayYear + 1 : displayYear;
+  // Window start = Sunday of the week 1 week before today → today lands in row 2
+  const minWindowStart = makeSundayOf(todayObj); // earliest allowed (Sunday of today's week)
+  const initStart = makeSundayOf(new Date(todayObj.getFullYear(), todayObj.getMonth(), todayObj.getDate() - 7));
+  const [windowStart, setWindowStart] = useState(initStart < minWindowStart ? minWindowStart : initStart);
 
-  const canGoPrev = !(displayYear === todayObj.getFullYear() && displayMonth === todayObj.getMonth());
+  const canGoPrev = windowStart > minWindowStart;
 
-  function prevMonth() {
+  function prevWeek() {
     if (!canGoPrev) return;
-    if (displayMonth === 0) { setDisplayMonth(11); setDisplayYear(y => y - 1); }
-    else setDisplayMonth(m => m - 1);
+    setWindowStart(ws => {
+      const n = new Date(ws);
+      n.setDate(n.getDate() - 7);
+      return n < minWindowStart ? minWindowStart : n;
+    });
   }
-  function nextMonth() {
-    if (displayMonth === 11) { setDisplayMonth(0); setDisplayYear(y => y + 1); }
-    else setDisplayMonth(m => m + 1);
+  function nextWeek() {
+    setWindowStart(ws => {
+      const n = new Date(ws);
+      n.setDate(n.getDate() + 7);
+      return n;
+    });
   }
 
-  function handleDayClick(day: number, month: number, year: number) {
-    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  // 5 rows × 7 cols = 35 cells
+  const cells = Array.from({ length: 35 }, (_, i) => {
+    const d = new Date(windowStart);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+
+  // Month label for the header
+  const firstCell = cells[0];
+  const lastCell = cells[34];
+  const headerLabel =
+    firstCell.getMonth() === lastCell.getMonth() && firstCell.getFullYear() === lastCell.getFullYear()
+      ? `${MONTH_NAMES[firstCell.getMonth()]} ${firstCell.getFullYear()}`
+      : firstCell.getFullYear() === lastCell.getFullYear()
+        ? `${MONTH_NAMES[firstCell.getMonth()]} – ${MONTH_NAMES[lastCell.getMonth()]} ${lastCell.getFullYear()}`
+        : `${MONTH_NAMES[firstCell.getMonth()]} ${firstCell.getFullYear()} – ${MONTH_NAMES[lastCell.getMonth()]} ${lastCell.getFullYear()}`;
+
+  function handleDayClick(dateStr: string) {
     if (dateStr < today) return;
     if (phase === 'from' || (dateFrom && dateTo)) {
       onChangeFrom(dateStr);
@@ -137,67 +168,6 @@ function DateRangePicker({
       setPhase('from');
     }
   }
-
-  function renderMonthGrid(month: number, year: number) {
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const firstDayOfWeek = new Date(year, month, 1).getDay();
-    return (
-      <div>
-        <p className="text-center text-sm font-semibold text-text-primary mb-3">
-          {MONTH_NAMES[month]} {year}
-        </p>
-        <div className="grid grid-cols-7 mb-1">
-          {DAY_NAMES.map(d => (
-            <div key={d} className="text-center text-[10px] font-semibold text-text-xmuted py-1">{d}</div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7">
-          {Array.from({ length: firstDayOfWeek }).map((_, i) => <div key={`e-${month}-${i}`} />)}
-          {Array.from({ length: daysInMonth }).map((_, i) => {
-            const day = i + 1;
-            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const isPast = dateStr < today;
-            const isFrom = dateStr === dateFrom;
-            const isTo = dateStr === dateTo;
-            const inRange = !!(dateFrom && dateTo && dateStr > dateFrom && dateStr < dateTo);
-            const isToday = dateStr === today;
-
-            let cls = 'relative flex items-center justify-center h-9 w-full text-sm transition-colors select-none ';
-            if (isPast) {
-              cls += 'opacity-25 cursor-not-allowed ';
-            } else if (isFrom || isTo) {
-              cls += 'bg-indigo text-white font-semibold rounded-xl cursor-pointer ';
-            } else if (inRange) {
-              cls += 'bg-indigo/10 text-indigo cursor-pointer ';
-            } else {
-              cls += 'hover:bg-surface-2 text-text-primary cursor-pointer ';
-            }
-
-            return (
-              <button
-                key={day}
-                type="button"
-                disabled={isPast}
-                onClick={() => handleDayClick(day, month, year)}
-                className={cls}
-                aria-label={dateStr}
-                aria-pressed={isFrom || isTo}
-              >
-                {day}
-                {isToday && !isFrom && !isTo && (
-                  <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-indigo" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  const rangeLabel = m2 < displayMonth
-    ? `${MONTH_NAMES[displayMonth]} ${displayYear} – ${MONTH_NAMES[m2]} ${y2}`
-    : `${MONTH_NAMES[displayMonth]} – ${MONTH_NAMES[m2]} ${y2}`;
 
   return (
     <div className="flex flex-col gap-2">
@@ -232,33 +202,79 @@ function DateRangePicker({
         </button>
       </div>
 
-      {/* Calendar — two months stacked */}
-      <div className="bg-surface border border-border rounded-2xl p-4">
-        <div className="flex items-center justify-between mb-4">
+      {/* Compact week-view calendar */}
+      <div className="bg-surface border border-border rounded-2xl p-3">
+        {/* Nav */}
+        <div className="flex items-center justify-between mb-2">
           <button
             type="button"
-            onClick={prevMonth}
+            onClick={prevWeek}
             disabled={!canGoPrev}
-            className="p-1.5 rounded-xl hover:bg-surface-2 transition-colors text-text-muted disabled:opacity-30 disabled:cursor-not-allowed"
-            aria-label="Previous month"
+            className="p-1 rounded-lg hover:bg-surface-2 transition-colors text-text-muted disabled:opacity-30 disabled:cursor-not-allowed"
+            aria-label="Previous week"
           >
-            <ChevronLeft size={16} />
+            <ChevronLeft size={14} />
           </button>
-          <span className="text-sm font-semibold text-text-primary">{rangeLabel}</span>
+          <span className="text-xs font-semibold text-text-primary">{headerLabel}</span>
           <button
             type="button"
-            onClick={nextMonth}
-            className="p-1.5 rounded-xl hover:bg-surface-2 transition-colors text-text-muted"
-            aria-label="Next month"
+            onClick={nextWeek}
+            className="p-1 rounded-lg hover:bg-surface-2 transition-colors text-text-muted"
+            aria-label="Next week"
           >
-            <ChevronRight size={16} />
+            <ChevronRight size={14} />
           </button>
         </div>
 
-        <div className="flex flex-col gap-5">
-          {renderMonthGrid(displayMonth, displayYear)}
-          <div className="border-t border-border/40" />
-          {renderMonthGrid(m2, y2)}
+        {/* Day-name row */}
+        <div className="grid grid-cols-7 mb-0.5">
+          {DAY_NAMES.map(d => (
+            <div key={d} className="text-center text-[10px] font-semibold text-text-xmuted py-0.5">{d}</div>
+          ))}
+        </div>
+
+        {/* 5 × 7 day grid */}
+        <div className="grid grid-cols-7">
+          {cells.map((dayObj, i) => {
+            const dateStr = dateStrOf(dayObj);
+            const isPast = dateStr < today;
+            const isFrom = dateStr === dateFrom;
+            const isTo = dateStr === dateTo;
+            const inRange = !!(dateFrom && dateTo && dateStr > dateFrom && dateStr < dateTo);
+            const isToday = dateStr === today;
+
+            // Dim days that belong to a different month than the majority visible
+            const midMonth = cells[17].getMonth();
+            const isOffMonth = dayObj.getMonth() !== midMonth;
+
+            let cls = 'relative flex items-center justify-center h-8 w-full text-[13px] transition-colors select-none rounded-lg ';
+            if (isPast) {
+              cls += 'opacity-25 cursor-not-allowed ';
+            } else if (isFrom || isTo) {
+              cls += 'bg-indigo text-white font-bold cursor-pointer ';
+            } else if (inRange) {
+              cls += 'bg-indigo/10 text-indigo cursor-pointer ';
+            } else {
+              cls += `hover:bg-surface-2 cursor-pointer ${isOffMonth ? 'text-text-xmuted' : 'text-text-primary'} `;
+            }
+
+            return (
+              <button
+                key={i}
+                type="button"
+                disabled={isPast}
+                onClick={() => handleDayClick(dateStr)}
+                className={cls}
+                aria-label={dateStr}
+                aria-pressed={isFrom || isTo}
+              >
+                {dayObj.getDate()}
+                {isToday && !isFrom && !isTo && (
+                  <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-indigo" />
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -552,10 +568,10 @@ function PlanResult({
 
       <button
         onClick={onStartTrip}
-        className="w-full h-14 bg-indigo hover:bg-indigo/90 text-white font-semibold text-base rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+        className="w-full h-14 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-base rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-sm"
       >
         <PlaneTakeoff size={18} />
-        Start this trip
+        Plan this trip
       </button>
     </div>
   );
@@ -573,7 +589,7 @@ const DEST_OPTIONS: { value: DestCount; label: string; sublabel: string }[] = [
 const STYLE_OPTIONS: { value: TripStyle; label: string; sub: string }[] = [
   { value: 'value', label: 'Best value', sub: 'Cheapest flight at every stop — maximum savings.' },
   { value: 'surprise', label: 'Surprise me', sub: '2nd-best picks for a different angle — try again each time.' },
-  { value: 'offpath', label: 'Under the radar', sub: 'Longest direct hops — discover more distant destinations.' },
+  { value: 'offpath', label: 'Under the radar', sub: 'Longest direct hops — discover more distant destinations. May go slightly over budget to include a return flight.' },
 ];
 
 /* ── Main screen ── */
