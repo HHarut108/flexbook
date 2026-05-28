@@ -9,6 +9,7 @@ import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
 import { useAuthStore } from '../store/auth.store';
 import { formatYMD } from '../utils/date.utils';
+import { track, AnalyticsEvent } from '../lib/analytics';
 import { addDays, format } from 'date-fns';
 import { GoHomeLogo } from '../components/GoHomeLogo';
 import { HomeFlightFan } from '../components/HomeFlightFan';
@@ -285,6 +286,13 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
       setStorePassengers(passengers);
       setSelectedDate(departureDate);
       setQuery('');
+      track(AnalyticsEvent.TripSearchStarted, {
+        origin: airport.iata,
+        originCity: airport.city?.name,
+        originCountry: airport.city?.countryCode,
+        passengers,
+        departureDate,
+      });
       navigate('/flights');
     },
     [departureDate, passengers, setOrigin, setStorePassengers, setSelectedDate, navigate],

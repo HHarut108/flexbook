@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { useUrlSync } from './hooks/useUrlSync';
+import { useAnalyticsPageviews } from './hooks/useAnalyticsPageviews';
 import { ProgressBar } from './components/ProgressBar';
 import { Toast } from './components/Toast';
 import { AppDrawer } from './components/AppDrawer';
@@ -41,6 +42,7 @@ export default function App() {
   const { pathname } = useLocation();
   const { setUser, setLoading } = useAuthStore();
   useUrlSync();
+  useAnalyticsPageviews();
 
   useEffect(() => {
     // First-time visitors have no session hint → skip /me entirely so the UI

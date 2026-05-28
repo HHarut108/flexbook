@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { identifyUser, resetUser } from '../lib/analytics';
 
 export interface UserCitizenship {
   id: string;
@@ -47,7 +48,17 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   loading: true,
-  setUser: (user) => set({ user, loading: false }),
+  setUser: (user) => {
+    if (user) {
+      identifyUser(user.id, { email: user.email });
+    } else {
+      resetUser();
+    }
+    set({ user, loading: false });
+  },
   setLoading: (loading) => set({ loading }),
-  logout: () => set({ user: null, loading: false }),
+  logout: () => {
+    resetUser();
+    set({ user: null, loading: false });
+  },
 }));
