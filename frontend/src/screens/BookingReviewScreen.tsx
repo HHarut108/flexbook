@@ -6,6 +6,7 @@ import { useTripStore } from '../store/trip.store';
 import { fetchAirlineLogos } from '../api/airlines.api';
 import { formatDate, formatTime, durationLabel } from '../utils/date.utils';
 import { formatPrice, totalPrice } from '../utils/price.utils';
+import { track, AnalyticsEvent } from '../lib/analytics';
 import { MapErrorBoundary } from '../components/MapErrorBoundary';
 import { GoHomeLogo } from '../components/GoHomeLogo';
 import {
@@ -399,6 +400,11 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
       return;
     }
     setBulkStarted(true);
+    track(AnalyticsEvent.BookingClicked, {
+      legs: orderedLegs.length,
+      totalUsd: total,
+      partial,
+    });
     let firstTab: Window | null = null;
     orderedLegs.forEach((leg) => {
       if (leg.bookingUrl) {
@@ -407,7 +413,7 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
       }
     });
     if (firstTab) (firstTab as Window).focus();
-  }, [bookingConfirm, orderedLegs]);
+  }, [bookingConfirm, orderedLegs, total, partial]);
 
   /* ── Booking CTA panel (shared between mobile inline + desktop sidebar) ── */
   const ctaPanel = (

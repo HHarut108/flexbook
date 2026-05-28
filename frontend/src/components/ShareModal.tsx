@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, Copy, Check, Clock } from 'lucide-react';
 import { useSessionStore } from '../store/session.store';
+import { track, AnalyticsEvent } from '../lib/analytics';
 
 export function ShareModal() {
   const shareModal = useSessionStore((s) => s.shareModal);
@@ -23,6 +24,7 @@ export function ShareModal() {
       document.execCommand('copy');
       document.body.removeChild(el);
     }
+    track(AnalyticsEvent.TripShared);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
