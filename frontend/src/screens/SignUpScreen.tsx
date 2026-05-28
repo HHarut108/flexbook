@@ -98,18 +98,6 @@ export function SignUpScreen() {
     setCitizenships((prev) => prev.map((c, idx) => idx === i ? { ...c, ...patch } : c));
   }
 
-  function addCitizenship() {
-    if (citizenships.length < 2) {
-      setCitizenships((prev) => [...prev, { key: `c-${Date.now()}`, country: null, documentNumber: '' }]);
-    }
-  }
-
-  function removeCitizenship(i: number) {
-    const removed = citizenships[i];
-    setCitizenships((prev) => prev.filter((_, idx) => idx !== i));
-    setVisas((prev) => prev.filter((v) => v.citizenshipKey !== removed.key));
-  }
-
   function addVisa(citizenshipKey: string) {
     setVisas((prev) => [...prev, { citizenshipKey, country: null, visaType: '', documentNumber: '', validUntil: '' }]);
   }

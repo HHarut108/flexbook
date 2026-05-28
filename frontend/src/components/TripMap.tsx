@@ -5,7 +5,6 @@ import 'leaflet/dist/leaflet.css';
 import { Airport, TripLeg } from '@fast-travel/shared';
 import { buildMapData, MapPin } from '../utils/map.utils';
 import { formatPrice } from '../utils/price.utils';
-import { Plane } from 'lucide-react';
 
 // Fix default leaflet icon
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;

@@ -1,6 +1,5 @@
 import { FlightOption } from '@fast-travel/shared';
 import { apiClient, getApiMode } from './client';
-import { mockFlights } from './mock-data';
 
 export interface FlightSearchOptions {
   destination?: string;
