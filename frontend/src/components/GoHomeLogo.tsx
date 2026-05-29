@@ -21,7 +21,8 @@ export function GoHomeLogo({ size = 'sm', variant = 'dark', onNavigate }: GoHome
   const tripReset = useTripStore((s) => s.reset);
   const sessionReset = useSessionStore((s) => s.reset);
 
-  const tripInProgress = pathname !== '/' && origin !== null;
+  const isHome = pathname === '/';
+  const tripInProgress = !isHome && origin !== null;
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
 
   const textSize = size === 'lg' ? 'text-[1.4rem]' : 'text-[1.1rem]';
@@ -86,19 +87,26 @@ export function GoHomeLogo({ size = 'sm', variant = 'dark', onNavigate }: GoHome
       document.body,
     );
 
+  const goHome = () => {
+    onNavigate?.();
+    navigate('/');
+  };
+
+  // On home there's nowhere to go, so the mark is static. Mid-trip we confirm
+  // before discarding; everywhere else the logo is a plain link back home.
+  if (isHome) {
+    return <div className="flex items-baseline gap-0">{logoContent}</div>;
+  }
+
   return (
     <>
-      {tripInProgress ? (
-        <button
-          onClick={() => setShowConfirm(true)}
-          className="flex items-baseline gap-0 active:opacity-70 transition-opacity"
-          aria-label="Return to home screen"
-        >
-          {logoContent}
-        </button>
-      ) : (
-        <div className="flex items-baseline gap-0">{logoContent}</div>
-      )}
+      <button
+        onClick={tripInProgress ? () => setShowConfirm(true) : goHome}
+        className="flex items-baseline gap-0 active:opacity-70 transition-opacity"
+        aria-label="Return to home screen"
+      >
+        {logoContent}
+      </button>
       {modal}
     </>
   );
