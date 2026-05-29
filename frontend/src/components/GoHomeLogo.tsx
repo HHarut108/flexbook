@@ -25,8 +25,8 @@ export function GoHomeLogo({ size = 'sm', variant = 'dark', onNavigate }: GoHome
   const tripInProgress = !isHome && origin !== null;
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
 
-  const textSize = size === 'lg' ? 'text-[1.4rem]' : 'text-[1.1rem]';
-  const primaryColor = variant === 'light' ? 'text-indigo' : 'text-white';
+  const logoHeight = size === 'lg' ? 'h-7' : 'h-6';
+  const logoSrc = variant === 'light' ? '/logo-blue.svg' : '/logo-white.svg';
 
   const handleConfirm = () => {
     setShowConfirm(false);
@@ -37,11 +37,7 @@ export function GoHomeLogo({ size = 'sm', variant = 'dark', onNavigate }: GoHome
   };
 
   const logoContent = (
-    <>
-      <span className={`${textSize} font-black tracking-[-0.05em] ${primaryColor}`}>flex</span>
-      <span className={`${textSize} font-black tracking-[-0.05em] text-orange`}>/</span>
-      <span className={`${textSize} font-black tracking-[-0.05em] ${primaryColor}`}>book</span>
-    </>
+    <img src={logoSrc} alt="FlexBook" className={`${logoHeight} w-auto`} />
   );
 
   const modal =
@@ -95,14 +91,14 @@ export function GoHomeLogo({ size = 'sm', variant = 'dark', onNavigate }: GoHome
   // On home there's nowhere to go, so the mark is static. Mid-trip we confirm
   // before discarding; everywhere else the logo is a plain link back home.
   if (isHome) {
-    return <div className="flex items-baseline gap-0">{logoContent}</div>;
+    return <div className="flex items-center gap-0">{logoContent}</div>;
   }
 
   return (
     <>
       <button
         onClick={tripInProgress ? () => setShowConfirm(true) : goHome}
-        className="flex items-baseline gap-0 active:opacity-70 transition-opacity"
+        className="flex items-center gap-0 active:opacity-70 transition-opacity"
         aria-label="Return to home screen"
       >
         {logoContent}
