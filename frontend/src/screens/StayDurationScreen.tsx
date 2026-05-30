@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import { useSessionStore } from '../store/session.store';
@@ -6,9 +6,12 @@ import { useTripStore } from '../store/trip.store';
 import { computeNextDeparture, formatDateLong } from '../utils/date.utils';
 import { formatPrice, totalPrice } from '../utils/price.utils';
 import { countryDisplayName } from '../utils/country.utils';
-import { ArrowLeft, Minus, Plus } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, AlertTriangle } from 'lucide-react';
 import { TripTimeline } from '../components/TripTimeline';
 import { getStayDurationHint } from '../utils/copy.utils';
+import { useCurrentPassport } from '../hooks/useCurrentPassport';
+import { useVisaCountries, resolveCountryCode } from '../hooks/useVisaCountries';
+import { useVisaRequirements } from '../hooks/useVisaRequirements';
 import recommendationsRaw from '../../public/stayRecommendations.json';
 const recommendations = recommendationsRaw as Record<string, string>;
 
@@ -24,6 +27,24 @@ export function StayDurationScreen() {
   const legs = useTripStore((s) => s.legs);
   const addLeg = useTripStore((s) => s.addLeg);
   const [days, setDays] = useState(3);
+
+  // Look up visa info for the destination country so we can warn the user
+  // when their planned stay exceeds the visa-free / on-arrival / eVisa window.
+  // The hook is no-op when passport or country aren't resolved yet.
+  const { passport } = useCurrentPassport();
+  const { loaded: visaCountriesLoaded } = useVisaCountries();
+  const destinationCode = useMemo(() => {
+    if (!selectedFlight || !visaCountriesLoaded) return null;
+    // The raw destinationCountry from the flights API may be e.g. "Turkey"
+    // while passport-index keys on the official short name ("Türkiye"). Run
+    // it through countryDisplayName so both sides agree.
+    const normalized = countryDisplayName(selectedFlight.destinationCountry);
+    return resolveCountryCode(normalized);
+  }, [selectedFlight, visaCountriesLoaded]);
+  const destCodeList = useMemo(() => [destinationCode], [destinationCode]);
+  const visaResults = useVisaRequirements(passport, destCodeList);
+  const visaEntry = destinationCode ? visaResults[destinationCode] : undefined;
+  const visa = visaEntry?.status === 'ok' ? visaEntry.data : undefined;
 
   useEffect(() => {
     if (!selectedFlight) navigate('/flights', { replace: true });
@@ -140,6 +161,36 @@ export function StayDurationScreen() {
             <Plus size={24} />
           </button>
         </div>
+
+        {/* Visa stay-length warning — fires when the planned nights exceed
+            the visa-free / on-arrival / eVisa window for this passport×
+            destination pair. We surface days from passport-index so the user
+            sees the limit before they commit to a stay length that would
+            require embassy paperwork. */}
+        {visa && typeof visa.days === 'number' && days > visa.days && (
+          <div
+            role="alert"
+            className="rounded-2xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700/40 px-3.5 py-3 mb-5 flex items-start gap-2.5"
+          >
+            <AlertTriangle
+              size={16}
+              className="text-amber-600 dark:text-amber-300 shrink-0 mt-0.5"
+            />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200 leading-tight">
+                Heads up — {days} days exceeds your visa-free window
+              </p>
+              <p className="text-[12px] text-amber-800 dark:text-amber-200/90 leading-snug mt-1">
+                Your {passport} passport allows up to{' '}
+                <strong>{visa.days} days</strong> in{' '}
+                {countryDisplayName(selectedFlight.destinationCountry)} as{' '}
+                <em>{visa.status}</em>. For longer stays you&apos;ll likely
+                need a different visa class — check the destination
+                country&apos;s consulate before committing.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Departure preview */}
         <div className="rounded-2xl border border-border bg-surface-2/60 text-center px-4 py-3 mb-5">
