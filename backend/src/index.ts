@@ -32,6 +32,12 @@ const app = Fastify({
         ? { target: 'pino-pretty', options: { colorize: true } }
         : undefined,
   },
+  // We always sit behind a proxy in deployed envs (Render's load balancer, and
+  // Vercel's edge for /api/* in production). Without this, req.ip is the proxy's
+  // address and all users share a single rate-limit bucket — one bad actor (or
+  // an automated probe) locks out everyone. With trustProxy on, Fastify reads
+  // X-Forwarded-For and reports the real client IP.
+  trustProxy: true,
 });
 
 setRedisLogger(app.log);
