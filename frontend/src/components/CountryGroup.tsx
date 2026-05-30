@@ -2,21 +2,27 @@ import { forwardRef } from 'react';
 import { FlightOption } from '@fast-travel/shared';
 import { formatTime, durationLabel } from '../utils/date.utils';
 import { formatPrice } from '../utils/price.utils';
-import { ChevronDown, ChevronRight, Plane } from 'lucide-react';
+import { ChevronDown, ChevronRight, Home, Plane } from 'lucide-react';
 import { VisaPill } from './visa/VisaPill';
 import type { VisaRequirement } from '../api/visa.api';
 
 interface CompactFlightRowProps {
   flight: FlightOption;
   onSelect: (flight: FlightOption) => void;
+  returnHome?: boolean;
 }
 
-function CompactFlightRow({ flight, onSelect }: CompactFlightRowProps) {
+function CompactFlightRow({ flight, onSelect, returnHome = false }: CompactFlightRowProps) {
   const direct = flight.stops === 0;
   return (
     <button
       type="button"
       onClick={() => onSelect(flight)}
+      aria-label={
+        returnHome
+          ? `Wrap up and fly home to ${flight.destinationCity}`
+          : `Select flight to ${flight.destinationCity}`
+      }
       className="group w-full text-left flex items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2.5 transition-colors hover:border-indigo-border hover:bg-indigo-soft/40"
     >
       <div className="flex-1 min-w-0">
@@ -34,6 +40,15 @@ function CompactFlightRow({ flight, onSelect }: CompactFlightRowProps) {
           ) : (
             <span className="text-[10px] font-semibold text-sky-700 dark:text-sky-400 shrink-0">
               {flight.stops} stop{flight.stops > 1 ? 's' : ''}
+            </span>
+          )}
+          {returnHome && (
+            <span
+              className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-orange-700 dark:text-orange-300 bg-orange/10 border border-orange/30 rounded-md px-1.5 py-0.5 shrink-0"
+              title="Selecting this finalizes your trip"
+            >
+              <Home size={9} />
+              Return home
             </span>
           )}
         </div>
@@ -73,6 +88,10 @@ interface CountryGroupProps {
   expanded: boolean;
   onToggle: () => void;
   onSelectFlight: (flight: FlightOption) => void;
+  // When provided, each row is checked against this predicate; rows that match
+  // render a "Return home" badge. Selecting one is wired upstream to finalize
+  // the trip instead of prompting for stay duration.
+  isReturnHomeFlight?: (flight: FlightOption) => boolean;
   visa?: VisaRequirement;
   visaLoading?: boolean;
 }
@@ -87,6 +106,7 @@ export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function 
     expanded,
     onToggle,
     onSelectFlight,
+    isReturnHomeFlight,
     visa,
     visaLoading,
   },
@@ -157,6 +177,7 @@ export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function 
               key={flight.flightId}
               flight={flight}
               onSelect={onSelectFlight}
+              returnHome={isReturnHomeFlight?.(flight) ?? false}
             />
           ))}
         </div>
