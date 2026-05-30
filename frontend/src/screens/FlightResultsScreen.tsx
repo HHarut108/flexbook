@@ -14,6 +14,9 @@ import { MapErrorBoundary } from '../components/MapErrorBoundary';
 import { buildDirectDestinations, type DirectDestination } from '../components/FlightFanMap';
 import { CountryGroup } from '../components/CountryGroup';
 import { VisaCheckPopup } from '../components/visa/VisaCheckPopup';
+import { VisaDetailsPopover } from '../components/visa/VisaDetailsPopover';
+import { VisaResultsSummary } from '../components/visa/VisaResultsSummary';
+import type { VisaRequirement } from '../api/visa.api';
 import { useCurrentPassport } from '../hooks/useCurrentPassport';
 import { useVisaCountries, resolveCountryCode } from '../hooks/useVisaCountries';
 import { useVisaRequirements } from '../hooks/useVisaRequirements';
@@ -91,6 +94,12 @@ export function FlightResultsScreen() {
   // expiry-reminder's "Create an account" link jumps straight into 'signup',
   // the rest start at 'pick'.
   const [visaPopupMode, setVisaPopupMode] = useState<'pick' | 'signup' | null>(null);
+  // Visa-details popover triggered from the map popup chip. Sheet-level state
+  // because the chip lives inside a Leaflet popup that paints outside React's
+  // tree; CountryGroup chips render their own popover inline.
+  const [visaDetails, setVisaDetails] = useState<{ visa: VisaRequirement; country: string } | null>(
+    null,
+  );
 
   function switchView(next: ViewTab) {
     setView(next);
@@ -394,6 +403,22 @@ export function FlightResultsScreen() {
     !isSearchingFlights &&
     countryGroups.length > 0;
 
+  // Build the per-country summary entries from the visa results — only the
+  // ones we've resolved a country code AND a successful lookup for. Used by
+  // VisaResultsSummary to render the aggregate one-liner above the accordion.
+  const visaSummaryEntries = passport
+    ? countryGroups
+        .map((group, idx) => {
+          const code = countryCodes[idx];
+          const entry = code ? visaResults[code] : undefined;
+          if (entry?.status === 'ok') {
+            return { country: group.country, visa: entry.data };
+          }
+          return null;
+        })
+        .filter((e): e is { country: string; visa: VisaRequirement } => e !== null)
+    : [];
+
   // Resolve the visa requirement for the country the map popup is open on, so
   // the popup can render the same VisaPill the list shows.
   const popupVisaCode = popupDest?.country && visaCountriesLoaded
@@ -426,6 +451,7 @@ export function FlightResultsScreen() {
               onPopupClose={() => setPopupDest(null)}
               popupVisa={popupVisa}
               popupVisaLoading={popupVisaLoading}
+              onVisaDetails={(visa, country) => setVisaDetails({ visa, country })}
             />
           </Suspense>
         </MapErrorBoundary>
@@ -604,6 +630,16 @@ export function FlightResultsScreen() {
           </button>
         )}
 
+        {/* Aggregate visa summary — only when we have a passport AND at least
+            one resolved lookup. Sits where the CTA used to so the user gets a
+            top-down read of "what's easy vs. needs paperwork" before scanning
+            the accordion. */}
+        {passport && visaSummaryEntries.length > 0 && (
+          <div className="mb-3">
+            <VisaResultsSummary passport={passport} entries={visaSummaryEntries} />
+          </div>
+        )}
+
         {/* Guest expiry reminder — the session passport TTL is the conversion
             hook. We surface how much time is left and pair it with a sign-up
             link framed around personalisation, not "keeping" anything (the
@@ -718,6 +754,7 @@ export function FlightResultsScreen() {
                   isReturnHomeFlight={isReturnHomeFlight}
                   visa={visa}
                   visaLoading={visaLoading}
+                  passport={passport}
                 />
               );
             })}
@@ -760,6 +797,18 @@ export function FlightResultsScreen() {
         <VisaCheckPopup
           onClose={() => setVisaPopupMode(null)}
           initialMode={visaPopupMode}
+        />
+      )}
+
+      {/* Visa details popover (opened from the map-popup chip — country-card
+          chips render their own popover inline so they share the section
+          ref). */}
+      {visaDetails && (
+        <VisaDetailsPopover
+          requirement={visaDetails.visa}
+          destinationName={visaDetails.country}
+          passport={passport}
+          onClose={() => setVisaDetails(null)}
         />
       )}
     </div>
