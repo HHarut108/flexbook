@@ -169,6 +169,9 @@ interface Props {
   popupVisa?: VisaRequirement;
   /** True if the visa lookup for the open popup is in flight. */
   popupVisaLoading?: boolean;
+  /** Called when the user taps the visa chip in the popup — caller opens the
+      details popover. */
+  onVisaDetails?: (visa: VisaRequirement, destinationCountry: string) => void;
 }
 
 export function FlightFanMap({
@@ -181,6 +184,7 @@ export function FlightFanMap({
   onPopupClose,
   popupVisa,
   popupVisaLoading,
+  onVisaDetails,
 }: Props) {
   const cheapest = useMemo(() => {
     if (destinations.length === 0) return null;
@@ -316,7 +320,15 @@ export function FlightFanMap({
               <div className="fan-popup__sub flex items-center gap-2 flex-wrap">
                 <span>{popupDest.country}</span>
                 {(popupVisa || popupVisaLoading) && (
-                  <VisaPill requirement={popupVisa} loading={popupVisaLoading && !popupVisa} />
+                  <VisaPill
+                    requirement={popupVisa}
+                    loading={popupVisaLoading && !popupVisa}
+                    onClick={
+                      popupVisa && onVisaDetails
+                        ? () => onVisaDetails(popupVisa, popupDest.country)
+                        : undefined
+                    }
+                  />
                 )}
               </div>
               <div className="fan-popup__price-row">

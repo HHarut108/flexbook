@@ -14,6 +14,8 @@ import { MapErrorBoundary } from '../components/MapErrorBoundary';
 import { buildDirectDestinations, type DirectDestination } from '../components/FlightFanMap';
 import { CountryGroup } from '../components/CountryGroup';
 import { VisaCheckPopup } from '../components/visa/VisaCheckPopup';
+import { VisaDetailsPopover } from '../components/visa/VisaDetailsPopover';
+import type { VisaRequirement } from '../api/visa.api';
 import { useCurrentPassport } from '../hooks/useCurrentPassport';
 import { useVisaCountries, resolveCountryCode } from '../hooks/useVisaCountries';
 import { useVisaRequirements } from '../hooks/useVisaRequirements';
@@ -91,6 +93,12 @@ export function FlightResultsScreen() {
   // expiry-reminder's "Create an account" link jumps straight into 'signup',
   // the rest start at 'pick'.
   const [visaPopupMode, setVisaPopupMode] = useState<'pick' | 'signup' | null>(null);
+  // Visa-details popover triggered from the map popup chip. Sheet-level state
+  // because the chip lives inside a Leaflet popup that paints outside React's
+  // tree; CountryGroup chips render their own popover inline.
+  const [visaDetails, setVisaDetails] = useState<{ visa: VisaRequirement; country: string } | null>(
+    null,
+  );
 
   function switchView(next: ViewTab) {
     setView(next);
@@ -426,6 +434,7 @@ export function FlightResultsScreen() {
               onPopupClose={() => setPopupDest(null)}
               popupVisa={popupVisa}
               popupVisaLoading={popupVisaLoading}
+              onVisaDetails={(visa, country) => setVisaDetails({ visa, country })}
             />
           </Suspense>
         </MapErrorBoundary>
@@ -718,6 +727,7 @@ export function FlightResultsScreen() {
                   isReturnHomeFlight={isReturnHomeFlight}
                   visa={visa}
                   visaLoading={visaLoading}
+                  passport={passport}
                 />
               );
             })}
@@ -760,6 +770,18 @@ export function FlightResultsScreen() {
         <VisaCheckPopup
           onClose={() => setVisaPopupMode(null)}
           initialMode={visaPopupMode}
+        />
+      )}
+
+      {/* Visa details popover (opened from the map-popup chip — country-card
+          chips render their own popover inline so they share the section
+          ref). */}
+      {visaDetails && (
+        <VisaDetailsPopover
+          requirement={visaDetails.visa}
+          destinationName={visaDetails.country}
+          passport={passport}
+          onClose={() => setVisaDetails(null)}
         />
       )}
     </div>
