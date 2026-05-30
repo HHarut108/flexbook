@@ -4,11 +4,12 @@ import { BrowserRouter } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import App from './App';
 import { useTripStore } from './store/trip.store';
-import { decodeItinerary } from './utils/url.utils';
+import { useSessionStore } from './store/session.store';
+import { decodeItinerary, decodeSession } from './utils/url.utils';
+import { initAnalytics, track, AnalyticsEvent } from './lib/analytics';
 import './store/theme.store';
 import './index.css';
 import { prefetchAirportIndex } from './lib/airportIndex';
-import { initAnalytics } from './lib/analytics';
 
 function boot() {
   // Start loading the airport index immediately so it's warm before the user types.
@@ -17,19 +18,44 @@ function boot() {
   // Boot analytics before render so the first pageview is captured.
   initAnalytics();
 
-  // Hydrate trip state from ?t= before React renders so that RequireOrigin
-  // sees the correct store state when the user refreshes on an inner route.
+  // Hydrate trip + session state from ?t= and ?s= before React renders so
+  // that RequireOrigin sees the correct store state when the user refreshes
+  // on an inner route. ?s= carries the in-progress picker state
+  // (selectedFlight, selectedDate) that StayDurationScreen relies on.
   const params = new URLSearchParams(window.location.search);
-  const encoded = params.get('t');
-  if (encoded) {
-    try {
-      const itinerary = decodeItinerary(encoded);
-      if (itinerary?.origin) {
-        useTripStore.getState().loadFromItinerary(itinerary);
-      }
-    } catch {
-      // malformed ?t= — ignore, user lands on home
+  const encodedTrip = params.get('t');
+  const encodedSession = params.get('s');
+  const pathname = window.location.pathname;
+
+  let hydratedTrip = false;
+  if (encodedTrip) {
+    const itinerary = decodeItinerary(encodedTrip);
+    if (itinerary?.origin) {
+      useTripStore.getState().loadFromItinerary(itinerary);
+      hydratedTrip = true;
     }
+  }
+
+  if (encodedSession) {
+    const session = decodeSession(encodedSession);
+    if (session) {
+      const store = useSessionStore.getState();
+      if (session.selectedFlight) store.setSelectedFlight(session.selectedFlight);
+      if (session.selectedDate) store.setSelectedDate(session.selectedDate);
+    }
+  }
+
+  // If the user lands on a deep route without recoverable trip state, log it
+  // so we can see how often this actually happens in production. Helps us
+  // distinguish "URL was truncated by a proxy" from "user typed the URL"
+  // from "we lost it ourselves".
+  if (pathname !== '/' && !hydratedTrip) {
+    track(AnalyticsEvent.UrlStateRecoveryFailed, {
+      pathname,
+      hasTripParam: !!encodedTrip,
+      hasSessionParam: !!encodedSession,
+      tripParamLength: encodedTrip?.length ?? 0,
+    });
   }
 
   ReactDOM.createRoot(document.getElementById('root')!).render(
