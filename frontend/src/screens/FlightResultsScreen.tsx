@@ -15,6 +15,7 @@ import { buildDirectDestinations, type DirectDestination } from '../components/F
 import { CountryGroup } from '../components/CountryGroup';
 import { VisaCheckPopup } from '../components/visa/VisaCheckPopup';
 import { VisaDetailsPopover } from '../components/visa/VisaDetailsPopover';
+import { VisaResultsSummary } from '../components/visa/VisaResultsSummary';
 import type { VisaRequirement } from '../api/visa.api';
 import { useCurrentPassport } from '../hooks/useCurrentPassport';
 import { useVisaCountries, resolveCountryCode } from '../hooks/useVisaCountries';
@@ -402,6 +403,22 @@ export function FlightResultsScreen() {
     !isSearchingFlights &&
     countryGroups.length > 0;
 
+  // Build the per-country summary entries from the visa results — only the
+  // ones we've resolved a country code AND a successful lookup for. Used by
+  // VisaResultsSummary to render the aggregate one-liner above the accordion.
+  const visaSummaryEntries = passport
+    ? countryGroups
+        .map((group, idx) => {
+          const code = countryCodes[idx];
+          const entry = code ? visaResults[code] : undefined;
+          if (entry?.status === 'ok') {
+            return { country: group.country, visa: entry.data };
+          }
+          return null;
+        })
+        .filter((e): e is { country: string; visa: VisaRequirement } => e !== null)
+    : [];
+
   // Resolve the visa requirement for the country the map popup is open on, so
   // the popup can render the same VisaPill the list shows.
   const popupVisaCode = popupDest?.country && visaCountriesLoaded
@@ -611,6 +628,16 @@ export function FlightResultsScreen() {
             </span>
             <ChevronRight size={16} className="text-indigo shrink-0" />
           </button>
+        )}
+
+        {/* Aggregate visa summary — only when we have a passport AND at least
+            one resolved lookup. Sits where the CTA used to so the user gets a
+            top-down read of "what's easy vs. needs paperwork" before scanning
+            the accordion. */}
+        {passport && visaSummaryEntries.length > 0 && (
+          <div className="mb-3">
+            <VisaResultsSummary passport={passport} entries={visaSummaryEntries} />
+          </div>
         )}
 
         {/* Guest expiry reminder — the session passport TTL is the conversion
