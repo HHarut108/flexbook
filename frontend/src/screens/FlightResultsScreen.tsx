@@ -3,6 +3,7 @@ import { Airport, FlightOption } from '@fast-travel/shared';
 import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
+import type { TripLeg } from '@fast-travel/shared';
 import { useSessionStore } from '../store/session.store';
 import { useFlightsStore, flightsUiKey, DEFAULT_UI } from '../store/flights.store';
 import { useFlightResults } from '../hooks/useFlightResults';
@@ -78,6 +79,8 @@ export function FlightResultsScreen() {
   const navigate = useNavigate();
   const origin = useTripStore((s) => s.origin);
   const legs = useTripStore((s) => s.legs);
+  const addLeg = useTripStore((s) => s.addLeg);
+  const finalize = useTripStore((s) => s.finalize);
   const { selectedDate, setSelectedDate, setSelectedFlight } = useSessionStore();
   const { flights: pendingFlights, isLoading: isSearchingFlights, error: flightError, search, refetch } = useFlightResults();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
@@ -142,7 +145,35 @@ export function FlightResultsScreen() {
     setShowCalendar(false);
   }
 
+  const outboundLegs = legs.filter((l) => !l.isReturn);
+  const stopCount = outboundLegs.length;
+  const isFirstStop = stopCount === 0;
+
+  // A flight is a "wrap up & fly home" pick when the user has already planned at
+  // least one outbound leg AND the flight lands back at the trip's origin IATA.
+  // Picking one of these short-circuits the "stay how long" prompt — the loop is
+  // closed, so we mark it as a return leg, finalize the trip, and jump straight
+  // to the itinerary (same terminal state as ReturnFlightsScreen).
+  const homeIata = origin?.iata ?? null;
+  const canWrapUp = stopCount > 0 && !!homeIata;
+  function isReturnHomeFlight(flight: FlightOption) {
+    return canWrapUp && flight.destinationIata === homeIata;
+  }
+
   function handleSelect(flight: FlightOption) {
+    if (isReturnHomeFlight(flight)) {
+      const wrapUpLeg: TripLeg = {
+        ...flight,
+        stopIndex: stopCount + 1,
+        stayDurationDays: 0,
+        nextDepartureDate: '',
+        isReturn: true,
+      };
+      addLeg(wrapUpLeg);
+      finalize();
+      navigate('/itinerary');
+      return;
+    }
     setSelectedFlight(flight);
     navigate('/stay');
   }
@@ -160,10 +191,6 @@ export function FlightResultsScreen() {
     if (uiKey) updateUi(uiKey, patch);
   };
   const expandedCountry = ui.expandedCountry;
-
-  const outboundLegs = legs.filter((l) => !l.isReturn);
-  const stopCount = outboundLegs.length;
-  const isFirstStop = stopCount === 0;
 
   // Direct destinations (one pin per IATA) for the map.
   const directDestinations = useMemo<DirectDestination[]>(
@@ -688,6 +715,7 @@ export function FlightResultsScreen() {
                   expanded={expandedCountry === group.country}
                   onToggle={() => toggleCountry(group.country)}
                   onSelectFlight={handleSelect}
+                  isReturnHomeFlight={isReturnHomeFlight}
                   visa={visa}
                   visaLoading={visaLoading}
                 />
