@@ -19,78 +19,86 @@ import { redis, recordRedisOk, recordRedisError } from '../utils/redisClient';
 import { encryptPii, decryptPii } from '../utils/pii';
 
 // ── Rate limit helpers (same Redis-with-in-memory-fallback pattern) ───────────
+//
+// Keys are namespaced strings like "ip:1.2.3.4" or "email:foo@bar.com" so the
+// same machinery can rate-limit by either dimension. We bucket login failures
+// on BOTH the IP and the email: an IP block defends against credential stuffing
+// (many emails, one origin), and an email block defends against distributed
+// brute force against a single account (many origins, one email). Critically,
+// the email bucket means a shared egress IP (Vercel edge, corporate NAT, etc.)
+// can no longer lock everyone out from one bad actor's failed attempts.
 
 interface LoginBucket { count: number; blockedUntil: number }
 const loginBuckets = new Map<string, LoginBucket>();
-const resendBuckets = new Map<string, number>(); // ip -> unblock timestamp
+const resendBuckets = new Map<string, number>(); // key -> unblock timestamp
 
 const LOGIN_MAX = 5;
 const LOGIN_BLOCK_S = 15 * 60;
 const RESEND_COOLDOWN_S = 60;
 
-async function checkLoginRateLimit(ip: string): Promise<{ allowed: boolean; retryAfter?: number }> {
+async function checkLoginBlocked(key: string): Promise<{ allowed: boolean; retryAfter?: number }> {
   if (redis) {
     try {
-      const ttl = await redis.ttl(`user:login:blocked:${ip}`);
+      const ttl = await redis.ttl(`user:login:blocked:${key}`);
       recordRedisOk();
       if (ttl > 0) return { allowed: false, retryAfter: ttl };
       return { allowed: true };
     } catch (e) { recordRedisError(e); }
   }
   const now = Date.now();
-  const b = loginBuckets.get(ip);
+  const b = loginBuckets.get(key);
   if (b && now < b.blockedUntil) return { allowed: false, retryAfter: Math.ceil((b.blockedUntil - now) / 1000) };
   return { allowed: true };
 }
 
-async function recordLoginFail(ip: string): Promise<void> {
+async function recordLoginFail(key: string): Promise<void> {
   if (redis) {
     try {
-      const count = await redis.incr(`user:login:attempts:${ip}`);
-      if (count === 1) await redis.expire(`user:login:attempts:${ip}`, LOGIN_BLOCK_S);
+      const count = await redis.incr(`user:login:attempts:${key}`);
+      if (count === 1) await redis.expire(`user:login:attempts:${key}`, LOGIN_BLOCK_S);
       if (count >= LOGIN_MAX) {
-        await redis.set(`user:login:blocked:${ip}`, '1', { ex: LOGIN_BLOCK_S });
-        await redis.del(`user:login:attempts:${ip}`);
+        await redis.set(`user:login:blocked:${key}`, '1', { ex: LOGIN_BLOCK_S });
+        await redis.del(`user:login:attempts:${key}`);
       }
       recordRedisOk(); return;
     } catch (e) { recordRedisError(e); }
   }
   const now = Date.now();
-  const b = loginBuckets.get(ip) ?? { count: 0, blockedUntil: 0 };
+  const b = loginBuckets.get(key) ?? { count: 0, blockedUntil: 0 };
   b.count += 1;
   if (b.count >= LOGIN_MAX) b.blockedUntil = now + LOGIN_BLOCK_S * 1000;
-  loginBuckets.set(ip, b);
+  loginBuckets.set(key, b);
 }
 
-async function clearLoginAttempts(ip: string): Promise<void> {
+async function clearLoginAttempts(key: string): Promise<void> {
   if (redis) {
-    try { await redis.del(`user:login:attempts:${ip}`, `user:login:blocked:${ip}`); recordRedisOk(); return; }
+    try { await redis.del(`user:login:attempts:${key}`, `user:login:blocked:${key}`); recordRedisOk(); return; }
     catch (e) { recordRedisError(e); }
   }
-  loginBuckets.delete(ip);
+  loginBuckets.delete(key);
 }
 
-async function checkResendCooldown(ip: string): Promise<{ allowed: boolean; retryAfter?: number }> {
+async function checkResendCooldown(key: string): Promise<{ allowed: boolean; retryAfter?: number }> {
   if (redis) {
     try {
-      const ttl = await redis.ttl(`user:otp:resend:${ip}`);
+      const ttl = await redis.ttl(`user:otp:resend:${key}`);
       recordRedisOk();
       if (ttl > 0) return { allowed: false, retryAfter: ttl };
       return { allowed: true };
     } catch (e) { recordRedisError(e); }
   }
-  const unblock = resendBuckets.get(ip) ?? 0;
+  const unblock = resendBuckets.get(key) ?? 0;
   const now = Date.now();
   if (now < unblock) return { allowed: false, retryAfter: Math.ceil((unblock - now) / 1000) };
   return { allowed: true };
 }
 
-async function setResendCooldown(ip: string): Promise<void> {
+async function setResendCooldown(key: string): Promise<void> {
   if (redis) {
-    try { await redis.set(`user:otp:resend:${ip}`, '1', { ex: RESEND_COOLDOWN_S }); recordRedisOk(); return; }
+    try { await redis.set(`user:otp:resend:${key}`, '1', { ex: RESEND_COOLDOWN_S }); recordRedisOk(); return; }
     catch (e) { recordRedisError(e); }
   }
-  resendBuckets.set(ip, Date.now() + RESEND_COOLDOWN_S * 1000);
+  resendBuckets.set(key, Date.now() + RESEND_COOLDOWN_S * 1000);
 }
 
 // ── Validation schemas ────────────────────────────────────────────────────────
@@ -299,16 +307,21 @@ export async function userAuthRoutes(app: FastifyInstance) {
   // POST /auth/resend-otp
   app.post('/auth/resend-otp', async (req, reply) => {
     const ip = req.ip;
-    const cooldown = await checkResendCooldown(ip);
-    if (!cooldown.allowed) return reply.status(429).send({ error: { message: `Please wait ${cooldown.retryAfter}s before requesting a new code` } });
+    const ipKey = `ip:${ip}`;
+    const ipCooldown = await checkResendCooldown(ipKey);
+    if (!ipCooldown.allowed) return reply.status(429).send({ error: { message: `Please wait ${ipCooldown.retryAfter}s before requesting a new code` } });
 
     const parsed = z.object({ email: z.string().email() }).safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ error: { message: 'Invalid input' } });
+    const emailKey = `email:${parsed.data.email.toLowerCase()}`;
+
+    const emailCooldown = await checkResendCooldown(emailKey);
+    if (!emailCooldown.allowed) return reply.status(429).send({ error: { message: `Please wait ${emailCooldown.retryAfter}s before requesting a new code` } });
 
     const user = await db.user.findUnique({ where: { email: parsed.data.email.toLowerCase() } });
     if (!user || user.emailVerified) {
       // Don't reveal whether the email exists
-      await setResendCooldown(ip);
+      await Promise.allSettled([setResendCooldown(ipKey), setResendCooldown(emailKey)]);
       return reply.send({ success: true, data: { message: 'If this email is pending verification, a new code has been sent.' } });
     }
 
@@ -316,7 +329,7 @@ export async function userAuthRoutes(app: FastifyInstance) {
     const code = generateOtp();
     await db.oTP.create({ data: { userId: user.id, code: await hashOtp(code), expiresAt: otpExpiresAt() } });
     await sendOtpEmail(user.email, code);
-    await setResendCooldown(ip);
+    await Promise.allSettled([setResendCooldown(ipKey), setResendCooldown(emailKey)]);
 
     return reply.send({ success: true, data: { message: 'Verification code sent' } });
   });
@@ -324,12 +337,17 @@ export async function userAuthRoutes(app: FastifyInstance) {
   // POST /auth/login
   app.post('/auth/login', async (req, reply) => {
     const ip = req.ip;
-    const rl = await checkLoginRateLimit(ip);
-    if (!rl.allowed) return reply.status(429).send({ error: { message: `Too many attempts. Try again in ${rl.retryAfter}s` } });
+    const ipKey = `ip:${ip}`;
+    const ipRl = await checkLoginBlocked(ipKey);
+    if (!ipRl.allowed) return reply.status(429).send({ error: { message: `Too many attempts. Try again in ${ipRl.retryAfter}s` } });
 
     const parsed = loginBody.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ error: { message: 'Invalid input' } });
     const { email, password } = parsed.data;
+    const emailKey = `email:${email.toLowerCase()}`;
+
+    const emailRl = await checkLoginBlocked(emailKey);
+    if (!emailRl.allowed) return reply.status(429).send({ error: { message: `Too many attempts for this account. Try again in ${emailRl.retryAfter}s` } });
 
     const user = await db.user.findUnique({
       where: { email: email.toLowerCase() },
@@ -337,7 +355,7 @@ export async function userAuthRoutes(app: FastifyInstance) {
     });
 
     if (!user || !(await verifyPassword(password, user.passwordHash))) {
-      await recordLoginFail(ip);
+      await Promise.allSettled([recordLoginFail(ipKey), recordLoginFail(emailKey)]);
       return reply.status(401).send({ error: { message: 'Invalid email or password' } });
     }
 
@@ -345,11 +363,12 @@ export async function userAuthRoutes(app: FastifyInstance) {
       return reply.status(403).send({ error: { message: 'Please verify your email before logging in' } });
     }
 
-    // Reset the failed-attempt counter and stamp the last login, but don't await
-    // either — they're best-effort side effects that each add a network round-trip
-    // (Redis + Turso) to the response path. On our long-running server these
-    // promises still settle after the reply is sent.
-    void clearLoginAttempts(ip).catch((err) => req.log.error({ err }, 'clearLoginAttempts failed'));
+    // Reset the failed-attempt counters and stamp the last login, but don't await
+    // any of them — they're best-effort side effects that each add a network
+    // round-trip (Redis + Turso) to the response path. On our long-running
+    // server these promises still settle after the reply is sent.
+    void clearLoginAttempts(ipKey).catch((err) => req.log.error({ err }, 'clearLoginAttempts (ip) failed'));
+    void clearLoginAttempts(emailKey).catch((err) => req.log.error({ err }, 'clearLoginAttempts (email) failed'));
     void db.user
       .update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
       .catch((err) => req.log.error({ err }, 'lastLoginAt stamp failed'));
