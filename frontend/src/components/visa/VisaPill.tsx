@@ -73,9 +73,12 @@ interface VisaPillProps {
   loading?: boolean;
   variant?: 'compact' | 'full';
   className?: string;
+  /** When provided, the pill renders as a button (with hover/focus affordances)
+      and calls this handler on click. Otherwise renders as a static <span>. */
+  onClick?: () => void;
 }
 
-export function VisaPill({ requirement, loading, variant = 'compact', className = '' }: VisaPillProps) {
+export function VisaPill({ requirement, loading, variant = 'compact', className = '', onClick }: VisaPillProps) {
   if (loading) {
     return (
       <span
@@ -91,11 +94,32 @@ export function VisaPill({ requirement, loading, variant = 'compact', className 
   const tone = TONE[requirement.status];
   const Icon = ICON[requirement.status];
   const label = variant === 'full' ? requirement.label : buildCompactLabel(requirement);
+  const baseClasses = `inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold border whitespace-nowrap ${TONE_CLASSES[tone]} ${className}`;
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        title={`${requirement.label} — tap for details`}
+        aria-label={`${requirement.label}. Tap for details.`}
+        onClick={(e) => {
+          // Prevents any enclosing clickable surface (e.g. a country card) from
+          // also reacting to the click.
+          e.stopPropagation();
+          onClick();
+        }}
+        className={`${baseClasses} cursor-pointer hover:brightness-95 dark:hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo/40 transition`}
+      >
+        <Icon size={12} className="shrink-0" />
+        <span>{label}</span>
+      </button>
+    );
+  }
 
   return (
     <span
       title={requirement.label}
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold border whitespace-nowrap ${TONE_CLASSES[tone]} ${className}`}
+      className={baseClasses}
     >
       <Icon size={12} className="shrink-0" />
       <span>{label}</span>
