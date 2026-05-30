@@ -3,7 +3,7 @@ import { FlightOption } from '@fast-travel/shared';
 import { formatTime, durationLabel } from '../utils/date.utils';
 import { formatPrice } from '../utils/price.utils';
 import { ChevronDown, ChevronRight, Home, Plane } from 'lucide-react';
-import { VisaPill } from './visa/VisaPill';
+import { VisaPill, VISA_TONE_BORDER, visaTone } from './visa/VisaPill';
 import type { VisaRequirement } from '../api/visa.api';
 
 interface CompactFlightRowProps {
@@ -115,10 +115,12 @@ export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function 
   const safe = country.replace(/\s+/g, '-');
   const headerId = `country-${safe}-header`;
   const panelId = `country-${safe}-panel`;
+  const tone = visaTone(visa?.status);
+  const leftRail = tone === 'gray' ? '' : `border-l-4 ${VISA_TONE_BORDER[tone]}`;
   return (
     <section
       ref={ref}
-      className={`bg-surface border rounded-2xl overflow-hidden scroll-mt-4 lg:scroll-mt-6 transition-shadow ${
+      className={`bg-surface border rounded-2xl overflow-hidden scroll-mt-4 lg:scroll-mt-6 transition-shadow ${leftRail} ${
         expanded
           ? 'border-indigo-border shadow-[0_10px_28px_rgba(55,48,163,0.10)]'
           : 'border-border shadow-[0_2px_8px_rgba(15,23,42,0.04)]'
