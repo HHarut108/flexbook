@@ -1,9 +1,10 @@
-import { forwardRef } from 'react';
+import { forwardRef, useState } from 'react';
 import { FlightOption } from '@fast-travel/shared';
 import { formatTime, durationLabel } from '../utils/date.utils';
 import { formatPrice } from '../utils/price.utils';
 import { ChevronDown, ChevronRight, Home, Plane } from 'lucide-react';
 import { VisaPill, VISA_TONE_BORDER, visaTone } from './visa/VisaPill';
+import { VisaDetailsPopover } from './visa/VisaDetailsPopover';
 import type { VisaRequirement } from '../api/visa.api';
 
 interface CompactFlightRowProps {
@@ -94,6 +95,8 @@ interface CountryGroupProps {
   isReturnHomeFlight?: (flight: FlightOption) => boolean;
   visa?: VisaRequirement;
   visaLoading?: boolean;
+  /** ISO-2 of the user's current passport, for the popover header. */
+  passport?: string | null;
 }
 
 export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function CountryGroup(
@@ -109,6 +112,7 @@ export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function 
     isReturnHomeFlight,
     visa,
     visaLoading,
+    passport,
   },
   ref,
 ) {
@@ -117,6 +121,11 @@ export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function 
   const panelId = `country-${safe}-panel`;
   const tone = visaTone(visa?.status);
   const leftRail = tone === 'gray' ? '' : `border-l-4 ${VISA_TONE_BORDER[tone]}`;
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  // The header is split into two side-by-side buttons (title-area and
+  // price-area) so the chip can sit between them as its own button without
+  // nesting interactive elements. Both toggle buttons share onToggle so the
+  // header still behaves like one big tap target visually.
   return (
     <section
       ref={ref}
@@ -126,22 +135,17 @@ export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function 
           : 'border-border shadow-[0_2px_8px_rgba(15,23,42,0.04)]'
       }`}
     >
-      <button
-        id={headerId}
-        type="button"
-        onClick={onToggle}
-        aria-expanded={expanded}
-        aria-controls={panelId}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-indigo-soft/40 transition-colors min-h-[56px]"
-      >
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="text-base font-bold text-text-primary leading-tight truncate">
-              {country}
-            </div>
-            {(visa || visaLoading) && (
-              <VisaPill requirement={visa} loading={visaLoading && !visa} />
-            )}
+      <div className="w-full flex items-center gap-3 px-4 py-3 min-h-[56px] hover:bg-indigo-soft/40 transition-colors">
+        <button
+          id={headerId}
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          aria-controls={panelId}
+          className="flex-1 min-w-0 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo/40 rounded-md"
+        >
+          <div className="text-base font-bold text-text-primary leading-tight truncate">
+            {country}
           </div>
           <div className="text-[11px] text-text-muted leading-tight mt-0.5">
             {flights.length} flight{flights.length > 1 ? 's' : ''} · {cityCount}{' '}
@@ -150,22 +154,36 @@ export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function 
               <> · {airportCount} airports</>
             )}
           </div>
-        </div>
-        <div className="shrink-0 text-right">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-text-muted leading-none">
-            From
+        </button>
+        {(visa || visaLoading) && (
+          <VisaPill
+            requirement={visa}
+            loading={visaLoading && !visa}
+            onClick={visa ? () => setPopoverOpen(true) : undefined}
+          />
+        )}
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={expanded ? `Collapse ${country}` : `Expand ${country}`}
+          className="shrink-0 flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo/40 rounded-md"
+        >
+          <div className="text-right">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-text-muted leading-none">
+              From
+            </div>
+            <div className="font-mono text-orange font-black text-lg leading-tight mt-0.5">
+              {formatPrice(minPrice)}
+            </div>
           </div>
-          <div className="font-mono text-orange font-black text-lg leading-tight mt-0.5">
-            {formatPrice(minPrice)}
-          </div>
-        </div>
-        <ChevronDown
-          size={18}
-          className={`text-text-muted shrink-0 motion-safe:transition-transform motion-safe:duration-200 ${
-            expanded ? '' : '-rotate-90'
-          }`}
-        />
-      </button>
+          <ChevronDown
+            size={18}
+            className={`text-text-muted shrink-0 motion-safe:transition-transform motion-safe:duration-200 ${
+              expanded ? '' : '-rotate-90'
+            }`}
+          />
+        </button>
+      </div>
 
       {expanded && (
         <div
@@ -183,6 +201,15 @@ export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function 
             />
           ))}
         </div>
+      )}
+
+      {popoverOpen && visa && (
+        <VisaDetailsPopover
+          requirement={visa}
+          destinationName={country}
+          passport={passport}
+          onClose={() => setPopoverOpen(false)}
+        />
       )}
     </section>
   );
