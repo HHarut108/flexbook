@@ -13,6 +13,7 @@ export const AnalyticsEvent = {
   TripSearchStarted: 'trip_search_started',
   BookingClicked: 'booking_clicked',
   TripShared: 'trip_shared',
+  UrlStateRecoveryFailed: 'url_state_recovery_failed',
 } as const;
 
 type AnalyticsEventName =
