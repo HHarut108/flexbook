@@ -79,8 +79,18 @@ export function useUrlSync() {
     // the 150ms debounce window lands on /flights with no ?t=, hydrates an
     // empty store, and RequireOrigin bounces them back to /. The debounce
     // is only there to batch rapid same-page state edits.
+    //
+    // Also reset the encoded refs: react-router's navigate('/foo') wipes
+    // the search string, so the new URL has no ?t= or ?s= even though our
+    // refs still think we wrote them last cycle. Without resetting, the
+    // equality check below would skip re-writing the trip param whenever
+    // the trip state didn't change across the navigation (e.g. /flights →
+    // /stay, where only selectedFlight changed), and the user would land
+    // on /stay?s=... with no ?t=, fail hydration, and bounce home.
     if (location.pathname !== lastPathRef.current) {
       lastPathRef.current = location.pathname;
+      lastTripRef.current = '';
+      lastSessionRef.current = '';
       writeUrl();
       return;
     }
