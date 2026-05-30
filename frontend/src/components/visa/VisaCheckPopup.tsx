@@ -52,7 +52,11 @@ export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: P
   const user = useAuthStore((s) => s.user);
   const { passport, setPassport } = useCurrentPassport();
   const [selected, setSelected] = useState<string | null>(passport);
-  const [saveToProfile, setSaveToProfile] = useState(!!user);
+  // Default OFF for everyone — the "Save to my profile" path is now the
+  // exception, not the default. The common case is "checking visas for
+  // someone else" (e.g. partner, family member), and that flow must never
+  // mutate the user's profile silently.
+  const [saveToProfile, setSaveToProfile] = useState(false);
   // Honor initialMode only for guests — signed-in users have no signup path.
   const [mode, setMode] = useState<Mode>(!user && initialMode === 'signup' ? 'signup' : 'pick');
   const [busy, setBusy] = useState(false);
@@ -208,7 +212,9 @@ export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: P
               <h3 className="text-lg font-bold text-white leading-tight">
                 {mode === 'signup'
                   ? 'Get personalized recommendations'
-                  : 'Check visa requirements'}
+                  : user
+                    ? 'Check visas for another passport'
+                    : 'Check visa requirements'}
               </h3>
             </div>
           </div>
@@ -225,15 +231,20 @@ export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: P
         <div className="px-5 pt-5 pb-5 space-y-4">
           <div>
             <label className="block text-xs font-medium text-text-muted uppercase tracking-wide mb-1.5">
-              Your citizenship
+              {user ? 'Whose passport are you checking?' : 'Your citizenship'}
             </label>
             <PassportPicker value={selected} onChange={setSelected} size="md" />
             <p className="mt-2 text-[11px] text-text-muted leading-relaxed">
-              We use this to show whether you need a visa for each destination.
+              {user
+                ? 'Pick any passport to look up visa requirements — this won’t update your profile unless you tick the box below.'
+                : 'We use this to show whether you need a visa for each destination.'}
             </p>
           </div>
 
-          {/* Branch 1: signed-in user → save-to-profile toggle */}
+          {/* Branch 1: signed-in user → save-to-profile toggle. Defaults OFF
+              so the natural "checking for someone else" flow never silently
+              overwrites the user's actual citizenship. Tick the box only when
+              you want to update your profile permanently. */}
           {user && mode === 'pick' && (
             <label className="flex items-start gap-2 text-xs text-text-secondary cursor-pointer select-none rounded-xl border border-border bg-surface-2/40 px-3 py-2.5">
               <input
@@ -243,9 +254,9 @@ export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: P
                 className="mt-0.5 h-3.5 w-3.5 rounded border-border accent-indigo"
               />
               <span>
-                Add citizenship to my profile
+                Also update my profile to this passport
                 <span className="block text-[10px] text-text-muted mt-0.5">
-                  Persists across devices instead of just this session.
+                  Leave unticked when checking on behalf of someone else.
                 </span>
               </span>
             </label>

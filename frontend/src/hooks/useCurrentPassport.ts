@@ -9,6 +9,13 @@ export interface UseCurrentPassportResult {
   passport: string | null;
   source: PassportSource;
   /**
+   * ISO-2 of the user's primary profile citizenship, independent of the
+   * session override. `null` for guests or signed-in users without a saved
+   * citizenship. Lets the UI render "your profile passport is X" copy and the
+   * "reset to your profile" affordance when a session override is active.
+   */
+  profilePassport: string | null;
+  /**
    * Epoch ms when the session-scoped passport will expire. `null` when the
    * resolved passport comes from a profile (no expiry) or no passport is set.
    * Use this to render the "saved for Xh — sign up to keep it" nudge that
@@ -87,5 +94,5 @@ export function useCurrentPassport(): UseCurrentPassportResult {
     setSessionPassport(null);
   }, [setSessionPassport]);
 
-  return { passport, source, sessionExpiresAt, setPassport, clearPassport };
+  return { passport, source, profilePassport, sessionExpiresAt, setPassport, clearPassport };
 }

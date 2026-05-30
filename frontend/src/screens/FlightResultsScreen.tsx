@@ -16,6 +16,7 @@ import { CountryGroup } from '../components/CountryGroup';
 import { VisaCheckPopup } from '../components/visa/VisaCheckPopup';
 import { VisaDetailsPopover } from '../components/visa/VisaDetailsPopover';
 import { VisaResultsSummary } from '../components/visa/VisaResultsSummary';
+import { ActivePassportCard } from '../components/visa/ActivePassportCard';
 import type { VisaRequirement } from '../api/visa.api';
 import { useCurrentPassport } from '../hooks/useCurrentPassport';
 import { useVisaCountries, resolveCountryCode } from '../hooks/useVisaCountries';
@@ -24,7 +25,7 @@ import { useAuthStore } from '../store/auth.store';
 import { formatDate } from '../utils/date.utils';
 import { formatPrice } from '../utils/price.utils';
 import { countryDisplayName } from '../utils/country.utils';
-import { ChevronLeft, ChevronRight, RefreshCw, ArrowLeft, List as ListIcon, Map as MapIcon, ShieldCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw, ArrowLeft, List as ListIcon, Map as MapIcon } from 'lucide-react';
 import { format, addDays, parseISO } from 'date-fns';
 
 const VIEW_TAB_KEY = 'flexbook.flightResults.view';
@@ -271,15 +272,12 @@ export function FlightResultsScreen() {
   // requirement per (passport, destination). Both the proxy and this hook
   // cache, so repeated renders are cheap.
   const { loaded: visaCountriesLoaded } = useVisaCountries();
-  const { passport, source: passportSource, sessionExpiresAt } = useCurrentPassport();
+  const { passport, source: passportSource, profilePassport, sessionExpiresAt, clearPassport } = useCurrentPassport();
   const user = useAuthStore((s) => s.user);
   const isAuthLoading = useAuthStore((s) => s.loading);
-  const hasPassport = !!passport && passportSource !== 'none';
-  // Guest with a live session passport → show the "saved for Xh, sign up to
-  // keep it" nudge below the tabs/CTA row. Use a dummy tick to force a
-  // re-render every minute; reading Date.now() directly during render keeps
-  // the displayed hour count in sync with the actual remaining time without
-  // depending on a stale captured-at-mount timestamp.
+  // Session passport has a TTL — tick once a minute so the "saved for Xh"
+  // copy on the active-passport card stays in sync without depending on a
+  // stale mount-time timestamp. Reading Date.now() during render is fine.
   const [, setTick] = useState(0);
   useEffect(() => {
     if (!sessionExpiresAt) return;
@@ -289,12 +287,6 @@ export function FlightResultsScreen() {
   const sessionHoursLeft = sessionExpiresAt
     ? Math.max(0, Math.ceil((sessionExpiresAt - Date.now()) / 3_600_000))
     : null;
-  const showGuestExpiryNote =
-    !isAuthLoading &&
-    !user &&
-    passportSource === 'session' &&
-    sessionHoursLeft !== null &&
-    sessionHoursLeft > 0;
   const countryCodes = useMemo(
     () =>
       visaCountriesLoaded
@@ -397,9 +389,12 @@ export function FlightResultsScreen() {
   // list loaded, results in view) AND the user hasn't picked a passport yet.
   // We don't show it while auth is still resolving because the user might be
   // about to be recognized as signed in with a profile passport.
-  const showVisaCta =
+  // The active-passport card now renders whenever we've finished resolving
+  // auth state AND have a results list to contextualize. It handles all four
+  // states (no passport / profile / session override / guest session) so we
+  // don't need separate CTA + expiry-banner flags.
+  const showPassportCard =
     !isAuthLoading &&
-    !hasPassport &&
     !isSearchingFlights &&
     countryGroups.length > 0;
 
@@ -604,76 +599,28 @@ export function FlightResultsScreen() {
           </div>
         )}
 
-        {/* Visa CTA / status — guests & logged-in-without-citizenship see the
-            CTA that opens the popup; once a passport is set the per-route
-            chips render on the country accordions below. */}
-        {showVisaCta && (
-          <button
-            type="button"
-            onClick={() => setVisaPopupMode('pick')}
-            className="w-full mb-3 inline-flex items-center justify-between gap-3 rounded-2xl border border-indigo-border bg-indigo-soft/40 hover:bg-indigo-soft/60 transition-colors px-3.5 py-2.5 text-left"
-          >
-            <span className="inline-flex items-center gap-2 min-w-0">
-              <span className="w-7 h-7 rounded-full bg-indigo/10 flex items-center justify-center shrink-0">
-                <ShieldCheck size={14} className="text-indigo" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-xs font-semibold text-text-primary leading-tight">
-                  Check visa requirements
-                </span>
-                <span className="block text-[11px] text-text-muted leading-tight">
-                  Pick your citizenship to see visa status per route.
-                </span>
-              </span>
-            </span>
-            <ChevronRight size={16} className="text-indigo shrink-0" />
-          </button>
+        {/* Active passport card — single surface for the "whose visa are we
+            looking at?" question. Handles all four states (no passport /
+            profile / session override / guest session) and is the only way
+            to open the picker. */}
+        {showPassportCard && (
+          <ActivePassportCard
+            passport={passport}
+            source={passportSource}
+            user={user}
+            profilePassport={profilePassport}
+            sessionHoursLeft={sessionHoursLeft}
+            onOpenPicker={(mode) => setVisaPopupMode(mode)}
+            onResetToProfile={clearPassport}
+          />
         )}
 
         {/* Aggregate visa summary — only when we have a passport AND at least
-            one resolved lookup. Sits where the CTA used to so the user gets a
-            top-down read of "what's easy vs. needs paperwork" before scanning
-            the accordion. */}
+            one resolved lookup. Sits below the active-passport card so the
+            "who" question is answered first, then the breakdown. */}
         {passport && visaSummaryEntries.length > 0 && (
           <div className="mb-3">
             <VisaResultsSummary passport={passport} entries={visaSummaryEntries} />
-          </div>
-        )}
-
-        {/* Guest expiry reminder — the session passport TTL is the conversion
-            hook. We surface how much time is left and pair it with a sign-up
-            link framed around personalisation, not "keeping" anything (the
-            user obviously doesn't lose their actual citizenship). Signed-in
-            users never see this (their profile is the source of truth). */}
-        {showGuestExpiryNote && (
-          <div className="w-full mb-3 inline-flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 dark:bg-amber-900/20 dark:border-amber-700/40">
-            <span className="inline-flex items-center gap-2 min-w-0">
-              <span className="w-7 h-7 rounded-full bg-amber-100 dark:bg-amber-800/40 flex items-center justify-center shrink-0">
-                <ShieldCheck size={14} className="text-amber-700 dark:text-amber-300" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-xs font-semibold text-text-primary leading-tight">
-                  Saved for {sessionHoursLeft}h
-                </span>
-                <span className="block text-[11px] text-text-muted leading-tight">
-                  <button
-                    type="button"
-                    onClick={() => setVisaPopupMode('signup')}
-                    className="text-indigo font-semibold hover:underline"
-                  >
-                    Sign up
-                  </button>
-                  {' '}for personalized recommendations.
-                </span>
-              </span>
-            </span>
-            <button
-              type="button"
-              onClick={() => setVisaPopupMode('pick')}
-              className="text-[11px] font-semibold text-text-muted hover:text-indigo shrink-0"
-            >
-              change
-            </button>
           </div>
         )}
 
