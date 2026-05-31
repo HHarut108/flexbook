@@ -15,7 +15,6 @@ import { buildDirectDestinations, type DirectDestination } from '../components/F
 import { CountryGroup } from '../components/CountryGroup';
 import { VisaCheckPopup } from '../components/visa/VisaCheckPopup';
 import { VisaDetailsPopover } from '../components/visa/VisaDetailsPopover';
-import { VisaResultsSummary } from '../components/visa/VisaResultsSummary';
 import { ActivePassportCard } from '../components/visa/ActivePassportCard';
 import type { VisaRequirement } from '../api/visa.api';
 import { useCurrentPassport } from '../hooks/useCurrentPassport';
@@ -272,21 +271,9 @@ export function FlightResultsScreen() {
   // requirement per (passport, destination). Both the proxy and this hook
   // cache, so repeated renders are cheap.
   const { loaded: visaCountriesLoaded } = useVisaCountries();
-  const { passport, source: passportSource, profilePassport, sessionExpiresAt, clearPassport } = useCurrentPassport();
+  const { passport, source: passportSource, profilePassport, setPassport, clearPassport } = useCurrentPassport();
   const user = useAuthStore((s) => s.user);
   const isAuthLoading = useAuthStore((s) => s.loading);
-  // Session passport has a TTL — tick once a minute so the "saved for Xh"
-  // copy on the active-passport card stays in sync without depending on a
-  // stale mount-time timestamp. Reading Date.now() during render is fine.
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    if (!sessionExpiresAt) return;
-    const id = window.setInterval(() => setTick((t) => t + 1), 60_000);
-    return () => window.clearInterval(id);
-  }, [sessionExpiresAt]);
-  const sessionHoursLeft = sessionExpiresAt
-    ? Math.max(0, Math.ceil((sessionExpiresAt - Date.now()) / 3_600_000))
-    : null;
   const countryCodes = useMemo(
     () =>
       visaCountriesLoaded
@@ -399,8 +386,9 @@ export function FlightResultsScreen() {
     countryGroups.length > 0;
 
   // Build the per-country summary entries from the visa results — only the
-  // ones we've resolved a country code AND a successful lookup for. Used by
-  // VisaResultsSummary to render the aggregate one-liner above the accordion.
+  // ones we've resolved a country code AND a successful lookup for. Fed into
+  // ActivePassportCard's summary row so the aggregate sits inside the same
+  // card as the passport context.
   const visaSummaryEntries = passport
     ? countryGroups
         .map((group, idx) => {
@@ -599,29 +587,28 @@ export function FlightResultsScreen() {
           </div>
         )}
 
-        {/* Active passport card — single surface for the "whose visa are we
-            looking at?" question. Handles all four states (no passport /
-            profile / session override / guest session) and is the only way
-            to open the picker. */}
+        {/* Active passport card — single merged surface for "whose visa are
+            we looking at?" + the aggregate per-country status. Handles all
+            five states (no passport / profile / session override / guest
+            session / logged-in-no-profile session) and is the only way to
+            open the picker. */}
         {showPassportCard && (
           <ActivePassportCard
             passport={passport}
             source={passportSource}
             user={user}
             profilePassport={profilePassport}
-            sessionHoursLeft={sessionHoursLeft}
+            summaryEntries={visaSummaryEntries}
             onOpenPicker={(mode) => setVisaPopupMode(mode)}
-            onResetToProfile={clearPassport}
+            onClearSession={clearPassport}
+            onSaveToProfile={
+              passport
+                ? () => {
+                    void setPassport(passport, { saveToProfile: true });
+                  }
+                : undefined
+            }
           />
-        )}
-
-        {/* Aggregate visa summary — only when we have a passport AND at least
-            one resolved lookup. Sits below the active-passport card so the
-            "who" question is answered first, then the breakdown. */}
-        {passport && visaSummaryEntries.length > 0 && (
-          <div className="mb-3">
-            <VisaResultsSummary passport={passport} entries={visaSummaryEntries} />
-          </div>
         )}
 
         {/* Error */}

@@ -16,13 +16,6 @@ export interface UseCurrentPassportResult {
    */
   profilePassport: string | null;
   /**
-   * Epoch ms when the session-scoped passport will expire. `null` when the
-   * resolved passport comes from a profile (no expiry) or no passport is set.
-   * Use this to render the "saved for Xh — sign up to keep it" nudge that
-   * encourages guest → account conversion.
-   */
-  sessionExpiresAt: number | null;
-  /**
    * Persist a passport choice for this session. If `saveToProfile` is true and
    * the user is signed in, also writes it to their profile as the primary
    * citizenship (silently ignored on failure — the session value still applies).
@@ -44,7 +37,6 @@ export function useCurrentPassport(): UseCurrentPassportResult {
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
   const sessionPassport = usePassportStore((s) => s.sessionPassport);
-  const sessionExpiresAtRaw = usePassportStore((s) => s.sessionExpiresAt);
   const setSessionPassport = usePassportStore((s) => s.setSessionPassport);
 
   const primary = user?.citizenships?.find((c) => c.isPrimary) ?? user?.citizenships?.[0] ?? null;
@@ -56,9 +48,6 @@ export function useCurrentPassport(): UseCurrentPassportResult {
     : profilePassport
       ? 'profile'
       : 'none';
-  // Expiry only surfaces when the active passport actually comes from the
-  // session store — a profile passport has no expiry to show.
-  const sessionExpiresAt = source === 'session' ? sessionExpiresAtRaw : null;
 
   const setPassport = useCallback(
     async (code: string, opts: { saveToProfile?: boolean } = {}) => {
@@ -94,5 +83,5 @@ export function useCurrentPassport(): UseCurrentPassportResult {
     setSessionPassport(null);
   }, [setSessionPassport]);
 
-  return { passport, source, profilePassport, sessionExpiresAt, setPassport, clearPassport };
+  return { passport, source, profilePassport, setPassport, clearPassport };
 }
