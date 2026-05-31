@@ -13,6 +13,7 @@
 # instance via the dashboard — no YAML change needed.
 
 services:
+  # ── Production visa-service (tracks main) ─────────────────────────────────
   - type: web
     name: flexbook-visa-service
     runtime: node
@@ -45,4 +46,42 @@ services:
       - key: REFRESH_TOKEN
         # Set via dashboard, not committed. Required in production — the
         # /refresh endpoint returns 503 if unset.
+        sync: false
+
+  # ── Staging visa-service (tracks staging) ─────────────────────────────────
+  # Mirror of the production service that auto-deploys from the `staging`
+  # branch, so staging.flexbook.space can exercise new visa-service routes
+  # before they promote to main. Without this, the staging backend was
+  # forced to call the prod visa-service and any new route added on staging
+  # would 404 there until staging→main lands (this is exactly what bit us
+  # while shipping the Visa-free escape optimizer — backend had the new
+  # /visa-free proxy route ready, prod visa-service didn't).
+  #
+  # After this service comes up:
+  #   1. Note its public URL from the Render dashboard.
+  #   2. Set VISA_SERVICE_URL on the `flexbook-backend-staging` service to
+  #      that URL (Render → backend-staging → Environment). The prod
+  #      backend keeps pointing at flexbook-visa-service.
+  #   3. Generate a fresh REFRESH_TOKEN for this service in the dashboard.
+  - type: web
+    name: flexbook-visa-service-staging
+    runtime: node
+    rootDir: services/visa-service
+    plan: free
+    region: oregon
+    branch: staging
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGIN
+        # Staging is gated by Vercel auth — only the staging backend hits
+        # this service, but list explicitly anyway.
+        value: https://staging.flexbook.space,https://flexbook-backend-staging.onrender.com
+      - key: AUTO_REFRESH
+        value: "true"
+      - key: REFRESH_TOKEN
         sync: false

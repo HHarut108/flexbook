@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { format } from 'date-fns';
 import {
+  AlertTriangle,
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
@@ -658,6 +659,9 @@ export function TripPlannerScreen() {
   const [result, setResult] = useState<BudgetPlanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [errorStatus, setErrorStatus] = useState<number | null>(null);
+  // Error code from the backend's structured response (e.g. NO_VISA_FREE_FLIGHTS,
+  // VISA_LOOKUP_FAILED, NO_ALTERNATIVES). Drives per-error escape buttons.
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [excludedDestinations, setExcludedDestinations] = useState<string[]>([]);
   const [swapLoading, setSwapLoading] = useState(false);
 
@@ -764,11 +768,18 @@ export function TripPlannerScreen() {
     ? (COUNTRIES.find((c) => c.code === passport)?.name ?? passport)
     : null;
 
-  async function handleSearch() {
+  /**
+   * Run the planner. Optional `overrides` lets escape-button handlers re-submit
+   * with a different tripStyle (e.g. switching to 'value' after a visa-free
+   * dead-end) without waiting for React state to flush.
+   */
+  async function handleSearch(overrides?: { tripStyle?: TripStyle }) {
     if (!canSearch || !originAirport || destCount === null) return;
+    const effectiveTripStyle = overrides?.tripStyle ?? tripStyle;
     setLoading(true);
     setError(null);
     setErrorStatus(null);
+    setErrorCode(null);
     setResult(null);
     setExcludedDestinations([]);
     setMobileResultTab('list');
@@ -787,18 +798,20 @@ export function TripPlannerScreen() {
         nightsPerStopArray: destCount === 'max'
           ? (maxModeNightsArray.length > 0 ? maxModeNightsArray : undefined)
           : (nightsPerDestArray.length > 0 ? nightsPerDestArray : undefined),
-        tripStyle,
-        excludedDestinations: excludedDestinations.length > 0 ? excludedDestinations : undefined,
-        passportCode: tripStyle === 'visafree' && passport ? passport : undefined,
+        tripStyle: effectiveTripStyle,
+        excludedDestinations: undefined, // overrides clears swaps; fresh search has none
+        passportCode: effectiveTripStyle === 'visafree' && passport ? passport : undefined,
       });
       setResult(data);
     } catch (err: any) {
       const status = err?.status;
+      const code = err?.code;
       const raw = err?.message ?? 'Something went wrong. Please try again.';
       const msg = status === 401 ? 'Your session has expired. Please log in again.' : raw;
       if (status === 401) clearSessionHint();
       setError(msg);
       setErrorStatus(status ?? null);
+      setErrorCode(code ?? null);
     } finally {
       setLoading(false);
     }
@@ -850,8 +863,26 @@ export function TripPlannerScreen() {
     setResult(null);
     setError(null);
     setErrorStatus(null);
+    setErrorCode(null);
     setExcludedDestinations([]);
     setMobileResultTab('list');
+  }
+
+  /** Escape from a visa-free dead-end (NO_VISA_FREE_FLIGHTS / VISA_LOOKUP_FAILED).
+   *  Switches tripStyle to 'value' and immediately re-runs the search. */
+  function handleSwitchToValue() {
+    setTripStyle('value');
+    handleSearch({ tripStyle: 'value' });
+  }
+
+  /** Clear all swap-exclusions after a failed swap (B6 NO_ALTERNATIVES).
+   *  Doesn't re-run the search — the user already has their previous plan
+   *  visible, so this just resets state so future swaps work. */
+  function handleResetSwaps() {
+    setExcludedDestinations([]);
+    setError(null);
+    setErrorStatus(null);
+    setErrorCode(null);
   }
 
   async function handleSwap(excludedIata: string) {
@@ -882,9 +913,11 @@ export function TripPlannerScreen() {
       setResult(data);
     } catch (err: any) {
       const status = err?.status;
+      const code = err?.code;
       const raw = err?.message ?? 'No alternative found. Try adjusting your budget or dates.';
       setError(status === 401 ? 'Your session has expired. Please log in again.' : raw);
       setErrorStatus(status ?? null);
+      setErrorCode(code ?? null);
       if (status === 401) clearSessionHint();
     } finally {
       setSwapLoading(false);
@@ -895,16 +928,49 @@ export function TripPlannerScreen() {
     if (result) {
       return (
         <div className="space-y-3">
-          {/* Swap error — shown above the still-visible result so user keeps their plan */}
+          {/* Plan-level warnings (OVER_BUDGET, WEATHER_DEGRADED) — informational,
+              the trip itself is still valid. Uses the project's orange semantic
+              palette for prominence (matches .pill-warning + ItineraryScreen). */}
+          {result.warnings && result.warnings.length > 0 && (
+            <div className="bg-orange-soft border-2 border-orange/40 rounded-2xl px-4 py-3 shadow-[0_2px_12px_rgba(249,115,22,0.12)]">
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={20} className="text-orange-dark shrink-0 mt-0.5" />
+                <div className="space-y-1.5 min-w-0">
+                  {result.warnings.map((w, i) => (
+                    <p key={`${w.code}-${i}`} className="text-sm text-orange-dark font-semibold leading-snug">
+                      {w.message}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Swap error — shown above the still-visible result so user keeps their plan.
+              For B6 NO_ALTERNATIVES, surface a "Reset swaps" button. */}
           {error && (
-            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl px-4 py-3">
-              <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">{error}</p>
-              <button
-                onClick={() => setError(null)}
-                className="text-xs text-amber-600 dark:text-amber-400 hover:underline mt-1"
-              >
-                Dismiss
-              </button>
+            <div className="bg-orange-soft border-2 border-orange/40 rounded-2xl px-4 py-3 shadow-[0_2px_12px_rgba(249,115,22,0.12)]">
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={20} className="text-orange-dark shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-orange-dark font-semibold leading-snug">{error}</p>
+                  <div className="flex gap-3 mt-2 flex-wrap">
+                    {errorCode === 'NO_ALTERNATIVES' && excludedDestinations.length > 0 && (
+                      <button
+                        onClick={handleResetSwaps}
+                        className="text-xs text-white bg-orange hover:bg-orange-dark px-2.5 py-1 rounded-lg font-semibold transition-colors"
+                      >
+                        Reset swaps
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setError(null); setErrorCode(null); setErrorStatus(null); }}
+                      className="text-xs text-orange-dark hover:underline font-semibold"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
           <PlanResult
@@ -919,21 +985,39 @@ export function TripPlannerScreen() {
       );
     }
     if (error) {
+      // Per-code escape buttons let the user recover from a dead-end without
+      // having to manually change inputs and re-submit.
+      const showSwitchToValue = errorCode === 'NO_VISA_FREE_FLIGHTS' || errorCode === 'VISA_LOOKUP_FAILED';
+      const switchLabel = errorCode === 'VISA_LOOKUP_FAILED'
+        ? 'Switch to Best Value'
+        : 'Search without visa-free filter';
       return (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl px-4 py-3">
           <p className="text-sm text-red-600 dark:text-red-400 font-medium">{error}</p>
-          {errorStatus === 401 ? (
-            <button
-              onClick={() => navigate('/login?from=/trip-planner')}
-              className="text-xs text-red-500 dark:text-red-400 hover:underline mt-1 font-semibold"
-            >
-              Go to login →
-            </button>
-          ) : (
-            <button onClick={handleRetry} className="text-xs text-red-500 dark:text-red-400 hover:underline mt-1">
-              Try different inputs
-            </button>
-          )}
+          <div className="flex gap-3 mt-1 flex-wrap">
+            {errorStatus === 401 ? (
+              <button
+                onClick={() => navigate('/login?from=/trip-planner')}
+                className="text-xs text-red-500 dark:text-red-400 hover:underline font-semibold"
+              >
+                Go to login →
+              </button>
+            ) : (
+              <>
+                {showSwitchToValue && (
+                  <button
+                    onClick={handleSwitchToValue}
+                    className="text-xs text-red-500 dark:text-red-400 hover:underline font-semibold"
+                  >
+                    {switchLabel} →
+                  </button>
+                )}
+                <button onClick={handleRetry} className="text-xs text-red-500 dark:text-red-400 hover:underline">
+                  Try different inputs
+                </button>
+              </>
+            )}
+          </div>
         </div>
       );
     }
@@ -1254,6 +1338,11 @@ export function TripPlannerScreen() {
                 {STYLE_OPTIONS.map((opt) => {
                   const isVisaFree = opt.value === 'visafree';
                   const isActive = tripStyle === opt.value;
+                  // Pending visual feedback: while the popup is open after the
+                  // user clicked the option, give the row a ring so it's clear
+                  // *which* option triggered the popup even though `tripStyle`
+                  // hasn't flipped yet (it only flips on popup confirm).
+                  const isPending = isVisaFree && pendingVisaFreeSelect && visaPopupOpen && !isActive;
                   return (
                     <div key={opt.value} className="flex flex-col gap-1.5">
                       <button
@@ -1272,7 +1361,9 @@ export function TripPlannerScreen() {
                         className={`flex items-start gap-3 p-3 rounded-2xl border text-left transition-all ${
                           isActive
                             ? 'bg-indigo-soft border-indigo-border'
-                            : 'bg-surface-2 border-border hover:border-indigo-border'
+                            : isPending
+                              ? 'bg-surface-2 border-indigo-border ring-2 ring-indigo/30'
+                              : 'bg-surface-2 border-border hover:border-indigo-border'
                         }`}
                       >
                         <div className={`w-4 h-4 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center transition-all ${
@@ -1320,7 +1411,7 @@ export function TripPlannerScreen() {
 
           {/* Search button */}
           <button
-            onClick={handleSearch}
+            onClick={() => handleSearch()}
             disabled={!canSearch || loading}
             className="w-full h-14 bg-indigo hover:bg-indigo/90 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-base rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
           >
