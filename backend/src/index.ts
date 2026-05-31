@@ -7,6 +7,7 @@ import { db } from './db';
 import { setRedisLogger } from './utils/redisClient';
 import { setSharedLogger } from './utils/logger';
 import { verifyToken as verifyAdminToken } from './utils/adminAuth';
+import { fail } from './utils/response';
 import { healthRoutes } from './routes/health';
 import { airportRoutes } from './routes/airports';
 import { flightRoutes } from './routes/flights';
@@ -161,11 +162,30 @@ async function start() {
   await app.register(adminUsersRoutes);
   await app.register(visaRoutes);
 
+  // C5 INTERNAL_ERROR — app-wide handler with request-id for support reference.
+  // Always returns our standard { success, error: { code, message, retryable } } envelope
+  // so the frontend doesn't have to special-case Fastify's default shape.
   app.setErrorHandler((err, req, reply) => {
-    app.log.error({ err, url: req.url, method: req.method }, 'Unhandled route error');
-    reply.status(err.statusCode ?? 500).send({
-      error: { message: err.message || 'Internal server error' },
-    });
+    const reqId = req.id;
+    app.log.error(
+      { err, url: req.url, method: req.method, reqId },
+      'Unhandled route error',
+    );
+    const status = err.statusCode ?? 500;
+    if (status >= 500) {
+      reply.status(500).send(fail(
+        'INTERNAL_ERROR',
+        `Something went wrong on our end. Please try again. Reference: ${reqId}`,
+        true,
+      ));
+    } else {
+      // 4xx surfaced by fastify itself (rate limit 429, body-too-large 413, etc.)
+      reply.status(status).send(fail(
+        'REQUEST_ERROR',
+        err.message || 'Request error',
+        false,
+      ));
+    }
   });
 
   try {

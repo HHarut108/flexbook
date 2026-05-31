@@ -20,10 +20,20 @@ export interface BudgetPlanLeg extends FlightOption {
   isReturn?: boolean;
 }
 
+/** Warning attached to a successful plan. The trip is still valid — these surface
+ *  partial-degradation cases the user should know about (over-budget return,
+ *  weather service unavailable, etc.). */
+export interface BudgetPlanWarning {
+  code: 'OVER_BUDGET' | 'WEATHER_DEGRADED';
+  message: string;
+  overage?: number;
+}
+
 export interface BudgetPlanResult {
   legs: BudgetPlanLeg[];
   totalCostPerPerson: number;
   budgetPerPerson: number;
+  warnings?: BudgetPlanWarning[];
 }
 
 export async function planBudgetTrip(params: BudgetPlanParams): Promise<BudgetPlanResult> {

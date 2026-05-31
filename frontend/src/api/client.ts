@@ -42,9 +42,17 @@ apiClient.interceptors.response.use(
         new Error('Server is taking longer than usual to respond. Please try again in a moment.'),
       );
     }
-    const msg = error.response?.data?.error?.message ?? error.message ?? 'Unknown error';
-    const wrapped = new Error(msg) as Error & { status?: number; isCanceled?: boolean };
+    const errorEnvelope = error.response?.data?.error;
+    const msg = errorEnvelope?.message ?? error.message ?? 'Unknown error';
+    const wrapped = new Error(msg) as Error & {
+      status?: number;
+      code?: string;
+      retryable?: boolean;
+      isCanceled?: boolean;
+    };
     if (typeof status === 'number') wrapped.status = status;
+    if (typeof errorEnvelope?.code === 'string') wrapped.code = errorEnvelope.code;
+    if (typeof errorEnvelope?.retryable === 'boolean') wrapped.retryable = errorEnvelope.retryable;
     if (axios.isCancel(error) || error.code === 'ERR_CANCELED') wrapped.isCanceled = true;
     return Promise.reject(wrapped);
   },
