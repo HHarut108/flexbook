@@ -125,7 +125,7 @@ export function VisaDetailsPopover({ requirement, destinationName, passport, onC
                   <>
                     {' · '}
                     <span className="normal-case tracking-normal">
-                      {countryFlag(passport)} {passport} passport
+                      {countryFlag(passport)} {passport} citizenship
                     </span>
                   </>
                 )}
@@ -195,7 +195,7 @@ export function VisaDetailsPopover({ requirement, destinationName, passport, onC
 
           {info.typicalCostUsd && (
             <p className="text-[10px] text-text-muted leading-snug">
-              Costs and processing times are typical ranges and can vary by passport, destination, and visa class. Always confirm with the destination country’s consulate before travel.
+              Costs and processing times are typical ranges and can vary by citizenship, destination, and visa class. Always confirm with the destination country’s consulate before travel.
             </p>
           )}
 
