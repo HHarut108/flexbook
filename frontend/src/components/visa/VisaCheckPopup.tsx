@@ -213,7 +213,7 @@ export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: P
                 {mode === 'signup'
                   ? 'Get personalized recommendations'
                   : user
-                    ? 'Check visas for another passport'
+                    ? 'Check visas for another citizenship'
                     : 'Check visa requirements'}
               </h3>
             </div>
@@ -231,12 +231,12 @@ export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: P
         <div className="px-5 pt-5 pb-5 space-y-4">
           <div>
             <label className="block text-xs font-medium text-text-muted uppercase tracking-wide mb-1.5">
-              {user ? 'Whose passport are you checking?' : 'Your citizenship'}
+              {user ? 'Whose citizenship are you checking?' : 'Your citizenship'}
             </label>
             <PassportPicker value={selected} onChange={setSelected} size="md" />
             <p className="mt-2 text-[11px] text-text-muted leading-relaxed">
               {user
-                ? 'Pick any passport to look up visa requirements — this won’t update your profile unless you tick the box below.'
+                ? 'Pick any citizenship to look up visa requirements — this won’t update your profile unless you tick the box below.'
                 : 'We use this to show whether you need a visa for each destination.'}
             </p>
           </div>
@@ -254,7 +254,7 @@ export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: P
                 className="mt-0.5 h-3.5 w-3.5 rounded border-border accent-indigo"
               />
               <span>
-                Also update my profile to this passport
+                Save this as my citizenship
                 <span className="block text-[10px] text-text-muted mt-0.5">
                   Leave unticked when checking on behalf of someone else.
                 </span>
@@ -427,7 +427,7 @@ export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: P
               {busy
                 ? 'Saving…'
                 : user && saveToProfile
-                  ? 'Save to profile & check visas'
+                  ? 'Save citizenship & check visas'
                   : 'Check visas'}
             </button>
           )}
