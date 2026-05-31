@@ -91,7 +91,7 @@ export function PassportPicker({ value, onChange, label, size = 'sm' }: Passport
             <span className="truncate max-w-[8rem]">{selected.name}</span>
           </span>
         ) : (
-          <span className="text-text-muted">Pick country</span>
+          <span className="text-text-muted">Choose</span>
         )}
         <ChevronDown size={12} className="text-text-muted shrink-0" />
       </button>

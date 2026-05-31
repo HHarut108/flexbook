@@ -281,20 +281,36 @@ export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: P
             </label>
           )}
 
-          {/* Branch 2: guest → toggle into inline signup */}
+          {/* Branch 2: guest → toggle into inline signup, or jump to /login.
+              Login routes through ?from= so LoginScreen lands the user back
+              on the trip they were planning. */}
           {!user && mode === 'pick' && (
             <div className="rounded-xl border border-indigo-border bg-indigo-soft/40 px-3 py-2.5">
               <p className="text-xs font-semibold text-text-primary">Want personalized recommendations?</p>
               <p className="text-[11px] text-text-muted leading-relaxed mt-0.5">
                 Sign up to save your travel profile and tailor flights, stays and visa lookups to you.
               </p>
-              <button
-                type="button"
-                onClick={() => setMode('signup')}
-                className="mt-2 text-xs font-semibold text-indigo hover:underline"
-              >
-                Sign up →
-              </button>
+              <div className="mt-2 flex items-center gap-3 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setMode('signup')}
+                  className="text-indigo hover:underline"
+                >
+                  Sign up →
+                </button>
+                <span className="text-text-muted">or</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const from = window.location.pathname + window.location.search;
+                    onClose();
+                    navigate(`/login?from=${encodeURIComponent(from)}`);
+                  }}
+                  className="text-indigo hover:underline"
+                >
+                  Log in
+                </button>
+              </div>
             </div>
           )}
 
