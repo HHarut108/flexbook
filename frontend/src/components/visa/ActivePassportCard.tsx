@@ -169,10 +169,10 @@ export function ActivePassportCard({
           </span>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-amber-900 dark:text-amber-100 leading-tight">
-              Checking for {passportName} passport
+              Checking with {passportName} citizenship
             </p>
             <p className="text-[11px] text-amber-800/80 dark:text-amber-200/80 leading-snug mt-0.5">
-              This won&apos;t update your profile ({countryFlag(profilePassport)} {profileName}).
+              This won&apos;t change your profile ({countryFlag(profilePassport)} {profileName}).
             </p>
           </div>
           <div className="flex flex-col items-end gap-1 shrink-0">
@@ -180,7 +180,7 @@ export function ActivePassportCard({
               type="button"
               onClick={onClearSession}
               className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo hover:underline"
-              title={`Switch back to your ${profileName} passport`}
+              title={`Switch back to your ${profileName} citizenship`}
             >
               <RotateCcw size={11} />
               Use my {profilePassport}
@@ -207,7 +207,7 @@ export function ActivePassportCard({
           </span>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-text-primary leading-tight">
-              Your {passportName} passport
+              Your {passportName} citizenship
               <span className="ml-1 text-base align-middle" aria-hidden="true">
                 {countryFlag(passport)}
               </span>
@@ -238,7 +238,7 @@ export function ActivePassportCard({
           </span>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-text-primary leading-tight">
-              Visas for {passportName} passport
+              Visas with {passportName} citizenship
             </p>
             <p className="text-[11px] text-text-muted leading-snug mt-0.5">
               Just for this session.{' '}
@@ -265,7 +265,7 @@ export function ActivePassportCard({
             <button
               type="button"
               onClick={onClearSession}
-              aria-label="Clear visa passport"
+              aria-label="Clear visa citizenship"
               className="w-6 h-6 flex items-center justify-center rounded-full text-text-muted hover:text-text-primary hover:bg-surface-2/60 transition-colors"
             >
               <X size={12} />
@@ -287,7 +287,7 @@ export function ActivePassportCard({
           </span>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-text-primary leading-tight">
-              Visas for {passportName} passport
+              Visas with {passportName} citizenship
             </p>
             <p className="text-[11px] text-text-muted leading-snug mt-0.5">
               Just for this session.{' '}
@@ -312,7 +312,7 @@ export function ActivePassportCard({
             <button
               type="button"
               onClick={onClearSession}
-              aria-label="Clear visa passport"
+              aria-label="Clear visa citizenship"
               className="w-6 h-6 flex items-center justify-center rounded-full text-text-muted hover:text-text-primary hover:bg-surface-2/60 transition-colors"
             >
               <X size={12} />
@@ -331,7 +331,7 @@ export function ActivePassportCard({
         </span>
         <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold text-text-primary leading-tight">
-            Visas for {passportName} passport
+            Visas with {passportName} citizenship
             <span className="ml-1 text-base align-middle" aria-hidden="true">
               {countryFlag(passport)}
             </span>
