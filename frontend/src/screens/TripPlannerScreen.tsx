@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { format } from 'date-fns';
 import {
+  AlertTriangle,
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
@@ -928,36 +929,47 @@ export function TripPlannerScreen() {
       return (
         <div className="space-y-3">
           {/* Plan-level warnings (OVER_BUDGET, WEATHER_DEGRADED) — informational,
-              the trip itself is still valid. Always shown when present. */}
+              the trip itself is still valid. Uses the project's orange semantic
+              palette for prominence (matches .pill-warning + ItineraryScreen). */}
           {result.warnings && result.warnings.length > 0 && (
-            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl px-4 py-3 space-y-1">
-              {result.warnings.map((w, i) => (
-                <p key={`${w.code}-${i}`} className="text-sm text-amber-700 dark:text-amber-300 font-medium">
-                  {w.message}
-                </p>
-              ))}
+            <div className="bg-orange-soft border-2 border-orange/40 rounded-2xl px-4 py-3 shadow-[0_2px_12px_rgba(249,115,22,0.12)]">
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={20} className="text-orange-dark shrink-0 mt-0.5" />
+                <div className="space-y-1.5 min-w-0">
+                  {result.warnings.map((w, i) => (
+                    <p key={`${w.code}-${i}`} className="text-sm text-orange-dark font-semibold leading-snug">
+                      {w.message}
+                    </p>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
           {/* Swap error — shown above the still-visible result so user keeps their plan.
               For B6 NO_ALTERNATIVES, surface a "Reset swaps" button. */}
           {error && (
-            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl px-4 py-3">
-              <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">{error}</p>
-              <div className="flex gap-3 mt-1 flex-wrap">
-                {errorCode === 'NO_ALTERNATIVES' && excludedDestinations.length > 0 && (
-                  <button
-                    onClick={handleResetSwaps}
-                    className="text-xs text-amber-600 dark:text-amber-400 hover:underline font-semibold"
-                  >
-                    Reset swaps
-                  </button>
-                )}
-                <button
-                  onClick={() => { setError(null); setErrorCode(null); setErrorStatus(null); }}
-                  className="text-xs text-amber-600 dark:text-amber-400 hover:underline"
-                >
-                  Dismiss
-                </button>
+            <div className="bg-orange-soft border-2 border-orange/40 rounded-2xl px-4 py-3 shadow-[0_2px_12px_rgba(249,115,22,0.12)]">
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={20} className="text-orange-dark shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-orange-dark font-semibold leading-snug">{error}</p>
+                  <div className="flex gap-3 mt-2 flex-wrap">
+                    {errorCode === 'NO_ALTERNATIVES' && excludedDestinations.length > 0 && (
+                      <button
+                        onClick={handleResetSwaps}
+                        className="text-xs text-white bg-orange hover:bg-orange-dark px-2.5 py-1 rounded-lg font-semibold transition-colors"
+                      >
+                        Reset swaps
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setError(null); setErrorCode(null); setErrorStatus(null); }}
+                      className="text-xs text-orange-dark hover:underline font-semibold"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
