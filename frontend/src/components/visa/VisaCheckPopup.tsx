@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, ShieldCheck, Sparkles, Eye, EyeOff } from 'lucide-react';
 import { authApi } from '../../api/auth.api';
 import { useAuthStore } from '../../store/auth.store';
@@ -49,6 +50,7 @@ type Mode = 'pick' | 'signup';
  * unblocks visa-requirement lookups everywhere else in the app.
  */
 export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: Props) {
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const { passport, setPassport } = useCurrentPassport();
   const [selected, setSelected] = useState<string | null>(passport);
@@ -148,9 +150,10 @@ export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: P
     setError(null);
     setBusy(true);
     try {
+      const trimmedEmail = email.trim().toLowerCase();
       const countryName = selectedCountryName(selected) ?? selected;
       await authApi.register({
-        email: email.trim().toLowerCase(),
+        email: trimmedEmail,
         password,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
@@ -160,14 +163,18 @@ export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: P
           { countryCode: selected, countryName, isPrimary: true },
         ],
       });
-      // Always also persist to the session store so the current search keeps
-      // its visa context, even before the email-verification flow completes.
+      // Persist to the session store so the current /flights search keeps its
+      // visa context across the verify-email round-trip — the session cookie
+      // only lands after OTP, but VerifyOtpScreen will clear this once the
+      // profile takes over.
       await setPassport(selected);
       onCommitted?.(selected);
       onClose();
-      // The session-cookie part of registration only lands after OTP verify,
-      // so we surface a soft toast via the success state — the user's
-      // citizenship choice is preserved in the session passport store.
+      // Send the user to /verify-email and remember where they came from so
+      // OTP verification can land them right back on /flights with their
+      // trip ?t=... params still intact.
+      const returnTo = window.location.pathname + window.location.search;
+      navigate('/verify-email', { state: { email: trimmedEmail, returnTo } });
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Signup failed';
       setError(message);
@@ -274,20 +281,36 @@ export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: P
             </label>
           )}
 
-          {/* Branch 2: guest → toggle into inline signup */}
+          {/* Branch 2: guest → toggle into inline signup, or jump to /login.
+              Login routes through ?from= so LoginScreen lands the user back
+              on the trip they were planning. */}
           {!user && mode === 'pick' && (
             <div className="rounded-xl border border-indigo-border bg-indigo-soft/40 px-3 py-2.5">
               <p className="text-xs font-semibold text-text-primary">Want personalized recommendations?</p>
               <p className="text-[11px] text-text-muted leading-relaxed mt-0.5">
                 Sign up to save your travel profile and tailor flights, stays and visa lookups to you.
               </p>
-              <button
-                type="button"
-                onClick={() => setMode('signup')}
-                className="mt-2 text-xs font-semibold text-indigo hover:underline"
-              >
-                Sign up →
-              </button>
+              <div className="mt-2 flex items-center gap-3 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setMode('signup')}
+                  className="text-indigo hover:underline"
+                >
+                  Sign up →
+                </button>
+                <span className="text-text-muted">or</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const from = window.location.pathname + window.location.search;
+                    onClose();
+                    navigate(`/login?from=${encodeURIComponent(from)}`);
+                  }}
+                  className="text-indigo hover:underline"
+                >
+                  Log in
+                </button>
+              </div>
             </div>
           )}
 

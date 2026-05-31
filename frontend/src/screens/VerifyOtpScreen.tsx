@@ -3,11 +3,23 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Mail } from 'lucide-react';
 import { authApi } from '../api/auth.api';
 import { useAuthStore } from '../store/auth.store';
+import { usePassportStore } from '../store/passport.store';
+
+// Only follow returnTo when it's a same-origin path — never an absolute URL.
+// Protects against open-redirect via crafted location.state.
+function safeReturnTo(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) {
+    return null;
+  }
+  return value;
+}
 
 export function VerifyOtpScreen() {
   const navigate = useNavigate();
   const location = useLocation();
-  const email: string = (location.state as any)?.email ?? '';
+  const state = (location.state as { email?: string; returnTo?: string } | null) ?? {};
+  const email: string = state.email ?? '';
+  const returnTo: string | null = safeReturnTo(state.returnTo);
   const setUser = useAuthStore((s) => s.setUser);
 
   const [digits, setDigits] = useState(['', '', '', '', '', '']);
@@ -54,7 +66,11 @@ export function VerifyOtpScreen() {
     try {
       const { user } = await authApi.verifyOtp(email, code);
       setUser(user);
-      navigate('/', { replace: true });
+      // Profile is now the source of truth for the visa passport — drop any
+      // session pick that was set during the popup signup so useCurrentPassport
+      // resolves to profilePassport (or 'none' if the user skipped citizenship).
+      usePassportStore.getState().setSessionPassport(null);
+      navigate(returnTo ?? '/', { replace: true });
     } catch (err: any) {
       setError(err.message ?? 'Invalid code');
       setDigits(['', '', '', '', '', '']);
