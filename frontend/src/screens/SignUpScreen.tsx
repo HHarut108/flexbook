@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2, Eye, EyeOff, Info } from 'lucide-react';
 import { authApi } from '../api/auth.api';
 import { CountrySelect } from '../components/CountrySelect';
 import type { Country } from '../data/countries';
+import { usePassportStore } from '../store/passport.store';
 
 interface VisaDraft {
   citizenshipKey: string;
@@ -58,6 +59,8 @@ function validateEmail(value: string): string | null {
 
 export function SignUpScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo: string | undefined = (location.state as { returnTo?: string } | null)?.returnTo;
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
@@ -178,7 +181,15 @@ export function SignUpScreen() {
         visas: visaPayload.length > 0 ? visaPayload : undefined,
       });
 
-      navigate('/verify-email', { state: { email: form.email.trim().toLowerCase() } });
+      // Drop any guest-era session passport pick — the user's profile
+      // (citizenship or lack thereof) is now the source of truth. Without this,
+      // a signed-up user who never provided a citizenship still sees the prior
+      // guest's "Visa for X citizens" card on /flights.
+      usePassportStore.getState().setSessionPassport(null);
+
+      navigate('/verify-email', {
+        state: { email: form.email.trim().toLowerCase(), returnTo },
+      });
     } catch (err: any) {
       setError(err.message ?? 'Registration failed');
     } finally {

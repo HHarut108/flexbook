@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { authApi } from '../api/auth.api';
 import { useAuthStore } from '../store/auth.store';
+import { usePassportStore } from '../store/passport.store';
 
 export function LoginScreen() {
   const navigate = useNavigate();
@@ -22,6 +23,9 @@ export function LoginScreen() {
     try {
       const { user } = await authApi.login(email, password);
       setUser(user);
+      // Drop any guest-era session passport pick so /flights resolves visa
+      // context from the signed-in user's profile (or prompts when missing).
+      usePassportStore.getState().setSessionPassport(null);
       navigate(returnTo, { replace: true });
     } catch (err: any) {
       setError(err.message ?? 'Login failed');

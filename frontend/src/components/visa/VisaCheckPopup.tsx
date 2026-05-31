@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, ShieldCheck, Sparkles, Eye, EyeOff } from 'lucide-react';
 import { authApi } from '../../api/auth.api';
 import { useAuthStore } from '../../store/auth.store';
@@ -49,6 +50,7 @@ type Mode = 'pick' | 'signup';
  * unblocks visa-requirement lookups everywhere else in the app.
  */
 export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: Props) {
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const { passport, setPassport } = useCurrentPassport();
   const [selected, setSelected] = useState<string | null>(passport);
@@ -148,9 +150,10 @@ export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: P
     setError(null);
     setBusy(true);
     try {
+      const trimmedEmail = email.trim().toLowerCase();
       const countryName = selectedCountryName(selected) ?? selected;
       await authApi.register({
-        email: email.trim().toLowerCase(),
+        email: trimmedEmail,
         password,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
@@ -160,14 +163,18 @@ export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: P
           { countryCode: selected, countryName, isPrimary: true },
         ],
       });
-      // Always also persist to the session store so the current search keeps
-      // its visa context, even before the email-verification flow completes.
+      // Persist to the session store so the current /flights search keeps its
+      // visa context across the verify-email round-trip — the session cookie
+      // only lands after OTP, but VerifyOtpScreen will clear this once the
+      // profile takes over.
       await setPassport(selected);
       onCommitted?.(selected);
       onClose();
-      // The session-cookie part of registration only lands after OTP verify,
-      // so we surface a soft toast via the success state — the user's
-      // citizenship choice is preserved in the session passport store.
+      // Send the user to /verify-email and remember where they came from so
+      // OTP verification can land them right back on /flights with their
+      // trip ?t=... params still intact.
+      const returnTo = window.location.pathname + window.location.search;
+      navigate('/verify-email', { state: { email: trimmedEmail, returnTo } });
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Signup failed';
       setError(message);
