@@ -6,6 +6,7 @@ import { airportService } from '../services/AirportService';
 import { weatherService } from '../services/WeatherService';
 import { requireAuth } from '../utils/requireAuth';
 import { ok, fail } from '../utils/response';
+import { fetchVisaFreeDestinations } from './visa';
 
 const BEAM_WIDTH = 3;
 const RETURN_RESERVE_RATIO = 0.35;
@@ -42,8 +43,10 @@ const bodySchema = z.object({
   maxStops: z.number().int().min(1).max(15).default(2),
   nightsPerStop: z.number().int().min(1).max(60).default(4),
   nightsPerStopArray: z.array(z.number().int().min(1).max(60)).optional(),
-  tripStyle: z.enum(['value', 'offpath', 'sunny', 'short']).default('value'),
+  tripStyle: z.enum(['value', 'offpath', 'sunny', 'short', 'visafree']).default('value'),
   excludedDestinations: z.array(z.string().length(3).toUpperCase()).optional().default([]),
+  /** ISO-2 citizenship — required when tripStyle === 'visafree'. */
+  passportCode: z.string().length(2).toUpperCase().optional(),
 });
 
 type BeamState = {
@@ -61,8 +64,28 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send(fail('INVALID_PARAMS', parsed.error.issues[0]?.message ?? 'Invalid params'));
     }
 
-    const { originIata, departureDateFrom, departureDateTo, budgetPerPerson, passengers, maxStops, nightsPerStop, nightsPerStopArray, tripStyle, excludedDestinations } = parsed.data;
+    const { originIata, departureDateFrom, departureDateTo, budgetPerPerson, passengers, maxStops, nightsPerStop, nightsPerStopArray, tripStyle, excludedDestinations, passportCode } = parsed.data;
     const deadline = Date.now() + PLAN_DEADLINE_MS;
+
+    // ── Visa-free filter set (only for tripStyle === 'visafree') ─────────────
+    // Loaded once per request so beam search can filter qualifying flights by
+    // destination country code without per-flight HTTP calls.
+    let visaFreeCountrySet: Set<string> | null = null;
+    if (tripStyle === 'visafree') {
+      if (!passportCode) {
+        return reply.status(400).send(fail('PASSPORT_REQUIRED', 'Pick a citizenship to run the visa-free planner.'));
+      }
+      try {
+        const allowed = await fetchVisaFreeDestinations(passportCode);
+        visaFreeCountrySet = new Set(allowed);
+        if (visaFreeCountrySet.size === 0) {
+          return reply.status(422).send(fail('NO_VISA_FREE_DESTINATIONS', 'No visa-free destinations found for that passport.'));
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Visa lookup failed';
+        return reply.status(502).send(fail('VISA_LOOKUP_FAILED', message, true));
+      }
+    }
 
     let beam: BeamState[] = [{
       legs: [],
@@ -109,10 +132,17 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
 
           // ── Direct-only qualifying filter ────────────────────────────────
           const qualifying = flights.filter(
-            (f) => f.priceUsd <= availableForHop
-              && !state.visited.has(f.destinationIata)
-              && f.stops === 0
-              && !excludedDestinations.includes(f.destinationIata),
+            (f) => {
+              if (f.priceUsd > availableForHop) return false;
+              if (state.visited.has(f.destinationIata)) return false;
+              if (f.stops !== 0) return false;
+              if (excludedDestinations.includes(f.destinationIata)) return false;
+              if (visaFreeCountrySet) {
+                const cc = airportService.getByIata(f.destinationIata)?.city.countryCode;
+                if (!cc || !visaFreeCountrySet.has(cc.toUpperCase())) return false;
+              }
+              return true;
+            },
           );
           if (qualifying.length === 0) return null;
 
@@ -151,7 +181,8 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
             );
 
           } else {
-            // value: cheapest direct flight
+            // value + visafree: cheapest direct flight from the (already
+            // visa-filtered, when visafree) qualifying pool.
             candidate = qualifying[0];
           }
 
@@ -179,7 +210,10 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
     const activeBeam = beam.filter((s) => s.legs.length > 0);
 
     if (activeBeam.length === 0) {
-      return reply.status(422).send(fail('NO_TRIPS_FOUND', 'No direct flights found within your budget. Try a higher budget or a wider date range.'));
+      const msg = tripStyle === 'visafree'
+        ? 'No direct visa-free trips found within your budget. Try a higher budget, a wider date range, or switch optimizer.'
+        : 'No direct flights found within your budget. Try a higher budget or a wider date range.';
+      return reply.status(422).send(fail('NO_TRIPS_FOUND', msg));
     }
 
     // ── Return legs (always run — return home is mandatory) ──────────────────

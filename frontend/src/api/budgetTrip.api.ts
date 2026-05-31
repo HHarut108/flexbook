@@ -10,8 +10,10 @@ export interface BudgetPlanParams {
   maxStops: number; // 1–15
   nightsPerStop: number;
   nightsPerStopArray?: number[];
-  tripStyle: 'value' | 'offpath' | 'sunny' | 'short';
+  tripStyle: 'value' | 'offpath' | 'sunny' | 'short' | 'visafree';
   excludedDestinations?: string[];
+  /** ISO-2 citizenship — required when tripStyle === 'visafree'. */
+  passportCode?: string;
 }
 
 export interface BudgetPlanLeg extends FlightOption {
