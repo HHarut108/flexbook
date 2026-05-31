@@ -1254,6 +1254,11 @@ export function TripPlannerScreen() {
                 {STYLE_OPTIONS.map((opt) => {
                   const isVisaFree = opt.value === 'visafree';
                   const isActive = tripStyle === opt.value;
+                  // Pending visual feedback: while the popup is open after the
+                  // user clicked the option, give the row a ring so it's clear
+                  // *which* option triggered the popup even though `tripStyle`
+                  // hasn't flipped yet (it only flips on popup confirm).
+                  const isPending = isVisaFree && pendingVisaFreeSelect && visaPopupOpen && !isActive;
                   return (
                     <div key={opt.value} className="flex flex-col gap-1.5">
                       <button
@@ -1272,7 +1277,9 @@ export function TripPlannerScreen() {
                         className={`flex items-start gap-3 p-3 rounded-2xl border text-left transition-all ${
                           isActive
                             ? 'bg-indigo-soft border-indigo-border'
-                            : 'bg-surface-2 border-border hover:border-indigo-border'
+                            : isPending
+                              ? 'bg-surface-2 border-indigo-border ring-2 ring-indigo/30'
+                              : 'bg-surface-2 border-border hover:border-indigo-border'
                         }`}
                       >
                         <div className={`w-4 h-4 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center transition-all ${
