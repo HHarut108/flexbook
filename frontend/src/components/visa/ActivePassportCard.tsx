@@ -207,13 +207,12 @@ export function ActivePassportCard({
           </span>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-text-primary leading-tight">
-              Your {passportName} citizenship
+              Visa requirements for {passportName} citizens
               <span className="ml-1 text-base align-middle" aria-hidden="true">
                 {countryFlag(passport)}
               </span>
             </p>
             <p className="text-[11px] text-text-muted leading-tight mt-0.5">
-              From your profile.{' '}
               <button
                 type="button"
                 onClick={() => onOpenPicker('pick')}
@@ -238,7 +237,7 @@ export function ActivePassportCard({
           </span>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-text-primary leading-tight">
-              Visas with {passportName} citizenship
+              Visa requirements for {passportName} citizens
             </p>
             <p className="text-[11px] text-text-muted leading-snug mt-0.5">
               Just for this session.{' '}
@@ -287,7 +286,7 @@ export function ActivePassportCard({
           </span>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-text-primary leading-tight">
-              Visas with {passportName} citizenship
+              Visa requirements for {passportName} citizens
             </p>
             <p className="text-[11px] text-text-muted leading-snug mt-0.5">
               Just for this session.{' '}
@@ -331,7 +330,7 @@ export function ActivePassportCard({
         </span>
         <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold text-text-primary leading-tight">
-            Visas with {passportName} citizenship
+            Visa requirements for {passportName} citizens
             <span className="ml-1 text-base align-middle" aria-hidden="true">
               {countryFlag(passport)}
             </span>
