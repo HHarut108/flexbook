@@ -206,16 +206,27 @@ export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: P
               )}
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-indigo-200 font-mono mb-0.5">
-                {mode === 'signup' ? 'Sign up' : 'Visa check'}
-              </p>
-              <h3 className="text-lg font-bold text-white leading-tight">
-                {mode === 'signup'
-                  ? 'Get personalized recommendations'
-                  : user
-                    ? 'Check visas for another citizenship'
-                    : 'Check visa requirements'}
-              </h3>
+              {mode === 'signup' ? (
+                // Signup keeps its two-line header — the eyebrow / sub-headline
+                // split helps signal that this is a different surface than the
+                // visa picker the user came in on.
+                <>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-indigo-200 font-mono mb-0.5">
+                    Sign up
+                  </p>
+                  <h3 className="text-lg font-bold text-white leading-tight">
+                    Get personalized recommendations
+                  </h3>
+                </>
+              ) : (
+                // Pick mode: single visible heading. Previously had a low-
+                // contrast `text-indigo-200` eyebrow above a redundant
+                // sub-headline ("Check visas for another citizenship"); both
+                // are gone in favour of one prominent line.
+                <h3 className="text-base font-bold text-white leading-tight uppercase tracking-[0.16em] font-mono">
+                  Visa requirement check
+                </h3>
+              )}
             </div>
           </div>
           <button
@@ -230,14 +241,15 @@ export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: P
         {/* Body */}
         <div className="px-5 pt-5 pb-5 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-text-muted uppercase tracking-wide mb-1.5">
-              {user ? 'Whose citizenship are you checking?' : 'Your citizenship'}
-            </label>
+            {/* No label above the picker — the header already says
+                "Visa requirement check" and the helper below is fully
+                descriptive. The previous "Whose citizenship…" / "Your
+                citizenship" labels duplicated the header without adding
+                context. */}
             <PassportPicker value={selected} onChange={setSelected} size="md" />
             <p className="mt-2 text-[11px] text-text-muted leading-relaxed">
-              {user
-                ? 'Pick any citizenship to look up visa requirements — this won’t update your profile unless you tick the box below.'
-                : 'We use this to show whether you need a visa for each destination.'}
+              Pick the passport you&apos;ll be traveling with to view visa
+              requirements.
             </p>
           </div>
 
@@ -254,7 +266,7 @@ export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: P
                 className="mt-0.5 h-3.5 w-3.5 rounded border-border accent-indigo"
               />
               <span>
-                Save this as my citizenship
+                Save to profile
                 <span className="block text-[10px] text-text-muted mt-0.5">
                   Leave unticked when checking on behalf of someone else.
                 </span>
@@ -427,7 +439,7 @@ export function VisaCheckPopup({ onClose, onCommitted, initialMode = 'pick' }: P
               {busy
                 ? 'Saving…'
                 : user && saveToProfile
-                  ? 'Save citizenship & check visas'
+                  ? 'Save to profile & check visas'
                   : 'Check visas'}
             </button>
           )}
