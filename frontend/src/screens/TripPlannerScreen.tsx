@@ -14,6 +14,7 @@ import {
   PlaneLanding,
   PlaneTakeoff,
   RefreshCw,
+  ShieldCheck,
   Users,
   Wallet,
   CalendarDays,
@@ -26,6 +27,9 @@ import { clearSessionHint } from '../utils/sessionHint';
 import { planBudgetTrip, BudgetPlanResult, BudgetPlanLeg } from '../api/budgetTrip.api';
 import { nearbyAirportsByCoords } from '../api/airports.api';
 import { resolveUserCoords, readCachedCoords, readCachedNearby, cacheNearby } from '../utils/geolocation.utils';
+import { useCurrentPassport } from '../hooks/useCurrentPassport';
+import { VisaCheckPopup } from '../components/visa/VisaCheckPopup';
+import { COUNTRIES } from '../data/countries';
 
 const TripMap = lazy(() => import('../components/TripMap').then((m) => ({ default: m.TripMap })));
 
@@ -38,7 +42,11 @@ const POPULAR_AIRPORTS: Pick<Airport, 'iata' | 'name' | 'city'>[] = [
 /* ── types ── */
 
 type DestCount = number | 'max'; // number = 1-15; 'max' = let algorithm decide
-type TripStyle = 'value' | 'offpath' | 'sunny' | 'short';
+type TripStyle = 'value' | 'offpath' | 'sunny' | 'short' | 'visafree';
+
+function countryFlag(code: string): string {
+  return code.toUpperCase().replace(/./g, (c) => String.fromCodePoint(c.charCodeAt(0) + 127397));
+}
 
 /* ── helpers ── */
 
@@ -607,10 +615,11 @@ function PlanResult({
 
 
 const STYLE_OPTIONS: { value: TripStyle; label: string; sub: string }[] = [
-  { value: 'value',  label: 'Best value',      sub: 'Cheapest direct flight at every stop — stretch your budget as far as possible.' },
-  { value: 'offpath', label: 'Furthest',        sub: 'Longest direct hop at each stop — budget spread evenly so later stops never run dry. May go slightly over budget on the return.' },
-  { value: 'sunny',  label: 'Sun chaser',       sub: 'Picks the warmest, clearest destination available at each hop — best for winter escapes.' },
-  { value: 'short',  label: 'Shortest flights', sub: 'Quickest direct hop at each stop — spend less time in the air and more time on the ground.' },
+  { value: 'value',    label: 'Best value',         sub: 'Cheapest direct flight at every stop — stretch your budget as far as possible.' },
+  { value: 'visafree', label: 'Visa-free escape',   sub: 'Skip the paperwork. We only show destinations your passport opens automatically — no embassy queues, no e-visa forms.' },
+  { value: 'offpath',  label: 'Furthest',           sub: 'Longest direct hop at each stop — budget spread evenly so later stops never run dry. May go slightly over budget on the return.' },
+  { value: 'sunny',    label: 'Sun chaser',         sub: 'Picks the warmest, clearest destination available at each hop — best for winter escapes.' },
+  { value: 'short',    label: 'Shortest flights',   sub: 'Quickest direct hop at each stop — spend less time in the air and more time on the ground.' },
 ];
 
 /* ── Main screen ── */
@@ -619,6 +628,14 @@ export function TripPlannerScreen() {
   const navigate = useNavigate();
   const { setOrigin, setPassengers, reset: resetTrip, addLeg, finalize } = useTripStore();
   const { reset: resetSession } = useSessionStore();
+  // useCurrentPassport resolves session override > profile primary > null, so
+  // a signed-in user's saved citizenship feeds the popup as a prefill for free.
+  const { passport } = useCurrentPassport();
+  const [visaPopupOpen, setVisaPopupOpen] = useState(false);
+  // True when the user picked the visa-free option but hasn't yet committed a
+  // citizenship in the popup. Used to gate the Search button + open the popup
+  // on demand without flipping the radio state prematurely.
+  const [pendingVisaFreeSelect, setPendingVisaFreeSelect] = useState(false);
 
   // Form state
   const [originQuery, setOriginQuery] = useState('');
@@ -740,7 +757,12 @@ export function TripPlannerScreen() {
     dateFrom !== '' &&
     dateTo !== '' &&
     Number(budget) >= 100 &&
-    destCount !== null;
+    destCount !== null &&
+    (tripStyle !== 'visafree' || !!passport);
+
+  const passportCountryName = passport
+    ? (COUNTRIES.find((c) => c.code === passport)?.name ?? passport)
+    : null;
 
   async function handleSearch() {
     if (!canSearch || !originAirport || destCount === null) return;
@@ -767,6 +789,7 @@ export function TripPlannerScreen() {
           : (nightsPerDestArray.length > 0 ? nightsPerDestArray : undefined),
         tripStyle,
         excludedDestinations: excludedDestinations.length > 0 ? excludedDestinations : undefined,
+        passportCode: tripStyle === 'visafree' && passport ? passport : undefined,
       });
       setResult(data);
     } catch (err: any) {
@@ -854,6 +877,7 @@ export function TripPlannerScreen() {
           : (nightsPerDestArray.length > 0 ? nightsPerDestArray : undefined),
         tripStyle,
         excludedDestinations: nextExcluded,
+        passportCode: tripStyle === 'visafree' && passport ? passport : undefined,
       });
       setResult(data);
     } catch (err: any) {
@@ -1227,32 +1251,69 @@ export function TripPlannerScreen() {
             <div className="flex flex-col gap-2">
               <span className="text-xs font-medium text-text-muted px-1">What should we optimise for?</span>
               <div className="flex flex-col gap-2">
-                {STYLE_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setTripStyle(opt.value)}
-                    className={`flex items-start gap-3 p-3 rounded-2xl border text-left transition-all ${
-                      tripStyle === opt.value
-                        ? 'bg-indigo-soft border-indigo-border'
-                        : 'bg-surface-2 border-border hover:border-indigo-border'
-                    }`}
-                  >
-                    <div className={`w-4 h-4 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center transition-all ${
-                      tripStyle === opt.value ? 'border-indigo bg-indigo' : 'border-border'
-                    }`}>
-                      {tripStyle === opt.value && (
-                        <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                {STYLE_OPTIONS.map((opt) => {
+                  const isVisaFree = opt.value === 'visafree';
+                  const isActive = tripStyle === opt.value;
+                  return (
+                    <div key={opt.value} className="flex flex-col gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Visa-free always opens the picker (prefilled with
+                          // profile/session citizenship) per the product spec.
+                          // The style only flips active after the popup commits.
+                          if (isVisaFree) {
+                            setPendingVisaFreeSelect(true);
+                            setVisaPopupOpen(true);
+                            return;
+                          }
+                          setTripStyle(opt.value);
+                        }}
+                        className={`flex items-start gap-3 p-3 rounded-2xl border text-left transition-all ${
+                          isActive
+                            ? 'bg-indigo-soft border-indigo-border'
+                            : 'bg-surface-2 border-border hover:border-indigo-border'
+                        }`}
+                      >
+                        <div className={`w-4 h-4 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center transition-all ${
+                          isActive ? 'border-indigo bg-indigo' : 'border-border'
+                        }`}>
+                          {isActive && (
+                            <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className={`text-sm font-semibold flex items-center gap-1.5 ${isActive ? 'text-indigo' : 'text-text-primary'}`}>
+                            {opt.label}
+                            {isVisaFree && (
+                              <ShieldCheck size={13} className={isActive ? 'text-indigo' : 'text-emerald-600 dark:text-emerald-400'} />
+                            )}
+                          </span>
+                          <span className="text-xs text-text-muted leading-snug block mt-0.5">{opt.sub}</span>
+                        </div>
+                      </button>
+
+                      {/* Passport chip — only when visa-free is the active style
+                          and we have a committed citizenship. Lets the user see
+                          and change which passport we're filtering on without
+                          leaving the form. */}
+                      {isVisaFree && isActive && passport && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPendingVisaFreeSelect(false);
+                            setVisaPopupOpen(true);
+                          }}
+                          className="self-start ml-7 inline-flex items-center gap-1.5 text-[11px] font-medium bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 px-2.5 py-1 rounded-full hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+                        >
+                          <span aria-hidden>{countryFlag(passport)}</span>
+                          <span>Visa-free for {passportCountryName} citizens</span>
+                          <span className="text-emerald-500 dark:text-emerald-400 ml-0.5">· Change</span>
+                        </button>
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <span className={`text-sm font-semibold block ${tripStyle === opt.value ? 'text-indigo' : 'text-text-primary'}`}>
-                        {opt.label}
-                      </span>
-                      <span className="text-xs text-text-muted leading-snug">{opt.sub}</span>
-                    </div>
-                  </button>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1318,6 +1379,23 @@ export function TripPlannerScreen() {
             ) : renderResults()}
           </div>
         </div>
+
+        {/* Visa-free citizenship picker — opens on Visa-free option click
+            (always, prefilled) and on the chip's "Change" affordance.
+            Committing flips tripStyle to visafree; closing without commit
+            leaves the previous style intact. */}
+        {visaPopupOpen && (
+          <VisaCheckPopup
+            onClose={() => {
+              setVisaPopupOpen(false);
+              setPendingVisaFreeSelect(false);
+            }}
+            onCommitted={() => {
+              if (pendingVisaFreeSelect) setTripStyle('visafree');
+              setPendingVisaFreeSelect(false);
+            }}
+          />
+        )}
 
         {/* ── Results column — desktop only ── */}
         <div className="hidden md:block sticky top-[73px]">

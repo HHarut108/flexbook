@@ -24,8 +24,17 @@ interface Country {
 
 const REQ_TTL_MS = 60 * 60 * 1000; // 1h
 const COUNTRIES_TTL_MS = 6 * 60 * 60 * 1000; // 6h
+const FREE_TTL_MS = 60 * 60 * 1000; // 1h
 const reqCache = new Map<string, { data: Requirement; expiresAt: number }>();
 let countriesCache: { data: Country[]; expiresAt: number } | null = null;
+const freeCache = new Map<string, { data: string[]; expiresAt: number }>();
+
+interface VisaFreeUpstream {
+  passport: string;
+  statuses: string[];
+  destinations: string[];
+  last_updated: string;
+}
 
 function disabledReply() {
   return fail('VISA_DISABLED', 'Visa lookups are not configured on this server.');
@@ -52,6 +61,29 @@ async function callVisaService<T>(path: string): Promise<{ ok: true; data: T } |
     const message = err instanceof Error ? err.message : 'Upstream unreachable';
     return { ok: false, status: 502, message };
   }
+}
+
+/**
+ * Resolve the set of ISO-2 destinations that are "open" (visa free or
+ * visa on arrival) for the given passport. Cached for 1h. Reusable from
+ * other backend routes (e.g. budget-plan) without going through HTTP.
+ * Throws on configuration or upstream failure so callers can branch.
+ */
+export async function fetchVisaFreeDestinations(passport: string): Promise<string[]> {
+  if (!config.VISA_SERVICE_URL) {
+    throw new Error('Visa lookups are not configured on this server.');
+  }
+  const key = passport.toUpperCase();
+  const cached = freeCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.data;
+
+  const result = await callVisaService<VisaFreeUpstream>(`/visa-free?passport=${key}`);
+  if (!result.ok) {
+    throw new Error(result.message);
+  }
+  const destinations = result.data.destinations.map((c) => c.toUpperCase());
+  freeCache.set(key, { data: destinations, expiresAt: Date.now() + FREE_TTL_MS });
+  return destinations;
 }
 
 export async function visaRoutes(app: FastifyInstance) {
@@ -85,6 +117,24 @@ export async function visaRoutes(app: FastifyInstance) {
 
     reqCache.set(key, { data: result.data, expiresAt: Date.now() + REQ_TTL_MS });
     return ok(result.data);
+  });
+
+  app.get('/visa/free-destinations', async (request, reply) => {
+    if (!config.VISA_SERVICE_URL) {
+      return reply.status(503).send(disabledReply());
+    }
+    const passportRaw = (request.query as { passport?: unknown })?.passport;
+    if (typeof passportRaw !== 'string' || !/^[A-Z]{2}$/i.test(passportRaw)) {
+      return reply.status(400).send(fail('INVALID_PARAMS', '"passport" must be an ISO-2 code.'));
+    }
+    const passport = passportRaw.toUpperCase();
+    try {
+      const list = await fetchVisaFreeDestinations(passport);
+      return ok({ passport, destinations: list });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Upstream unreachable';
+      return reply.status(502).send(fail('UPSTREAM_ERROR', message, true));
+    }
   });
 
   app.get('/visa/countries', async (_request, reply) => {

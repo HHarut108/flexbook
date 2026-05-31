@@ -7,6 +7,7 @@ import type {
   Country,
   VisaDataSource,
   VisaRequirement,
+  VisaStatus,
 } from '../types/visa';
 
 /**
@@ -115,6 +116,22 @@ export class PassportIndexSource implements VisaDataSource {
 
   hasCountry(code: string): boolean {
     return this.data.has(code.toUpperCase());
+  }
+
+  listDestinationsByStatus(passport: string, statuses: VisaStatus[]): string[] {
+    const p = passport.toUpperCase();
+    const allowed = new Set(statuses);
+    const inner = this.data.get(p);
+    if (!inner) return [];
+    const matches: string[] = [];
+    for (const [destination, req] of inner) {
+      if (allowed.has(req.status)) matches.push(destination);
+    }
+    // Same-country trips are always visa-free; mirror lookup()'s behavior.
+    if (allowed.has('visa free') && this.data.has(p) && !matches.includes(p)) {
+      matches.push(p);
+    }
+    return matches.sort();
   }
 
   lastUpdated(): string {

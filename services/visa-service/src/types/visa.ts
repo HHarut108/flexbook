@@ -34,5 +34,10 @@ export interface VisaDataSource {
   lookup(passport: string, destination: string): VisaRequirement | null;
   listCountries(): Country[];
   hasCountry(code: string): boolean;
+  /**
+   * Return ISO-2 destination codes whose visa status for the given passport
+   * is in `statuses`. The passport's own country is always included.
+   */
+  listDestinationsByStatus(passport: string, statuses: VisaStatus[]): string[];
   lastUpdated(): string;
 }
