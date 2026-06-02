@@ -11,6 +11,7 @@ import {
   Check,
   X,
   LogIn,
+  CalendarSearch,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -46,6 +47,22 @@ const TOOLS: Tool[] = [
     requiresAuth: true,
     icon: Wallet,
     gradient: 'linear-gradient(135deg, rgba(55,48,163,0.97) 0%, rgba(79,70,229,0.97) 100%)',
+  },
+  {
+    id: 'when-to-go',
+    name: 'When To Go',
+    tagline: "Find the cheapest day to fly between any two cities",
+    description:
+      "Pick a departure city, an arrival city, and a flexible window — we'll show you the single cheapest day to fly. Change anything and the answer updates live.",
+    features: [
+      'Search any city pair, no account needed',
+      'Use a preset (this month, next 90 days) or a custom date range',
+      'Tap "Book this flight" to jump straight into the cheapest itinerary',
+    ],
+    path: '/when-to-go',
+    requiresAuth: false,
+    icon: CalendarSearch,
+    gradient: 'linear-gradient(135deg, rgba(13,148,136,0.97) 0%, rgba(16,185,129,0.97) 100%)',
   },
 ];
 
@@ -145,7 +162,6 @@ export function ToolsScreen({ onMenuOpen }: Props) {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const [authPrompt, setAuthPrompt] = useState<Tool | null>(null);
-  const primaryTool = TOOLS[0];
 
   function openTool(tool: Tool) {
     if (tool.requiresAuth && !user) {
@@ -154,6 +170,12 @@ export function ToolsScreen({ onMenuOpen }: Props) {
     }
     navigate(tool.path);
   }
+
+  // Surface the union of feature bullets on the left rail so the hero pitch
+  // grows with the toolkit. De-duplicated by string.
+  const allFeatures = Array.from(
+    new Set(TOOLS.flatMap((t) => t.features)),
+  ).slice(0, 4);
 
   const left = (
     <div className="max-w-xl">
@@ -174,7 +196,7 @@ export function ToolsScreen({ onMenuOpen }: Props) {
       </p>
 
       <ul className="mt-6 space-y-2.5">
-        {primaryTool.features.map((f) => (
+        {allFeatures.map((f) => (
           <li key={f} className="flex items-start gap-2.5 text-sm text-text-muted">
             <span className="mt-0.5 w-5 h-5 rounded-full bg-emerald/10 flex items-center justify-center shrink-0">
               <Check size={12} className="text-emerald" />
@@ -186,15 +208,23 @@ export function ToolsScreen({ onMenuOpen }: Props) {
     </div>
   );
 
+  const right = (
+    <div className="flex flex-col gap-4">
+      {TOOLS.map((tool) => (
+        <ToolLauncher key={tool.id} tool={tool} onOpen={openTool} />
+      ))}
+    </div>
+  );
+
   return (
     <>
       <MarketingShell
         active="tools"
         title="Tools"
-        description="FlexBook Tools — smart planning utilities for multi-stop travellers, including the Budget Planner that builds the cheapest trip within your budget."
+        description="FlexBook Tools — smart planning utilities for multi-stop travellers, including When To Go (cheapest day to fly) and the Budget Planner."
         onMenuOpen={onMenuOpen}
         left={left}
-        right={<ToolLauncher tool={primaryTool} onOpen={openTool} />}
+        right={right}
       />
       {authPrompt && <AuthPrompt tool={authPrompt} onClose={() => setAuthPrompt(null)} />}
     </>

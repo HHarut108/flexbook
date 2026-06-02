@@ -209,3 +209,111 @@ export async function fetchRapidApiKiwiFlights(
       };
     });
 }
+
+// ─── Calendar mode ─────────────────────────────────────────────────────────────
+// Kiwi's /one-way endpoint accepts an `outboundDepartureDateStart` /
+// `outboundDepartureDateEnd` range and, when sorted ASCENDING by price, returns
+// the cheapest itineraries across the entire window in a single call. The spike
+// in scripts/spike-calendar.ts confirmed this works (one HTTP call returned 15
+// distinct departure days for a 30-day range, ~2.7s, 1 quota unit).
+//
+// Range queries return at most ~25-50 itineraries truncated by price-asc, so
+// long windows must be chunked by the *caller* to guarantee per-day coverage —
+// see FlightService.priceCalendar for the chunking strategy.
+
+export interface KiwiCalendarDay {
+  /** YYYY-MM-DD departure date */
+  date: string;
+  /** Cheapest fare in the requested currency */
+  priceUsd: number;
+  currency: string;
+  /** Deep link to book the cheapest itinerary for this day */
+  bookingUrl?: string;
+}
+
+export async function fetchRapidApiKiwiCalendar(
+  originIata: string,
+  destinationIata: string,
+  startDate: string,
+  endDate: string,
+  currency = 'USD',
+): Promise<KiwiCalendarDay[]> {
+  const params: Record<string, string | number> = {
+    source: `Airport:${originIata}`,
+    destination: `Airport:${destinationIata}`,
+    currency: currency.toLowerCase(),
+    locale: 'en',
+    adults: 1,
+    children: 0,
+    infants: 0,
+    handbags: 0,
+    holdbags: 0,
+    cabinClass: 'ECONOMY',
+    sortBy: 'PRICE',
+    sortOrder: 'ASCENDING',
+    transportTypes: 'FLIGHT',
+    // Match the per-day search limit. Range queries return a truncated set —
+    // the caller (FlightService.priceCalendar) is responsible for chunking
+    // ranges that span more than ~14 days so each chunk's top-N covers every
+    // day with at least one itinerary.
+    limit: 250,
+    outboundDepartureDateStart: `${startDate}T00:00:00`,
+    outboundDepartureDateEnd: `${endDate}T23:59:59`,
+  };
+
+  let response: RapidKiwiResponse;
+  try {
+    const { data } = await axios.get<RapidKiwiResponse>(
+      `https://${RAPIDAPI_HOST}/one-way`,
+      {
+        params,
+        headers: {
+          'x-rapidapi-key': config.RAPIDAPI_KEY,
+          'x-rapidapi-host': RAPIDAPI_HOST,
+        },
+        timeout: 30000,
+      },
+    );
+    response = data;
+  } catch (err) {
+    if (axios.isAxiosError(err)) {
+      const axiosErr = err as AxiosError;
+      const status = axiosErr.response?.status;
+      if (status === 429) throw new RapidApiRateLimitError();
+      if (status === 401 || status === 403) throw new RapidApiAuthError();
+      if (status && [502, 503, 504].includes(status)) throw new RapidApiUnavailableError(status);
+    }
+    throw err;
+  }
+
+  const itineraries = response.itineraries ?? [];
+  const byDay = new Map<string, KiwiCalendarDay>();
+
+  for (const it of itineraries) {
+    const segments = it?.sector?.sectorSegments ?? [];
+    const dep = segments[0]?.segment?.source?.localTime;
+    if (!dep) continue;
+    const day = dep.slice(0, 10); // YYYY-MM-DD
+    const price = parseFloat(it?.price?.amount ?? 'NaN');
+    if (!Number.isFinite(price) || price <= 0) continue;
+
+    const rawBookingUrl = it.bookingOptions?.edges?.[0]?.node?.bookingUrl ?? '';
+    const bookingUrl = rawBookingUrl
+      ? rawBookingUrl.startsWith('http')
+        ? rawBookingUrl
+        : `${KIWI_BASE}${rawBookingUrl}`
+      : undefined;
+
+    const existing = byDay.get(day);
+    if (!existing || price < existing.priceUsd) {
+      byDay.set(day, {
+        date: day,
+        priceUsd: price,
+        currency: currency.toUpperCase(),
+        bookingUrl,
+      });
+    }
+  }
+
+  return [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
