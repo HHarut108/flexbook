@@ -94,7 +94,7 @@ describe('GET /flights/cheapest-day', () => {
         { date: '2026-08-10', priceUsd: 225, currency: 'USD' },
       ],
       cheapest: { date: '2026-08-03', priceUsd: 138, currency: 'USD', bookingUrl: 'https://kiwi.com/x' },
-      cacheStatus: 'fresh',
+      cacheStatus: 'live',
     });
 
     const res = await app.inject({
@@ -115,7 +115,7 @@ describe('GET /flights/cheapest-day', () => {
     });
     expect(Array.isArray(body.data.days)).toBe(true);
     expect(body.data.days.length).toBe(2);
-    expect(body.data.cacheStatus).toBe('fresh');
+    expect(body.data.cacheStatus).toBe('live');
 
     expect(priceCalendarMock).toHaveBeenCalledWith('EVN', 'CDG', '2026-08-01', '2026-08-31');
   });
@@ -128,7 +128,7 @@ describe('GET /flights/cheapest-day', () => {
       end: '2026-08-07',
       days: [],
       cheapest: null,
-      cacheStatus: 'fresh',
+      cacheStatus: 'live',
     });
 
     await app.inject({

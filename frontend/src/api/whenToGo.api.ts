@@ -5,6 +5,27 @@ import { apiClient } from './client';
  * Mirrors backend/src/routes/cheapestDay.ts. Keep in sync.
  */
 
+/** Per-day cheapest itinerary metadata that powers the rich card + map. */
+export interface CalendarDayItinerary {
+  originIata: string;
+  originCity: string;
+  originLat: number;
+  originLng: number;
+  destinationIata: string;
+  destinationCity: string;
+  destinationCountry: string;
+  destinationLat: number;
+  destinationLng: number;
+  departureDatetime: string;
+  arrivalDatetime: string;
+  durationMinutes: number;
+  airlineName: string;
+  airlineCode?: string;
+  stops: number;
+  viaIatas?: string[];
+  viaCoords?: { lat: number; lng: number }[];
+}
+
 export interface CalendarDay {
   /** YYYY-MM-DD */
   date: string;
@@ -12,6 +33,8 @@ export interface CalendarDay {
   currency: string;
   /** Deep link to the cheapest itinerary for this day (Kiwi). */
   bookingUrl?: string;
+  /** Full itinerary metadata for the cheapest itinerary on this day. */
+  itinerary?: CalendarDayItinerary;
 }
 
 export interface CheapestDayResponse {
@@ -23,7 +46,8 @@ export interface CheapestDayResponse {
   days: CalendarDay[];
   /** The single cheapest day across the requested window. */
   cheapest: CalendarDay | null;
-  cacheStatus: 'hit' | 'fresh' | 'partial';
+  /** Always 'live' — see backend FlightService.priceCalendar. */
+  cacheStatus: 'live';
 }
 
 export async function fetchCheapestDay(
