@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { encodeItinerary, decodeItinerary } from './url.utils';
+import LZString from 'lz-string';
+import { encodeItinerary, decodeItinerary, decodeSession, encodeSession } from './url.utils';
 import type { Itinerary } from '@fast-travel/shared';
 
 const SAMPLE_ITINERARY: Itinerary = {
@@ -91,5 +92,36 @@ describe('decodeItinerary — error handling', () => {
   it('returns null for valid base64 that is not JSON', () => {
     // LZString can compress arbitrary data; decompressed but not valid JSON
     expect(decodeItinerary('junk-payload-xyz')).toBeNull();
+  });
+
+  it('returns null for valid JSON with the wrong shape (schema rejects)', () => {
+    // A crafted ?t= param carrying parsable JSON but not a valid Itinerary
+    // must not slip through — without runtime validation, downstream code
+    // crashes on .legs.map / .origin.iata access.
+    const garbage = LZString.compressToEncodedURIComponent(
+      JSON.stringify({ origin: 'oops', legs: 'not-an-array', status: 'planning' }),
+    );
+    expect(decodeItinerary(garbage)).toBeNull();
+  });
+
+  it('returns null for an Itinerary missing required fields', () => {
+    const partial = LZString.compressToEncodedURIComponent(
+      JSON.stringify({ origin: { iata: 'LHR' } }), // missing legs, status, passengers, etc.
+    );
+    expect(decodeItinerary(partial)).toBeNull();
+  });
+});
+
+describe('decodeSession — schema validation', () => {
+  it('round-trips a minimal session', () => {
+    const encoded = encodeSession({ selectedDate: '2026-06-01' });
+    expect(decodeSession(encoded)).toEqual({ selectedDate: '2026-06-01' });
+  });
+
+  it('returns null for a payload of the wrong shape', () => {
+    const bogus = LZString.compressToEncodedURIComponent(
+      JSON.stringify({ selectedFlight: 'not-an-object', selectedDate: 42 }),
+    );
+    expect(decodeSession(bogus)).toBeNull();
   });
 });
