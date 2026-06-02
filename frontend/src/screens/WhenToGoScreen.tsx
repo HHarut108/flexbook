@@ -157,13 +157,13 @@ function CityPicker({ label, iata, onSelect, onClear }: CityPickerProps) {
           )}
         </button>
       ) : (
-        <div className="input-field flex items-center gap-2 px-3 rounded-2xl" style={{ height: '48px' }}>
+        <div className="input-field w-full flex items-center gap-2 px-3 rounded-2xl" style={{ height: '48px' }}>
           <Search size={16} className="text-text-xmuted shrink-0" />
           <input
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={`Search ${label.toLowerCase()} city or airport…`}
+            placeholder="City or airport…"
             className="flex-1 bg-transparent outline-none text-sm font-medium text-text-primary placeholder:text-text-xmuted"
             aria-label={`Search ${label}`}
           />
@@ -785,7 +785,7 @@ export function WhenToGoScreen() {
           {/* Route */}
           <div className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-text-muted px-1">Route</span>
-            <div className="grid grid-cols-[1fr,auto,1fr] gap-2 items-center">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2 items-center">
               <CityPicker label="From" iata={fromIata} onSelect={setFrom} onClear={clearFrom} />
               <button
                 type="button"
