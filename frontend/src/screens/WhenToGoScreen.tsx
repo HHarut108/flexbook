@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import axios from 'axios';
 import { Airport } from '@fast-travel/shared';
 import {
+  ArrowLeft,
   ArrowLeftRight,
   ArrowRight,
   CalendarDays,
@@ -23,15 +25,17 @@ import { format, addDays, addMonths, endOfMonth, startOfMonth } from 'date-fns';
 import { useAirportSearch } from '../hooks/useAirportSearch';
 import { fetchCheapestDay, CheapestDayResponse, CalendarDay } from '../api/whenToGo.api';
 import { track, AnalyticsEvent } from '../lib/analytics';
-import { MarketingShell } from '../components/MarketingShell';
 import { DateRangePicker } from '../components/DateRangePicker';
 import { SingleFlightMap } from '../components/SingleFlightMap';
-import { useAuthStore } from '../store/auth.store';
 
 /* ────────────────────────────────────────────────────────────────────────────
    When To Go — pick origin, destination, and a window. The user hits Search
    and we return the cheapest single day in that window with a rich card and
    a map preview. URL state via ?from/?to/?start/?end keeps it shareable.
+
+   Layout mirrors TripPlannerScreen (Budget Planner) so both tools share the
+   same chrome: sticky tool header, 400px form column, sticky map + result
+   column on desktop.
    ──────────────────────────────────────────────────────────────────────────── */
 
 const TODAY = () => format(new Date(), 'yyyy-MM-dd');
@@ -120,14 +124,14 @@ function CityPicker({ label, iata, onSelect, onClear }: CityPickerProps) {
           type="button"
           onClick={() => setOpen(true)}
           className="input-field w-full flex items-center gap-2 px-3 rounded-2xl text-left"
-          style={{ height: '52px' }}
+          style={{ height: '48px' }}
         >
           <MapPin size={16} className="text-text-xmuted shrink-0" />
           <div className="min-w-0 flex-1">
-            <div className="text-[10px] uppercase tracking-wide text-text-muted font-bold">
+            <div className="text-[10px] uppercase tracking-wide text-text-muted font-bold leading-none">
               {label}
             </div>
-            <div className="text-sm font-semibold text-text-primary truncate">
+            <div className="text-sm font-semibold text-text-primary truncate leading-tight mt-0.5">
               {iata ? iata : <span className="text-text-xmuted font-normal">Pick a city</span>}
             </div>
           </div>
@@ -153,7 +157,7 @@ function CityPicker({ label, iata, onSelect, onClear }: CityPickerProps) {
           )}
         </button>
       ) : (
-        <div className="input-field flex items-center gap-2 px-3 rounded-2xl" style={{ height: '52px' }}>
+        <div className="input-field flex items-center gap-2 px-3 rounded-2xl" style={{ height: '48px' }}>
           <Search size={16} className="text-text-xmuted shrink-0" />
           <input
             ref={inputRef}
@@ -315,33 +319,20 @@ function ResultCard({
   onCtaClick,
   onPickDay,
 }: ResultCardProps) {
-  if (!origin || !destination) {
-    return (
-      <div className="section-shell p-8 text-center">
-        <div className="inline-flex w-14 h-14 rounded-2xl bg-indigo-soft border border-indigo-border items-center justify-center mb-4">
-          <Sparkles size={22} className="text-indigo" />
-        </div>
-        <h3 className="text-lg font-bold text-text-primary mb-1.5">Pick a route to start</h3>
-        <p className="text-sm text-text-muted max-w-sm mx-auto">
-          Choose where you&rsquo;re flying from, where you&rsquo;d like to land, and how flexible you
-          can be — we&rsquo;ll show you the single cheapest day in that window.
-        </p>
-      </div>
-    );
-  }
-
   if (error) {
     return (
-      <div className="section-shell p-6 border-rose-300/50 bg-rose-50/30">
-        <div className="text-sm font-semibold text-rose-700">Couldn&rsquo;t fetch prices</div>
-        <p className="text-xs text-rose-600/80 mt-1">{error}</p>
+      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl px-4 py-3">
+        <p className="text-sm font-semibold text-red-700 dark:text-red-400">
+          Couldn&rsquo;t fetch prices
+        </p>
+        <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-1">{error}</p>
       </div>
     );
   }
 
   if (loading && !result) {
     return (
-      <div className="section-shell p-6">
+      <div className="bg-surface border border-border rounded-3xl p-6">
         <div className="h-5 w-32 bg-surface-2 rounded animate-pulse mb-3" />
         <div className="h-8 w-56 bg-surface-2 rounded animate-pulse mb-2" />
         <div className="h-12 w-32 bg-surface-2 rounded animate-pulse mb-4" />
@@ -354,10 +345,10 @@ function ResultCard({
   const cheapest = result?.cheapest ?? null;
   if (result && !cheapest) {
     return (
-      <div className="section-shell p-6">
-        <div className="text-sm font-semibold text-text-primary mb-1">
+      <div className="bg-surface border border-border rounded-3xl p-6">
+        <p className="text-sm font-semibold text-text-primary mb-1">
           No flights found in this window
-        </div>
+        </p>
         <p className="text-xs text-text-muted">
           Try widening the window or picking a different month.
         </p>
@@ -365,7 +356,28 @@ function ResultCard({
     );
   }
 
-  if (!cheapest) return null;
+  if (!cheapest) {
+    // Pre-search empty state. Mirrors the Budget Planner "Set your budget,
+    // we'll do the rest" treatment so the right column never sits empty.
+    const ready = !!origin && !!destination;
+    return (
+      <div className="flex flex-col items-center gap-3 py-8 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-indigo-soft border border-indigo-border flex items-center justify-center">
+          <Sparkles size={24} className="text-indigo" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-text-primary">
+            {ready ? 'Ready to find the cheapest day' : 'Pick a route to start'}
+          </p>
+          <p className="text-xs text-text-muted mt-1 max-w-xs">
+            {ready
+              ? "Hit Find cheapest day — we'll fetch live prices from Kiwi.com on every search."
+              : "Choose where you're flying from, where you'd like to land, and how flexible you can be — we'll show you the single cheapest day in that window."}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const it = cheapest.itinerary;
   const stopsLabel =
@@ -376,7 +388,7 @@ function ResultCard({
         : `${it.stops} stop${it.stops > 1 ? 's' : ''}`;
 
   return (
-    <div className="section-shell relative overflow-hidden">
+    <div className="bg-surface border border-border rounded-3xl relative overflow-hidden">
       {loading && (
         <div className="absolute inset-0 bg-white/55 backdrop-blur-[1px] z-10 flex items-start justify-center pt-6">
           <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-border shadow-sm text-xs text-text-secondary">
@@ -514,8 +526,6 @@ function ResultCard({
 export function WhenToGoScreen() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
-  const user = useAuthStore((s) => s.user);
-  void user; // MarketingShell reads from the store directly.
 
   const fromIata = (params.get('from') ?? '').toUpperCase();
   const toIata = (params.get('to') ?? '').toUpperCase();
@@ -534,6 +544,14 @@ export function WhenToGoScreen() {
   const [preset, setPreset] = useState<Preset>(initialPreset);
   const [start, setStart] = useState(startParam || computePresetWindow('next-month').start);
   const [end, setEnd] = useState(endParam || computePresetWindow('next-month').end);
+
+  // Full Airport objects for the picked endpoints. Used to render the map
+  // preview before a search runs. After a search, the map prefers itinerary
+  // coords (which include actual airport lat/lng from Kiwi). On URL reload
+  // with bare ?from=/?to= IATA, these stay null until the user re-picks or
+  // until the result lands — same trade-off as TripPlannerScreen.
+  const [fromAirport, setFromAirport] = useState<Airport | null>(null);
+  const [toAirport, setToAirport] = useState<Airport | null>(null);
 
   const [result, setResult] = useState<CheapestDayResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -564,14 +582,26 @@ export function WhenToGoScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromIata, toIata, start, end]);
 
+  /* Drop cached Airport metadata if the URL IATA no longer matches — keeps
+     the map preview honest when the user pastes a fresh share link or clears
+     a side via the URL. */
+  useEffect(() => {
+    if (fromAirport && fromAirport.iata !== fromIata) setFromAirport(null);
+  }, [fromIata, fromAirport]);
+  useEffect(() => {
+    if (toAirport && toAirport.iata !== toIata) setToAirport(null);
+  }, [toIata, toAirport]);
+
   const canSearch = !!fromIata && !!toIata && !!start && !!end && fromIata !== toIata && !loading;
 
   function setFrom(airport: Airport) {
+    setFromAirport(airport);
     const next = new URLSearchParams(params);
     next.set('from', airport.iata);
     setParams(next, { replace: true });
   }
   function clearFrom() {
+    setFromAirport(null);
     const next = new URLSearchParams(params);
     next.delete('from');
     setParams(next, { replace: true });
@@ -579,11 +609,13 @@ export function WhenToGoScreen() {
     setError(null);
   }
   function setTo(airport: Airport) {
+    setToAirport(airport);
     const next = new URLSearchParams(params);
     next.set('to', airport.iata);
     setParams(next, { replace: true });
   }
   function clearTo() {
+    setToAirport(null);
     const next = new URLSearchParams(params);
     next.delete('to');
     setParams(next, { replace: true });
@@ -596,6 +628,8 @@ export function WhenToGoScreen() {
     next.set('from', toIata);
     next.set('to', fromIata);
     setParams(next, { replace: true });
+    setFromAirport(toAirport);
+    setToAirport(fromAirport);
   }
 
   function handlePresetChange(p: Preset) {
@@ -655,7 +689,59 @@ export function WhenToGoScreen() {
     setResult({ ...result, cheapest: day });
   }
 
-  /* ── Renders ── */
+  /* ── Map element — prefers fresh itinerary coords; falls back to picked
+        Airport metadata so the preview shows up before any search runs. ── */
+  const mapElement = (() => {
+    const it = result?.cheapest?.itinerary;
+    if (it) {
+      return (
+        <SingleFlightMap
+          origin={{
+            iata: it.originIata,
+            city: it.originCity,
+            lat: it.originLat,
+            lng: it.originLng,
+          }}
+          destination={{
+            iata: it.destinationIata,
+            city: it.destinationCity,
+            lat: it.destinationLat,
+            lng: it.destinationLng,
+          }}
+          via={
+            it.viaIatas && it.viaCoords
+              ? it.viaIatas.map((iata, i) => ({
+                  iata,
+                  lat: it.viaCoords![i]?.lat ?? 0,
+                  lng: it.viaCoords![i]?.lng ?? 0,
+                }))
+              : []
+          }
+          height="100%"
+        />
+      );
+    }
+    if (fromAirport && toAirport) {
+      return (
+        <SingleFlightMap
+          origin={{
+            iata: fromAirport.iata,
+            city: fromAirport.city.name,
+            lat: fromAirport.city.lat,
+            lng: fromAirport.city.lng,
+          }}
+          destination={{
+            iata: toAirport.iata,
+            city: toAirport.city.name,
+            lat: toAirport.city.lat,
+            lng: toAirport.city.lng,
+          }}
+          height="100%"
+        />
+      );
+    }
+    return null;
+  })();
 
   const buttonLabel = loading
     ? 'Searching…'
@@ -665,174 +751,170 @@ export function WhenToGoScreen() {
         : 'Search again'
       : 'Find cheapest day';
 
-  const leftPanel = (
-    <div className="max-w-xl w-full">
-      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-soft border border-indigo-border mb-4">
-        <Sparkles size={12} className="text-indigo" />
-        <span className="text-[11px] font-bold text-indigo tracking-wide uppercase">When To Go</span>
-      </div>
-      <h1
-        className="font-black text-text-primary leading-[0.95]"
-        style={{ fontSize: 'clamp(2rem, 4.4vw, 3rem)', letterSpacing: '-0.045em' }}
-      >
-        When&rsquo;s it <span className="text-indigo">cheap</span> to fly?
-      </h1>
-      <p className="mt-3 text-sm text-text-muted leading-relaxed max-w-md">
-        Pick a route and a window — we&rsquo;ll find the single cheapest day. Prices come live from
-        Kiwi.com on every search.
-      </p>
-
-      <div className="mt-6 section-shell p-5">
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr,auto,1fr] gap-2 items-end mb-4">
-          <CityPicker label="From" iata={fromIata} onSelect={setFrom} onClear={clearFrom} />
-          <button
-            type="button"
-            onClick={swap}
-            disabled={!fromIata || !toIata}
-            className="self-center sm:self-end w-10 h-10 rounded-full bg-surface-2 border border-border flex items-center justify-center text-text-secondary hover:text-indigo hover:border-indigo-border transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-            aria-label="Swap origin and destination"
-          >
-            <ArrowLeftRight size={14} />
-          </button>
-          <CityPicker label="To" iata={toIata} onSelect={setTo} onClear={clearTo} />
-        </div>
-
-        <div className="pt-3 border-t border-border/60">
-          <div className="text-[10px] uppercase tracking-wide text-text-muted font-bold mb-2 flex items-center gap-1.5">
-            <CalendarDays size={11} /> Window
-          </div>
-          <WindowPicker
-            preset={preset}
-            start={start}
-            end={end}
-            onPresetChange={handlePresetChange}
-            onStartChange={setStart}
-            onEndChange={setEnd}
-          />
-        </div>
-
-        <button
-          type="button"
-          onClick={runSearch}
-          disabled={!canSearch}
-          className={`mt-5 flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl text-sm font-bold transition-all active:scale-[0.98] ${
-            canSearch
-              ? 'bg-indigo text-white hover:bg-indigo/90'
-              : 'bg-surface-2 text-text-xmuted cursor-not-allowed border border-border'
-          }`}
-          style={canSearch ? { boxShadow: '0 10px 28px rgba(55,48,163,0.28)' } : undefined}
-        >
-          {loading ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
-          {buttonLabel}
-        </button>
-
-        {!canSearch && (fromIata === toIata && fromIata) && (
-          <p className="mt-2 text-[11px] text-rose-600 text-center">
-            Origin and destination must differ.
-          </p>
-        )}
-      </div>
-
-      <p className="text-[11px] text-text-muted/70 mt-4">
-        Prices are sampled from Kiwi.com on every search. We don&rsquo;t add markups.
-      </p>
-    </div>
-  );
-
-  const map = result?.cheapest?.itinerary ? (
-    <SingleFlightMap
-      origin={{
-        iata: result.cheapest.itinerary.originIata,
-        city: result.cheapest.itinerary.originCity,
-        lat: result.cheapest.itinerary.originLat,
-        lng: result.cheapest.itinerary.originLng,
-      }}
-      destination={{
-        iata: result.cheapest.itinerary.destinationIata,
-        city: result.cheapest.itinerary.destinationCity,
-        lat: result.cheapest.itinerary.destinationLat,
-        lng: result.cheapest.itinerary.destinationLng,
-      }}
-      via={
-        result.cheapest.itinerary.viaIatas && result.cheapest.itinerary.viaCoords
-          ? result.cheapest.itinerary.viaIatas.map((iata, i) => ({
-              iata,
-              lat: result.cheapest!.itinerary!.viaCoords![i]?.lat ?? 0,
-              lng: result.cheapest!.itinerary!.viaCoords![i]?.lng ?? 0,
-            }))
-          : []
-      }
-    />
-  ) : null;
-
-  const rightPanel = (
-    <div className="w-full">
-      {/* Mobile-only list/map tabs — desktop stacks both vertically. */}
-      {map && (
-        <div className="md:hidden flex items-center gap-1 bg-surface-2 p-1 rounded-2xl mb-3 border border-border">
-          <button
-            type="button"
-            onClick={() => setMobileView('list')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all ${
-              mobileView === 'list'
-                ? 'bg-white text-indigo shadow-sm'
-                : 'text-text-muted'
-            }`}
-          >
-            <ListIcon size={12} /> Details
-          </button>
-          <button
-            type="button"
-            onClick={() => setMobileView('map')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all ${
-              mobileView === 'map'
-                ? 'bg-white text-indigo shadow-sm'
-                : 'text-text-muted'
-            }`}
-          >
-            <MapIcon size={12} /> Map
-          </button>
-        </div>
-      )}
-
-      <div className={map ? (mobileView === 'map' ? 'hidden md:block' : 'block') : 'block'}>
-        <ResultCard
-          loading={loading}
-          error={error}
-          result={result}
-          origin={fromIata}
-          destination={toIata}
-          onCtaClick={handleCtaClick}
-          onPickDay={pickDay}
-        />
-      </div>
-
-      {map && (
-        <div className={`mt-4 ${mobileView === 'list' ? 'hidden md:block' : 'block'}`}>
-          {map}
-          {result?.cheapest?.itinerary && (
-            <div className="flex items-center justify-between gap-2 mt-2 text-[11px] text-text-muted px-1">
-              <span className="flex items-center gap-1">
-                <PlaneTakeoff size={11} /> {result.cheapest.itinerary.originCity}
-              </span>
-              <span className="flex items-center gap-1">
-                <PlaneLanding size={11} /> {result.cheapest.itinerary.destinationCity}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+  /* ── Render ────────────────────────────────────────────────────────────── */
 
   return (
-    <MarketingShell
-      active="tools"
-      title="When To Go"
-      description="Pick a departure city, an arrival city, and a flexible window — FlexBook will show you the single cheapest day to fly."
-      onMenuOpen={() => navigate('/tools')}
-      left={leftPanel}
-      right={rightPanel}
-    />
+    <div className="min-h-screen bg-bg">
+      <Helmet>
+        <title>When To Go · Fast Travel</title>
+      </Helmet>
+
+      {/* Header — same chrome as Budget Planner so the tool screens feel like
+          siblings, not unrelated pages. */}
+      <header className="flex items-center gap-3 px-4 md:px-8 py-4 border-b border-border sticky top-0 bg-bg z-10">
+        <button
+          onClick={() => navigate(-1)}
+          className="p-1 -ml-1 text-text-muted hover:text-text-primary transition-colors"
+          aria-label="Go back"
+        >
+          <ArrowLeft size={20} />
+        </button>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-lg font-semibold text-text-primary">When To Go</h1>
+          <p className="text-xs text-text-muted">
+            Find the cheapest day to fly between any two cities
+          </p>
+        </div>
+      </header>
+
+      {/* Content — single column on mobile, two columns on desktop */}
+      <div className="max-w-screen-lg mx-auto px-4 md:px-8 py-6 md:grid md:grid-cols-[400px_1fr] md:gap-10 md:items-start">
+
+        {/* ── Form column ── */}
+        <div className="space-y-5">
+          {/* Route */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-text-muted px-1">Route</span>
+            <div className="grid grid-cols-[1fr,auto,1fr] gap-2 items-center">
+              <CityPicker label="From" iata={fromIata} onSelect={setFrom} onClear={clearFrom} />
+              <button
+                type="button"
+                onClick={swap}
+                disabled={!fromIata || !toIata}
+                className="w-10 h-10 rounded-full bg-surface-2 border border-border flex items-center justify-center text-text-secondary hover:text-indigo hover:border-indigo-border transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                aria-label="Swap origin and destination"
+              >
+                <ArrowLeftRight size={14} />
+              </button>
+              <CityPicker label="To" iata={toIata} onSelect={setTo} onClear={clearTo} />
+            </div>
+            {fromIata && toIata && fromIata === toIata && (
+              <p className="text-[11px] text-rose-600 px-1">
+                Origin and destination must differ.
+              </p>
+            )}
+          </div>
+
+          {/* Window */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-text-muted px-1 flex items-center gap-1.5">
+              <CalendarDays size={11} /> Window
+            </span>
+            <WindowPicker
+              preset={preset}
+              start={start}
+              end={end}
+              onPresetChange={handlePresetChange}
+              onStartChange={setStart}
+              onEndChange={setEnd}
+            />
+          </div>
+
+          {/* Search button */}
+          <button
+            type="button"
+            onClick={runSearch}
+            disabled={!canSearch}
+            className="w-full h-14 bg-indigo hover:bg-indigo/90 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-base rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : (
+              <Search size={18} />
+            )}
+            {buttonLabel}
+          </button>
+
+          <p className="text-[11px] text-text-muted/70 px-1">
+            Prices are sampled from Kiwi.com on every search. We don&rsquo;t add markups.
+          </p>
+
+          {/* Mobile-only results column (matches TripPlannerScreen's pattern). */}
+          <div className="md:hidden">
+            {mapElement && (
+              <div className="flex gap-2 mb-3 border-b border-border pb-3">
+                <button
+                  type="button"
+                  onClick={() => setMobileView('list')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all border ${
+                    mobileView === 'list'
+                      ? 'bg-indigo-soft border-indigo-border text-indigo'
+                      : 'bg-surface-2 border-border text-text-muted hover:border-indigo-border'
+                  }`}
+                >
+                  <ListIcon size={15} />
+                  Details
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileView('map')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all border ${
+                    mobileView === 'map'
+                      ? 'bg-indigo-soft border-indigo-border text-indigo'
+                      : 'bg-surface-2 border-border text-text-muted hover:border-indigo-border'
+                  }`}
+                >
+                  <MapIcon size={15} />
+                  Map
+                </button>
+              </div>
+            )}
+            {mobileView === 'map' && mapElement ? (
+              <div className="h-72 rounded-2xl overflow-hidden border border-border">
+                {mapElement}
+                {result?.cheapest?.itinerary && (
+                  <div className="flex items-center justify-between gap-2 mt-2 text-[11px] text-text-muted px-1">
+                    <span className="flex items-center gap-1">
+                      <PlaneTakeoff size={11} /> {result.cheapest.itinerary.originCity}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <PlaneLanding size={11} /> {result.cheapest.itinerary.destinationCity}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <ResultCard
+                loading={loading}
+                error={error}
+                result={result}
+                origin={fromIata}
+                destination={toIata}
+                onCtaClick={handleCtaClick}
+                onPickDay={pickDay}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* ── Results column — desktop only ── */}
+        <div className="hidden md:block sticky top-[73px]">
+          {mapElement && (
+            <div className="h-56 rounded-2xl overflow-hidden border border-border mb-4">
+              {mapElement}
+            </div>
+          )}
+          <ResultCard
+            loading={loading}
+            error={error}
+            result={result}
+            origin={fromIata}
+            destination={toIata}
+            onCtaClick={handleCtaClick}
+            onPickDay={pickDay}
+          />
+        </div>
+      </div>
+    </div>
   );
 }
