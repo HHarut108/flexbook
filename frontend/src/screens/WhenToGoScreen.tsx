@@ -225,10 +225,23 @@ interface WindowPickerProps {
   start: string;
   end: string;
   onPresetChange: (preset: Preset) => void;
-  onCustomChange: (start: string, end: string) => void;
+  /** Independent setters — DateRangePicker fires two synchronous callbacks
+   *  (onChangeFrom + onChangeTo('')) inside the same event handler. Funneling
+   *  both through a single (s, e) callback closes over a stale `start` for
+   *  the second call and silently reverts the user's pick. Mirror the
+   *  TripPlannerScreen wiring instead, where each setter is independent. */
+  onStartChange: (v: string) => void;
+  onEndChange: (v: string) => void;
 }
 
-function WindowPicker({ preset, start, end, onPresetChange, onCustomChange }: WindowPickerProps) {
+function WindowPicker({
+  preset,
+  start,
+  end,
+  onPresetChange,
+  onStartChange,
+  onEndChange,
+}: WindowPickerProps) {
   const presets: Preset[] = ['this-month', 'next-month', 'next-90', 'custom'];
 
   return (
@@ -258,8 +271,14 @@ function WindowPicker({ preset, start, end, onPresetChange, onCustomChange }: Wi
           dateFrom={start}
           dateTo={end}
           today={TODAY()}
-          onChangeFrom={(v) => onCustomChange(v, end && v && end >= v ? end : '')}
-          onChangeTo={(v) => onCustomChange(start, v)}
+          onChangeFrom={(v) => {
+            onStartChange(v);
+            // Mirror TripPlannerScreen: if the new start is on/after the
+            // current end, the end is no longer valid — clear it so the
+            // user is prompted to pick a fresh end.
+            if (end && v >= end) onEndChange('');
+          }}
+          onChangeTo={onEndChange}
           label=""
           fromLabel="Start"
           toLabel="End"
@@ -594,11 +613,6 @@ export function WhenToGoScreen() {
     }
   }
 
-  function handleCustomChange(s: string, e: string) {
-    setStart(s);
-    setEnd(e);
-  }
-
   async function runSearch() {
     if (!canSearch) return;
     abortRef.current?.abort();
@@ -692,7 +706,8 @@ export function WhenToGoScreen() {
             start={start}
             end={end}
             onPresetChange={handlePresetChange}
-            onCustomChange={handleCustomChange}
+            onStartChange={setStart}
+            onEndChange={setEnd}
           />
         </div>
 
