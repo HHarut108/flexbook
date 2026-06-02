@@ -11,7 +11,6 @@ import { fetchMockFlights } from '../providers/MockFlightProvider';
 import { airportService } from './AirportService';
 import { increment, CallType } from '../utils/apiMetrics';
 import { log } from '../utils/logger';
-import { db } from '../db';
 import {
   ScheduleEntry,
   getScheduleCache,
@@ -189,44 +188,51 @@ function chunkMissingDates(missing: string[], maxChunkDays: number): [string, st
   return chunks;
 }
 
+/** A single day's cheapest itinerary in the price calendar response. */
+export interface CalendarDayResult {
+  date: string;
+  priceUsd: number;
+  currency: string;
+  bookingUrl?: string;
+  /** Full itinerary metadata (airline, times, stops…) — shape mirrors
+   *  KiwiCalendarItinerary so the frontend can render a flight card + map. */
+  itinerary?: {
+    originIata: string;
+    originCity: string;
+    originLat: number;
+    originLng: number;
+    destinationIata: string;
+    destinationCity: string;
+    destinationCountry: string;
+    destinationLat: number;
+    destinationLng: number;
+    departureDatetime: string;
+    arrivalDatetime: string;
+    durationMinutes: number;
+    airlineName: string;
+    airlineCode?: string;
+    stops: number;
+    viaIatas?: string[];
+    viaCoords?: { lat: number; lng: number }[];
+  };
+}
+
 export interface PriceCalendarResult {
   origin: string;
   destination: string;
   start: string;
   end: string;
-  /** All days in the requested range that have a price. Sorted by date asc. */
-  days: { date: string; priceUsd: number; currency: string; bookingUrl?: string }[];
+  /** All days in the requested range that have at least one priced itinerary. */
+  days: CalendarDayResult[];
   /** Cheapest day across the requested range, or null if no flights anywhere. */
-  cheapest: { date: string; priceUsd: number; currency: string; bookingUrl?: string } | null;
-  cacheStatus: 'hit' | 'fresh' | 'partial';
+  cheapest: CalendarDayResult | null;
+  /** Always 'live' for now — the persistent cache layer was removed so prices
+   *  could not get stale on the user; kept on the envelope for future
+   *  stale-while-revalidate work. */
+  cacheStatus: 'live';
 }
 
-const PRICE_CALENDAR_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const PRICE_CALENDAR_CHUNK_DAYS = 14;
-
-function buildCalendarResult(
-  origin: string,
-  destination: string,
-  start: string,
-  end: string,
-  rows: { date: string; cheapestUsd: number | null; currency: string; bookingUrl: string | null }[],
-  cacheStatus: PriceCalendarResult['cacheStatus'],
-): PriceCalendarResult {
-  const days = rows
-    .filter((r): r is typeof r & { cheapestUsd: number } => r.cheapestUsd !== null && r.cheapestUsd > 0)
-    .map((r) => ({
-      date: r.date,
-      priceUsd: r.cheapestUsd,
-      currency: r.currency,
-      bookingUrl: r.bookingUrl ?? undefined,
-    }));
-
-  const cheapest = days.length === 0
-    ? null
-    : days.reduce((a, b) => (a.priceUsd <= b.priceUsd ? a : b));
-
-  return { origin, destination, start, end, days, cheapest, cacheStatus };
-}
 
 export class FlightService {
   async search(
@@ -270,18 +276,16 @@ export class FlightService {
    * When To Go feature: return per-day cheapest fares for (origin, destination)
    * across [startDate, endDate], plus the single cheapest day in that window.
    *
-   * Cache strategy:
-   *   - Lookup PriceCalendarDay rows in the range with ttlUntil > now.
-   *   - If every day in the range is present, return 'hit' immediately.
-   *   - Otherwise, fetch the missing dates from Kiwi (chunked to ≤14 days each
-   *     so the price-asc-truncated response still covers every day), upsert a
-   *     row per requested date (NULL price = "checked, no flights"), then
-   *     return the merged result.
+   * No persistent cache. Each call hits Kiwi fresh — flight prices move too
+   * much for a 7-day cache to be trustworthy, and the user-visible answer is
+   * literally "the cheapest day," which has to be live. The PriceCalendarDay
+   * table remains in the schema as forward-investment for a future
+   * stale-while-revalidate layer, but is unused on the read/write path today.
    *
-   * The single-provider chain (Kiwi-only) is intentional for v1 — the spike
-   * confirmed Kiwi's range mode is the cheapest viable source, and SerpAPI's
-   * `price_insights` payload doesn't expose per-day cheapest fares for an
-   * arbitrary window. A SerpAPI fallback could be added in a later phase.
+   * Single-provider (Kiwi-only) is intentional: Kiwi's range mode is the only
+   * source we've validated that returns per-day cheapest in one HTTP call
+   * (see scripts/spike-calendar.ts). Long windows are chunked to ≤14 days so
+   * the price-asc-truncated response still covers every day.
    */
   async priceCalendar(
     originIata: string,
@@ -290,27 +294,8 @@ export class FlightService {
     endDate: string,
   ): Promise<PriceCalendarResult> {
     const allDates = enumerateDates(startDate, endDate);
-    const now = new Date();
-
-    const cached = await db.priceCalendarDay.findMany({
-      where: {
-        origin: originIata,
-        destination: destinationIata,
-        date: { in: allDates },
-        ttlUntil: { gt: now },
-      },
-      orderBy: { date: 'asc' },
-    });
-
-    const cachedDates = new Set(cached.map((r) => r.date));
-    const missingDates = allDates.filter((d) => !cachedDates.has(d));
-
-    if (missingDates.length === 0) {
-      return buildCalendarResult(originIata, destinationIata, startDate, endDate, cached, 'hit');
-    }
-
-    const hadAnyCached = cached.length > 0;
-    const chunks = chunkMissingDates(missingDates, PRICE_CALENDAR_CHUNK_DAYS);
+    // Chunk the *entire* window — we always refetch since there's no cache.
+    const chunks = chunkMissingDates(allDates, PRICE_CALENDAR_CHUNK_DAYS);
 
     increment('rapidapi-kiwi', 'primary');
     const fetched: KiwiCalendarDay[] = [];
@@ -327,67 +312,37 @@ export class FlightService {
       throw err;
     }
 
-    const ttlUntil = new Date(Date.now() + PRICE_CALENDAR_TTL_MS);
-    const fetchedByDate = new Map(fetched.map((d) => [d.date, d]));
-
-    // Persist a row for EVERY missing date in the chunks we fetched — including
-    // days with no priced itineraries (NULL price). The NULL sentinel keeps us
-    // from refetching the same gap day-after-day before the TTL expires.
-    const datesToPersist = new Set<string>();
-    for (const [s, e] of chunks) {
-      for (const d of enumerateDates(s, e)) datesToPersist.add(d);
+    // De-dupe across chunk boundaries by taking the lowest price per day.
+    const byDay = new Map<string, KiwiCalendarDay>();
+    for (const day of fetched) {
+      const existing = byDay.get(day.date);
+      if (!existing || day.priceUsd < existing.priceUsd) byDay.set(day.date, day);
     }
 
-    await Promise.all(
-      [...datesToPersist].map(async (date) => {
-        const hit = fetchedByDate.get(date);
-        await db.priceCalendarDay.upsert({
-          where: {
-            origin_destination_date: {
-              origin: originIata,
-              destination: destinationIata,
-              date,
-            },
-          },
-          create: {
-            origin: originIata,
-            destination: destinationIata,
-            date,
-            cheapestUsd: hit?.priceUsd ?? null,
-            currency: hit?.currency ?? 'USD',
-            bookingUrl: hit?.bookingUrl ?? null,
-            source: 'kiwi-range',
-            ttlUntil,
-          },
-          update: {
-            cheapestUsd: hit?.priceUsd ?? null,
-            currency: hit?.currency ?? 'USD',
-            bookingUrl: hit?.bookingUrl ?? null,
-            source: 'kiwi-range',
-            sampledAt: new Date(),
-            ttlUntil,
-          },
-        });
-      }),
-    );
+    const days: CalendarDayResult[] = [...byDay.values()]
+      .filter((d) => d.date >= startDate && d.date <= endDate)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((d) => ({
+        date: d.date,
+        priceUsd: d.priceUsd,
+        currency: d.currency,
+        bookingUrl: d.bookingUrl,
+        itinerary: d.itinerary,
+      }));
 
-    const final = await db.priceCalendarDay.findMany({
-      where: {
-        origin: originIata,
-        destination: destinationIata,
-        date: { in: allDates },
-      },
-      orderBy: { date: 'asc' },
-    });
+    const cheapest = days.length === 0
+      ? null
+      : days.reduce((a, b) => (a.priceUsd <= b.priceUsd ? a : b));
 
-    return buildCalendarResult(
-      originIata,
-      destinationIata,
-      startDate,
-      endDate,
-      final,
-      hadAnyCached ? 'partial' : 'fresh',
-    );
+    return {
+      origin: originIata,
+      destination: destinationIata,
+      start: startDate,
+      end: endDate,
+      days,
+      cheapest,
+      cacheStatus: 'live',
+    };
   }
 
   /** Ordered list of providers to try, from primary to fallback. */

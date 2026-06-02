@@ -229,6 +229,29 @@ export interface KiwiCalendarDay {
   currency: string;
   /** Deep link to book the cheapest itinerary for this day */
   bookingUrl?: string;
+  /** Full itinerary metadata for the cheapest itinerary on this day. */
+  itinerary?: KiwiCalendarItinerary;
+}
+
+/** Subset of FlightOption that the result card + map preview need. */
+export interface KiwiCalendarItinerary {
+  originIata: string;
+  originCity: string;
+  originLat: number;
+  originLng: number;
+  destinationIata: string;
+  destinationCity: string;
+  destinationCountry: string;
+  destinationLat: number;
+  destinationLng: number;
+  departureDatetime: string;
+  arrivalDatetime: string;
+  durationMinutes: number;
+  airlineName: string;
+  airlineCode?: string;
+  stops: number;
+  viaIatas?: string[];
+  viaCoords?: { lat: number; lng: number }[];
 }
 
 export async function fetchRapidApiKiwiCalendar(
@@ -290,8 +313,13 @@ export async function fetchRapidApiKiwiCalendar(
   const byDay = new Map<string, KiwiCalendarDay>();
 
   for (const it of itineraries) {
-    const segments = it?.sector?.sectorSegments ?? [];
-    const dep = segments[0]?.segment?.source?.localTime;
+    const sectorSegments = it?.sector?.sectorSegments ?? [];
+    const segments = sectorSegments.map((s) => s.segment);
+    const first = segments[0];
+    const last = segments[segments.length - 1];
+    if (!first || !last) continue;
+
+    const dep = first.source?.localTime;
     if (!dep) continue;
     const day = dep.slice(0, 10); // YYYY-MM-DD
     const price = parseFloat(it?.price?.amount ?? 'NaN');
@@ -305,14 +333,52 @@ export async function fetchRapidApiKiwiCalendar(
       : undefined;
 
     const existing = byDay.get(day);
-    if (!existing || price < existing.priceUsd) {
-      byDay.set(day, {
-        date: day,
-        priceUsd: price,
-        currency: currency.toUpperCase(),
-        bookingUrl,
-      });
-    }
+    if (existing && price >= existing.priceUsd) continue;
+
+    const origStation = first.source.station;
+    const destStation = last.destination.station;
+    const totalDurationSec = segments.reduce((sum, s) => sum + (s.duration ?? 0), 0);
+
+    const viaIatas =
+      segments.length > 1 ? segments.slice(0, -1).map((s) => s.destination.station.code) : undefined;
+    const viaCoords =
+      segments.length > 1
+        ? segments
+            .slice(0, -1)
+            .map((s) => ({
+              lat: s.destination.station.gps?.lat ?? 0,
+              lng: s.destination.station.gps?.lng ?? 0,
+            }))
+            .filter((c) => c.lat !== 0 || c.lng !== 0)
+        : undefined;
+
+    const itineraryMeta: KiwiCalendarItinerary = {
+      originIata: origStation.code,
+      originCity: origStation.city?.name ?? origStation.code,
+      originLat: origStation.gps?.lat ?? 0,
+      originLng: origStation.gps?.lng ?? 0,
+      destinationIata: destStation.code,
+      destinationCity: destStation.city?.name ?? destStation.code,
+      destinationCountry: destStation.country?.name ?? destStation.country?.code ?? '',
+      destinationLat: destStation.gps?.lat ?? 0,
+      destinationLng: destStation.gps?.lng ?? 0,
+      departureDatetime: first.source.localTime,
+      arrivalDatetime: last.destination.localTime,
+      durationMinutes: Math.round(totalDurationSec / 60),
+      airlineName: first.carrier.name ?? first.carrier.code,
+      airlineCode: first.carrier.code,
+      stops: segments.length - 1,
+      viaIatas,
+      viaCoords: viaCoords?.length ? viaCoords : undefined,
+    };
+
+    byDay.set(day, {
+      date: day,
+      priceUsd: price,
+      currency: currency.toUpperCase(),
+      bookingUrl,
+      itinerary: itineraryMeta,
+    });
   }
 
   return [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date));
