@@ -388,7 +388,7 @@ export async function userAuthRoutes(app: FastifyInstance) {
   // GET /auth/me  (requires auth)
   app.get('/auth/me', { preHandler: [requireAuth] }, async (req, reply) => {
     const user = await db.user.findUnique({
-      where: { id: (req as any).userId },
+      where: { id: req.userId },
       include: { citizenships: true, visas: true },
     });
     if (!user) return reply.status(404).send({ error: { message: 'User not found' } });
@@ -400,7 +400,8 @@ export async function userAuthRoutes(app: FastifyInstance) {
   app.patch('/auth/profile', { preHandler: [requireAuth] }, async (req, reply) => {
     const parsed = updateProfileBody.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ error: { message: 'Invalid input', details: parsed.error.flatten() } });
-    const userId = (req as any).userId as string;
+    // requireAuth guarantees userId is set; assert for the type narrowing.
+    const userId = req.userId!;
     const { firstName, lastName, gender, birthday, countryOfResidenceCode, countryOfResidenceName, citizenships, visas } = parsed.data;
 
     await db.user.update({
@@ -471,7 +472,7 @@ export async function userAuthRoutes(app: FastifyInstance) {
     const parsed = changePasswordBody.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ error: { message: 'Invalid input' } });
 
-    const user = await db.user.findUnique({ where: { id: (req as any).userId } });
+    const user = await db.user.findUnique({ where: { id: req.userId } });
     if (!user) return reply.status(404).send({ error: { message: 'User not found' } });
 
     if (!(await verifyPassword(parsed.data.currentPassword, user.passwordHash))) {
@@ -488,7 +489,7 @@ export async function userAuthRoutes(app: FastifyInstance) {
     const parsed = deleteAccountBody.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send({ error: { message: 'Invalid input' } });
 
-    const user = await db.user.findUnique({ where: { id: (req as any).userId } });
+    const user = await db.user.findUnique({ where: { id: req.userId } });
     if (!user) return reply.status(404).send({ error: { message: 'User not found' } });
 
     if (!(await verifyPassword(parsed.data.password, user.passwordHash))) {
