@@ -26,6 +26,7 @@ import { ComingSoonScreen } from './screens/ComingSoonScreen';
 import { AboutScreen } from './screens/AboutScreen';
 import { ToolsScreen } from './screens/ToolsScreen';
 import { TripPlannerScreen } from './screens/TripPlannerScreen';
+import { WhenToGoScreen } from './screens/WhenToGoScreen';
 import { RequireAuth } from './components/RequireAuth';
 import { authApi } from './api/auth.api';
 import { useAuthStore } from './store/auth.store';
@@ -91,6 +92,7 @@ export default function App() {
         <Route path="/trips" element={<ComingSoonScreen title="Trips" description="A dedicated space to manage all your past and upcoming trips in one place. Track where you've been, pick up where you left off, and share your journeys — coming soon." onMenuOpen={() => setDrawerOpen(true)} />} />
         <Route path="/deals" element={<ComingSoonScreen title="Deals" description="Curated flight deals, fare alerts, and hand-picked routes at jaw-dropping prices. We're building the smartest deals engine for multi-stop travellers — stay tuned." onMenuOpen={() => setDrawerOpen(true)} />} />
         <Route path="/tools" element={<ToolsScreen onMenuOpen={() => setDrawerOpen(true)} />} />
+        <Route path="/when-to-go" element={<WhenToGoScreen />} />
         <Route path="/about" element={<AboutScreen onMenuOpen={() => setDrawerOpen(true)} />} />
 
         <Route element={<RequireAuth />}>

@@ -14,6 +14,13 @@ export const AnalyticsEvent = {
   BookingClicked: 'booking_clicked',
   TripShared: 'trip_shared',
   UrlStateRecoveryFailed: 'url_state_recovery_failed',
+  // When To Go — top-of-funnel "when's it cheap?" tool.
+  // Search fires once per committed input change (origin / dest / window),
+  // CtaClick fires when the user clicks through to a booking deeplink,
+  // WindowPreset fires when they pick one of the preset chips vs custom range.
+  WhenToGoSearch: 'when_to_go_search',
+  WhenToGoCtaClick: 'when_to_go_cta_click',
+  WhenToGoWindowPreset: 'when_to_go_window_preset',
 } as const;
 
 type AnalyticsEventName =

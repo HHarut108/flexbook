@@ -11,6 +11,7 @@ import { fail } from './utils/response';
 import { healthRoutes } from './routes/health';
 import { airportRoutes } from './routes/airports';
 import { flightRoutes } from './routes/flights';
+import { cheapestDayRoutes } from './routes/cheapestDay';
 import { weatherRoutes } from './routes/weather';
 import { airlineRoutes } from './routes/airlines';
 import { tripRoutes } from './routes/trips';
@@ -90,6 +91,23 @@ async function runMigrations() {
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE
     )`,
+    // When To Go price calendar cache. Mirrored from the numbered migration
+    // 20260602050000_add_price_calendar_day so cold starts always have the
+    // table even if `migrate.ts` hasn't run yet (production safety net).
+    `CREATE TABLE IF NOT EXISTS "PriceCalendarDay" (
+      "origin" TEXT NOT NULL,
+      "destination" TEXT NOT NULL,
+      "date" TEXT NOT NULL,
+      "cheapestUsd" REAL,
+      "currency" TEXT NOT NULL DEFAULT 'USD',
+      "bookingUrl" TEXT,
+      "source" TEXT NOT NULL,
+      "sampledAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "ttlUntil" DATETIME NOT NULL,
+      PRIMARY KEY ("origin", "destination", "date")
+    )`,
+    `CREATE INDEX IF NOT EXISTS "PriceCalendarDay_origin_destination_idx"
+      ON "PriceCalendarDay"("origin", "destination")`,
   ];
   for (const sql of statements) {
     await db.$executeRawUnsafe(sql);
@@ -147,6 +165,7 @@ async function start() {
   await app.register(healthRoutes);
   await app.register(airportRoutes);
   await app.register(flightRoutes);
+  await app.register(cheapestDayRoutes);
   await app.register(weatherRoutes);
   await app.register(airlineRoutes);
   await app.register(tripRoutes);
