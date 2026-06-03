@@ -39,14 +39,6 @@ import { SingleFlightMap } from '../components/SingleFlightMap';
 
 const TripMap = lazy(() => import('../components/TripMap').then((m) => ({ default: m.TripMap })));
 
-/* Popular fallback origins — mirrors TripPlannerScreen so the right column
-   always has a map to render even before geolocation resolves. */
-const POPULAR_AIRPORTS: Airport[] = [
-  { iata: 'IST', name: 'Istanbul Airport', timezone: 'Europe/Istanbul', city: { id: 'ist', name: 'Istanbul', countryCode: 'TR', countryName: 'Turkey', lat: 41.01, lng: 28.98 } },
-  { iata: 'LHR', name: 'Heathrow Airport', timezone: 'Europe/London', city: { id: 'lon', name: 'London', countryCode: 'GB', countryName: 'United Kingdom', lat: 51.47, lng: -0.46 } },
-  { iata: 'CDG', name: 'Charles de Gaulle', timezone: 'Europe/Paris', city: { id: 'par', name: 'Paris', countryCode: 'FR', countryName: 'France', lat: 49.01, lng: 2.55 } },
-];
-
 
 /* ────────────────────────────────────────────────────────────────────────────
    When To Go — pick origin, destination, and a window. The user hits Search
@@ -582,6 +574,12 @@ export function WhenToGoScreen() {
   // Nearby airports — used as a single-pin fallback for the desktop empty-state
   // map so the right column never sits blank. Mirrors TripPlannerScreen.
   const [nearby, setNearby] = useState<Airport[]>([]);
+  // Raw user coordinates, separate from `nearby`. Set as soon as geolocation
+  // (cache, browser geo, or IP geo) resolves — used to center the empty-state
+  // map immediately, without waiting for the /airports/nearby-coords roundtrip.
+  // Replaces the previous POPULAR_AIRPORTS[0] hardcoded fallback which caused
+  // the map to flash Istanbul before snapping to the user's region.
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   // True once both browser geolocation AND IP fallback have failed. Used to
   // render an explicit "Allow location" CTA in the suggestions block — the
   // common case (IP geo resolves) leaves this false and never shows the CTA.
@@ -589,11 +587,14 @@ export function WhenToGoScreen() {
   const [geoTick, setGeoTick] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
 
-  /* Geolocation — resolve nearby airports for the empty-state map fallback. */
+  /* Geolocation — resolve coords first (cheap, instant when cached) so the
+     empty-state map can pan to the user's region immediately, then resolve
+     the nearest commercial airport for the suggestions / pin label. */
   useEffect(() => {
     let cancelled = false;
     const cachedCoords = readCachedCoords();
     if (cachedCoords) {
+      setUserCoords(cachedCoords);
       const cached = readCachedNearby<Airport>(cachedCoords.lat, cachedCoords.lng);
       if (cached) {
         setNearby(cached.slice(0, 3));
@@ -604,11 +605,15 @@ export function WhenToGoScreen() {
       try {
         const coords = await resolveUserCoords();
         if (cancelled) return;
+        setUserCoords(coords);
         const airports = await nearbyAirportsByCoords(coords.lat, coords.lng);
         if (cancelled) return;
         cacheNearby(coords.lat, coords.lng, airports);
         setNearby(airports.slice(0, 3));
       } catch {
+        // Both browser geo + IP geo failed. Leave userCoords null so the map
+        // renders the full world view, and surface the Allow-location CTA in
+        // the suggestions panel.
         if (!cancelled) setLocDenied(true);
       }
     })();
@@ -847,8 +852,15 @@ export function WhenToGoScreen() {
      anchor we have: a partial pick, then nearby (geolocated), then a popular
      airport. Always returns an Airport so the desktop column never renders
      bare. */
-  const fallbackAnchor: Airport =
-    fromAirport ?? toAirport ?? nearby[0] ?? POPULAR_AIRPORTS[0];
+  /* Anchor airport for the empty-state map. Resolves in this priority:
+       1. The picked From (user typed it).
+       2. The picked To (we'd rather show something the user has chosen).
+       3. The nearest commercial airport derived from geolocation.
+       4. null — and we fall through to `userCoords` for the map center, or
+          to the full world map if even that's missing. No more hardcoded
+          Istanbul fallback. */
+  const fallbackAnchor: Airport | null =
+    fromAirport ?? toAirport ?? nearby[0] ?? null;
 
   /* Apply a suggested route from the desktop empty-state inspiration list. */
   function applySuggestedRoute(from: Airport, to: Airport) {
@@ -1038,7 +1050,7 @@ export function WhenToGoScreen() {
                   </div>
                 }
               >
-                <TripMap origin={fallbackAnchor} legs={[]} />
+                <TripMap origin={fallbackAnchor} legs={[]} centerCoords={userCoords} />
               </Suspense>
             </div>
           )}
