@@ -118,6 +118,55 @@ describe('POST /trips — input validation', () => {
     expect(setMock).not.toHaveBeenCalled();
   });
 
+  // Regression: bookingUrl can legitimately be '' when Kiwi has no booking
+  // edge (RapidApiKiwiFlightProvider.ts:177). The initial schema rejected
+  // this with z.string().url() and broke every share.
+  it('accepts an itinerary whose bookingUrl is an empty string', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/trips',
+      payload: {
+        ...validItinerary,
+        legs: [{ ...validItinerary.legs[0], bookingUrl: '' }],
+      },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  // Regression: return legs and outbound legs constructed before the user
+  // picks a stay length use stayDurationDays: 0
+  // (FlightResultsScreen.tsx:177, ReturnFlightsScreen.tsx:65,82).
+  it('accepts a leg with stayDurationDays: 0 (return leg)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/trips',
+      payload: {
+        ...validItinerary,
+        legs: [{ ...validItinerary.legs[0], stayDurationDays: 0, isReturn: true }],
+      },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  // Regression: destinationCountry and city.countryCode can be '' when the
+  // upstream provider lacks country metadata
+  // (RapidApiKiwiFlightProvider.ts:196).
+  it('accepts an itinerary with empty country strings', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/trips',
+      payload: {
+        ...validItinerary,
+        origin: {
+          ...validItinerary.origin,
+          city: { ...validItinerary.origin.city, countryCode: '', countryName: '' },
+        },
+        legs: [{ ...validItinerary.legs[0], destinationCountry: '' }],
+      },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
   it('rejects a body that exceeds the 32 KB cap', async () => {
     // Pad with a large junk field. Fastify rejects with FST_ERR_CTP_BODY_TOO_LARGE.
     const huge = {
