@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo, useEffect, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -14,6 +14,7 @@ import {
   PlaneTakeoff,
   RefreshCw,
   ShieldCheck,
+  Sparkles,
   Users,
   Wallet,
   CalendarDays,
@@ -43,6 +44,24 @@ const POPULAR_AIRPORTS: Pick<Airport, 'iata' | 'name' | 'city'>[] = [
 
 type DestCount = number | 'max'; // number = 1-15; 'max' = let algorithm decide
 type TripStyle = 'value' | 'offpath' | 'sunny' | 'short' | 'visafree';
+
+/* Preset trip ideas shown in the desktop empty state. Clicking one prefills
+   the form so the user can iterate from a plausible starting point rather
+   than face a blank panel. */
+interface TripPreset {
+  label: string;
+  tagline: string;
+  budget: string;
+  nights: number;
+  destCount: number;
+  tripStyle: TripStyle;
+}
+
+const TRIP_PRESETS: TripPreset[] = [
+  { label: 'Weekend escape', tagline: '4 nights · 1 stop', budget: '350', nights: 4, destCount: 1, tripStyle: 'value' },
+  { label: 'Mediterranean tour', tagline: '10 nights · 3 stops', budget: '900', nights: 10, destCount: 3, tripStyle: 'sunny' },
+  { label: 'Off-path adventure', tagline: '14 nights · 4 stops', budget: '1500', nights: 14, destCount: 4, tripStyle: 'offpath' },
+];
 
 function countryFlag(code: string): string {
   return code.toUpperCase().replace(/./g, (c) => String.fromCodePoint(c.charCodeAt(0) + 127397));
@@ -663,6 +682,19 @@ export function TripPlannerScreen() {
   function handleSwitchToValue() {
     setTripStyle('value');
     handleSearch({ tripStyle: 'value' });
+  }
+
+  /** Apply a preset trip — prefills budget, dates, stops, and trip style so the
+   *  user has a real starting point. Leaves the origin alone since geo/manual
+   *  picks should win there. */
+  function applyTripPreset(p: TripPreset) {
+    const start = addDays(new Date(), 14);
+    const end = addDays(start, p.nights);
+    setDateFrom(format(start, 'yyyy-MM-dd'));
+    setDateTo(format(end, 'yyyy-MM-dd'));
+    setBudget(p.budget);
+    setTripStyle(p.tripStyle);
+    setDestCount(p.destCount);
   }
 
   /** Clear all swap-exclusions after a failed swap (B6 NO_ALTERNATIVES).
@@ -1294,13 +1326,48 @@ export function TripPlannerScreen() {
               </Suspense>
             </div>
           ) : !geoLoading ? (
-            <div className="h-56 rounded-2xl overflow-hidden border border-border mb-4 opacity-60">
+            <div className="h-72 rounded-2xl overflow-hidden border border-border mb-4 opacity-70">
               <Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 size={20} className="animate-spin text-indigo" /></div>}>
                 <TripMap origin={(nearby[0] ?? POPULAR_AIRPORTS[0]) as Airport} legs={[]} />
               </Suspense>
             </div>
           ) : null}
           {renderResults()}
+
+          {/* Desktop-only inspiration shown until the user has a real result.
+              Fills the right column with content so the screen feels like a
+              landing page rather than a half-empty form. */}
+          {!result && !loading && !error && (
+            <div className="mt-6">
+              <div className="flex items-center gap-2 mb-3 px-1">
+                <Sparkles size={13} className="text-indigo" />
+                <span className="text-[11px] uppercase tracking-wide font-bold text-text-muted">
+                  Try a preset
+                </span>
+              </div>
+              <div className="space-y-2">
+                {TRIP_PRESETS.map((p) => (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={() => applyTripPreset(p)}
+                    className="w-full flex items-center gap-3 bg-surface border border-border rounded-2xl px-4 py-3 hover:border-indigo-border hover:bg-indigo-soft/40 transition-all text-left"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-indigo-soft border border-indigo-border flex items-center justify-center shrink-0">
+                      <Wallet size={15} className="text-indigo" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold text-text-primary truncate">{p.label}</div>
+                      <div className="text-[11px] text-text-muted mt-0.5">{p.tagline}</div>
+                    </div>
+                    <span className="text-[11px] font-mono font-bold text-indigo-mid shrink-0">
+                      ${p.budget}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
