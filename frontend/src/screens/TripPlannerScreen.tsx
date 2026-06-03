@@ -1,12 +1,10 @@
 import { useState, useRef, useMemo, useEffect, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import {
   AlertTriangle,
   ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
   DollarSign,
   List as ListIcon,
   Loader2,
@@ -16,6 +14,7 @@ import {
   PlaneTakeoff,
   RefreshCw,
   ShieldCheck,
+  Sparkles,
   Users,
   Wallet,
   CalendarDays,
@@ -29,6 +28,7 @@ import { planBudgetTrip, BudgetPlanResult, BudgetPlanLeg } from '../api/budgetTr
 import { nearbyAirportsByCoords } from '../api/airports.api';
 import { resolveUserCoords, readCachedCoords, readCachedNearby, cacheNearby } from '../utils/geolocation.utils';
 import { useCurrentPassport } from '../hooks/useCurrentPassport';
+import { DateRangePicker } from '../components/DateRangePicker';
 import { VisaCheckPopup } from '../components/visa/VisaCheckPopup';
 import { COUNTRIES } from '../data/countries';
 
@@ -45,6 +45,24 @@ const POPULAR_AIRPORTS: Pick<Airport, 'iata' | 'name' | 'city'>[] = [
 type DestCount = number | 'max'; // number = 1-15; 'max' = let algorithm decide
 type TripStyle = 'value' | 'offpath' | 'sunny' | 'short' | 'visafree';
 
+/* Preset trip ideas shown in the desktop empty state. Clicking one prefills
+   the form so the user can iterate from a plausible starting point rather
+   than face a blank panel. */
+interface TripPreset {
+  label: string;
+  tagline: string;
+  budget: string;
+  nights: number;
+  destCount: number;
+  tripStyle: TripStyle;
+}
+
+const TRIP_PRESETS: TripPreset[] = [
+  { label: 'Weekend escape', tagline: '4 nights · 1 stop', budget: '350', nights: 4, destCount: 1, tripStyle: 'value' },
+  { label: 'Mediterranean tour', tagline: '10 nights · 3 stops', budget: '900', nights: 10, destCount: 3, tripStyle: 'sunny' },
+  { label: 'Off-path adventure', tagline: '14 nights · 4 stops', budget: '1500', nights: 14, destCount: 4, tripStyle: 'offpath' },
+];
+
 function countryFlag(code: string): string {
   return code.toUpperCase().replace(/./g, (c) => String.fromCodePoint(c.charCodeAt(0) + 127397));
 }
@@ -53,14 +71,6 @@ function countryFlag(code: string): string {
 
 function fmt(dateStr: string) {
   return format(new Date(dateStr.slice(0, 10) + 'T12:00:00'), 'EEE, MMM d');
-}
-
-function fmtDisplay(dateStr: string) {
-  const d = new Date(dateStr.slice(0, 10) + 'T12:00:00');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  return `${dd}.${mm}.${yyyy}`;
 }
 
 function todayStr() {
@@ -85,210 +95,9 @@ function defaultNightsArr(numDests: number, totalNights: number): number[] {
   return Array.from({ length: numDests }, (_, i) => base + (i < rem ? 1 : 0));
 }
 
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
-const DAY_NAMES = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-
-/* ── DateRangePicker — compact 5-row week-view, today centred in row 2 ── */
-
-function makeSundayOf(d: Date): Date {
-  const s = new Date(d);
-  s.setDate(s.getDate() - s.getDay());
-  return s;
-}
-
-function dateStrOf(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-function DateRangePicker({
-  dateFrom,
-  dateTo,
-  today,
-  onChangeFrom,
-  onChangeTo,
-}: {
-  dateFrom: string;
-  dateTo: string;
-  today: string;
-  onChangeFrom: (v: string) => void;
-  onChangeTo: (v: string) => void;
-}) {
-  const todayObj = new Date(today + 'T12:00:00');
-  const [phase, setPhase] = useState<'from' | 'to'>(dateFrom && !dateTo ? 'to' : 'from');
-
-  // Window start = Sunday of the week 1 week before today → today lands in row 2
-  const minWindowStart = makeSundayOf(todayObj); // earliest allowed (Sunday of today's week)
-  const initStart = makeSundayOf(new Date(todayObj.getFullYear(), todayObj.getMonth(), todayObj.getDate() - 7));
-  const [windowStart, setWindowStart] = useState(initStart < minWindowStart ? minWindowStart : initStart);
-
-  const canGoPrev = windowStart > minWindowStart;
-
-  function prevWeek() {
-    if (!canGoPrev) return;
-    setWindowStart(ws => {
-      const n = new Date(ws);
-      n.setDate(n.getDate() - 7);
-      return n < minWindowStart ? minWindowStart : n;
-    });
-  }
-  function nextWeek() {
-    setWindowStart(ws => {
-      const n = new Date(ws);
-      n.setDate(n.getDate() + 7);
-      return n;
-    });
-  }
-
-  // 5 rows × 7 cols = 35 cells
-  const cells = Array.from({ length: 35 }, (_, i) => {
-    const d = new Date(windowStart);
-    d.setDate(d.getDate() + i);
-    return d;
-  });
-
-  // Month label for the header
-  const firstCell = cells[0];
-  const lastCell = cells[34];
-  const headerLabel =
-    firstCell.getMonth() === lastCell.getMonth() && firstCell.getFullYear() === lastCell.getFullYear()
-      ? `${MONTH_NAMES[firstCell.getMonth()]} ${firstCell.getFullYear()}`
-      : firstCell.getFullYear() === lastCell.getFullYear()
-        ? `${MONTH_NAMES[firstCell.getMonth()]} – ${MONTH_NAMES[lastCell.getMonth()]} ${lastCell.getFullYear()}`
-        : `${MONTH_NAMES[firstCell.getMonth()]} ${firstCell.getFullYear()} – ${MONTH_NAMES[lastCell.getMonth()]} ${lastCell.getFullYear()}`;
-
-  function handleDayClick(dateStr: string) {
-    if (dateStr < today) return;
-    if (phase === 'from' || (dateFrom && dateTo)) {
-      onChangeFrom(dateStr);
-      onChangeTo('');
-      setPhase('to');
-    } else if (dateStr <= dateFrom) {
-      onChangeFrom(dateStr);
-      onChangeTo('');
-    } else {
-      onChangeTo(dateStr);
-      setPhase('from');
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      <span className="text-xs font-medium text-text-muted px-1">Travel window</span>
-
-      {/* Departure / Return chips — only highlight whichever date is actively being picked */}
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => setPhase('from')}
-          className={`flex flex-col p-3 rounded-2xl border transition-all text-left ${
-            phase === 'from' && !(dateFrom && dateTo) ? 'border-indigo bg-indigo-soft' : 'border-border bg-surface-2'
-          }`}
-        >
-          <span className="text-[10px] uppercase tracking-wide font-semibold text-text-xmuted">Departure</span>
-          <span className={`text-sm font-semibold mt-0.5 ${dateFrom ? 'text-text-primary' : 'text-text-xmuted'}`}>
-            {dateFrom ? fmtDisplay(dateFrom) : 'dd.mm.yyyy'}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => { if (dateFrom) setPhase('to'); }}
-          disabled={!dateFrom}
-          className={`flex flex-col p-3 rounded-2xl border transition-all text-left ${
-            phase === 'to' && !(dateFrom && dateTo) ? 'border-indigo bg-indigo-soft' : 'border-border bg-surface-2'
-          } ${!dateFrom ? 'opacity-40 cursor-not-allowed' : ''}`}
-        >
-          <span className="text-[10px] uppercase tracking-wide font-semibold text-text-xmuted">Return</span>
-          <span className={`text-sm font-semibold mt-0.5 ${dateTo ? 'text-text-primary' : 'text-text-xmuted'}`}>
-            {dateTo ? fmtDisplay(dateTo) : 'dd.mm.yyyy'}
-          </span>
-        </button>
-      </div>
-
-      {/* Compact week-view calendar */}
-      <div className="bg-surface border border-border rounded-2xl p-3">
-        {/* Nav */}
-        <div className="flex items-center justify-between mb-2">
-          <button
-            type="button"
-            onClick={prevWeek}
-            disabled={!canGoPrev}
-            className="p-1 rounded-lg hover:bg-surface-2 transition-colors text-text-muted disabled:opacity-30 disabled:cursor-not-allowed"
-            aria-label="Previous week"
-          >
-            <ChevronLeft size={14} />
-          </button>
-          <span className="text-xs font-semibold text-text-primary">{headerLabel}</span>
-          <button
-            type="button"
-            onClick={nextWeek}
-            className="p-1 rounded-lg hover:bg-surface-2 transition-colors text-text-muted"
-            aria-label="Next week"
-          >
-            <ChevronRight size={14} />
-          </button>
-        </div>
-
-        {/* Day-name row */}
-        <div className="grid grid-cols-7 mb-0.5">
-          {DAY_NAMES.map(d => (
-            <div key={d} className="text-center text-[10px] font-semibold text-text-xmuted py-0.5">{d}</div>
-          ))}
-        </div>
-
-        {/* 5 × 7 day grid */}
-        <div className="grid grid-cols-7">
-          {cells.map((dayObj, i) => {
-            const dateStr = dateStrOf(dayObj);
-            const isPast = dateStr < today;
-            const isFrom = dateStr === dateFrom;
-            const isTo = dateStr === dateTo;
-            const inRange = !!(dateFrom && dateTo && dateStr > dateFrom && dateStr < dateTo);
-            const isToday = dateStr === today;
-
-            // Dim days that belong to a different month than the majority visible
-            const midMonth = cells[17].getMonth();
-            const isOffMonth = dayObj.getMonth() !== midMonth;
-
-            let cls = 'relative flex items-center justify-center h-8 w-full text-[13px] transition-colors select-none rounded-lg ';
-            if (isPast) {
-              cls += 'opacity-25 cursor-not-allowed ';
-            } else if (isFrom || isTo) {
-              cls += 'bg-indigo text-white font-bold cursor-pointer ';
-            } else if (inRange) {
-              cls += 'bg-indigo/10 text-indigo cursor-pointer ';
-            } else {
-              cls += `hover:bg-surface-2 cursor-pointer ${isOffMonth ? 'text-text-xmuted' : 'text-text-primary'} `;
-            }
-
-            return (
-              <button
-                key={i}
-                type="button"
-                disabled={isPast}
-                onClick={() => handleDayClick(dateStr)}
-                className={cls}
-                aria-label={dateStr}
-                aria-pressed={isFrom || isTo}
-              >
-                {dayObj.getDate()}
-                {isToday && !isFrom && !isTo && (
-                  <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-indigo" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <p className="text-[11px] text-text-xmuted px-1">
-        {phase === 'from' ? 'Tap a departure date' : 'Now tap your return date'}
-      </p>
-    </div>
-  );
-}
+// DateRangePicker, MONTH_NAMES, DAY_NAMES, makeSundayOf, dateStrOf were
+// extracted to components/DateRangePicker.tsx so When To Go (and any future
+// surface) can use the same range-picker UX.
 
 /* ── NightsSlider — multi-handle range ── */
 
@@ -873,6 +682,19 @@ export function TripPlannerScreen() {
   function handleSwitchToValue() {
     setTripStyle('value');
     handleSearch({ tripStyle: 'value' });
+  }
+
+  /** Apply a preset trip — prefills budget, dates, stops, and trip style so the
+   *  user has a real starting point. Leaves the origin alone since geo/manual
+   *  picks should win there. */
+  function applyTripPreset(p: TripPreset) {
+    const start = addDays(new Date(), 14);
+    const end = addDays(start, p.nights);
+    setDateFrom(format(start, 'yyyy-MM-dd'));
+    setDateTo(format(end, 'yyyy-MM-dd'));
+    setBudget(p.budget);
+    setTripStyle(p.tripStyle);
+    setDestCount(p.destCount);
   }
 
   /** Clear all swap-exclusions after a failed swap (B6 NO_ALTERNATIVES).
@@ -1504,13 +1326,48 @@ export function TripPlannerScreen() {
               </Suspense>
             </div>
           ) : !geoLoading ? (
-            <div className="h-56 rounded-2xl overflow-hidden border border-border mb-4 opacity-60">
+            <div className="h-72 rounded-2xl overflow-hidden border border-border mb-4 opacity-70">
               <Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 size={20} className="animate-spin text-indigo" /></div>}>
                 <TripMap origin={(nearby[0] ?? POPULAR_AIRPORTS[0]) as Airport} legs={[]} />
               </Suspense>
             </div>
           ) : null}
           {renderResults()}
+
+          {/* Desktop-only inspiration shown until the user has a real result.
+              Fills the right column with content so the screen feels like a
+              landing page rather than a half-empty form. */}
+          {!result && !loading && !error && (
+            <div className="mt-6">
+              <div className="flex items-center gap-2 mb-3 px-1">
+                <Sparkles size={13} className="text-indigo" />
+                <span className="text-[11px] uppercase tracking-wide font-bold text-text-muted">
+                  Try a preset
+                </span>
+              </div>
+              <div className="space-y-2">
+                {TRIP_PRESETS.map((p) => (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={() => applyTripPreset(p)}
+                    className="w-full flex items-center gap-3 bg-surface border border-border rounded-2xl px-4 py-3 hover:border-indigo-border hover:bg-indigo-soft/40 transition-all text-left"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-indigo-soft border border-indigo-border flex items-center justify-center shrink-0">
+                      <Wallet size={15} className="text-indigo" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold text-text-primary truncate">{p.label}</div>
+                      <div className="text-[11px] text-text-muted mt-0.5">{p.tagline}</div>
+                    </div>
+                    <span className="text-[11px] font-mono font-bold text-indigo-mid shrink-0">
+                      ${p.budget}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

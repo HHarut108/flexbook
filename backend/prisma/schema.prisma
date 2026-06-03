@@ -63,3 +63,28 @@ model OTP {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+// ───────────────────────────────────────────────────────────────────────────────
+// When To Go — per-day cheapest fare cache keyed on (origin, destination, date).
+// `cheapestUsd` is nullable on purpose: a row with NULL means we already checked
+// this day and Kiwi returned no priced itineraries, so we should NOT refetch it
+// before ttlUntil. That's the difference between "we've never sampled this day"
+// (no row exists) and "we sampled it, no flights" (row exists, price = NULL).
+//
+// PK is (origin, destination, date) so upserts are idempotent and the table can
+// be scanned cheaply by an index lookup on (origin, destination).
+// ───────────────────────────────────────────────────────────────────────────────
+model PriceCalendarDay {
+  origin       String
+  destination  String
+  date         String   // YYYY-MM-DD departure date
+  cheapestUsd  Float?   // null = checked, no priced itineraries for this day
+  currency     String   @default("USD")
+  bookingUrl   String?
+  source       String   // 'kiwi-range' for v1
+  sampledAt    DateTime @default(now())
+  ttlUntil     DateTime
+
+  @@id([origin, destination, date])
+  @@index([origin, destination])
+}

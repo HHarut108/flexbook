@@ -1,6 +1,11 @@
 import { FlightOption } from '@fast-travel/shared';
 import { config } from '../config';
-import { fetchRapidApiKiwiFlights, KiwiSearchOptions } from '../providers/RapidApiKiwiFlightProvider';
+import {
+  fetchRapidApiKiwiFlights,
+  fetchRapidApiKiwiCalendar,
+  KiwiSearchOptions,
+  KiwiCalendarDay,
+} from '../providers/RapidApiKiwiFlightProvider';
 import { fetchSerpApiFlights, fetchSerpApiOpenFlights } from '../providers/SerpApiFlightProvider';
 import { fetchMockFlights } from '../providers/MockFlightProvider';
 import { airportService } from './AirportService';
@@ -118,6 +123,117 @@ async function attachCachedPrices(
   return { flights, hasStale, hasMissing };
 }
 
+// ─── Calendar helpers ──────────────────────────────────────────────────────────
+// Inline here because they're only used by priceCalendar. If a second consumer
+// appears, lift them into utils/calendarRange.ts.
+
+/** Inclusive enumeration of YYYY-MM-DD strings between start and end. */
+function enumerateDates(start: string, end: string): string[] {
+  const out: string[] = [];
+  const cur = new Date(start + 'T00:00:00Z');
+  const last = new Date(end + 'T00:00:00Z');
+  while (cur.getTime() <= last.getTime()) {
+    out.push(cur.toISOString().slice(0, 10));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return out;
+}
+
+/**
+ * Group missing dates into contiguous runs and split runs longer than
+ * `maxChunkDays` into ≤maxChunkDays-day windows. Kiwi truncates to ~25
+ * cheapest itineraries per call, so chunking keeps per-day coverage tight.
+ */
+function chunkMissingDates(missing: string[], maxChunkDays: number): [string, string][] {
+  if (missing.length === 0) return [];
+  const sorted = [...missing].sort();
+  const chunks: [string, string][] = [];
+
+  let chunkStart = sorted[0];
+  let prev = sorted[0];
+
+  const flush = (end: string) => {
+    // Split into ≤maxChunkDays chunks. Walk by N days from chunkStart.
+    let s = chunkStart;
+    const lastDate = new Date(end + 'T00:00:00Z');
+    // Bound the loop defensively: even a 180-day window divided into 1-day
+    // chunks is only 180 iterations — 1000 is far more than we'd ever need.
+    for (let safety = 0; safety < 1000; safety++) {
+      const startDate = new Date(s + 'T00:00:00Z');
+      const tentativeEnd = new Date(startDate);
+      tentativeEnd.setUTCDate(tentativeEnd.getUTCDate() + maxChunkDays - 1);
+      if (tentativeEnd.getTime() >= lastDate.getTime()) {
+        chunks.push([s, lastDate.toISOString().slice(0, 10)]);
+        return;
+      }
+      chunks.push([s, tentativeEnd.toISOString().slice(0, 10)]);
+      const nextStart = new Date(tentativeEnd);
+      nextStart.setUTCDate(nextStart.getUTCDate() + 1);
+      s = nextStart.toISOString().slice(0, 10);
+    }
+  };
+
+  for (let i = 1; i < sorted.length; i++) {
+    const d = new Date(sorted[i] + 'T00:00:00Z');
+    const p = new Date(prev + 'T00:00:00Z');
+    const gapDays = Math.round((d.getTime() - p.getTime()) / 86400000);
+    if (gapDays > 1) {
+      flush(prev);
+      chunkStart = sorted[i];
+    }
+    prev = sorted[i];
+  }
+  flush(prev);
+
+  return chunks;
+}
+
+/** A single day's cheapest itinerary in the price calendar response. */
+export interface CalendarDayResult {
+  date: string;
+  priceUsd: number;
+  currency: string;
+  bookingUrl?: string;
+  /** Full itinerary metadata (airline, times, stops…) — shape mirrors
+   *  KiwiCalendarItinerary so the frontend can render a flight card + map. */
+  itinerary?: {
+    originIata: string;
+    originCity: string;
+    originLat: number;
+    originLng: number;
+    destinationIata: string;
+    destinationCity: string;
+    destinationCountry: string;
+    destinationLat: number;
+    destinationLng: number;
+    departureDatetime: string;
+    arrivalDatetime: string;
+    durationMinutes: number;
+    airlineName: string;
+    airlineCode?: string;
+    stops: number;
+    viaIatas?: string[];
+    viaCoords?: { lat: number; lng: number }[];
+  };
+}
+
+export interface PriceCalendarResult {
+  origin: string;
+  destination: string;
+  start: string;
+  end: string;
+  /** All days in the requested range that have at least one priced itinerary. */
+  days: CalendarDayResult[];
+  /** Cheapest day across the requested range, or null if no flights anywhere. */
+  cheapest: CalendarDayResult | null;
+  /** Always 'live' for now — the persistent cache layer was removed so prices
+   *  could not get stale on the user; kept on the envelope for future
+   *  stale-while-revalidate work. */
+  cacheStatus: 'live';
+}
+
+const PRICE_CALENDAR_CHUNK_DAYS = 14;
+
 export class FlightService {
   async search(
     originIata: string,
@@ -154,6 +270,79 @@ export class FlightService {
     const withPrices = storePricesAndAttach(processed, usedProvider, date);
 
     return { flights: withPrices, cacheStatus: 'live' };
+  }
+
+  /**
+   * When To Go feature: return per-day cheapest fares for (origin, destination)
+   * across [startDate, endDate], plus the single cheapest day in that window.
+   *
+   * No persistent cache. Each call hits Kiwi fresh — flight prices move too
+   * much for a 7-day cache to be trustworthy, and the user-visible answer is
+   * literally "the cheapest day," which has to be live. The PriceCalendarDay
+   * table remains in the schema as forward-investment for a future
+   * stale-while-revalidate layer, but is unused on the read/write path today.
+   *
+   * Single-provider (Kiwi-only) is intentional: Kiwi's range mode is the only
+   * source we've validated that returns per-day cheapest in one HTTP call
+   * (see scripts/spike-calendar.ts). Long windows are chunked to ≤14 days so
+   * the price-asc-truncated response still covers every day.
+   */
+  async priceCalendar(
+    originIata: string,
+    destinationIata: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<PriceCalendarResult> {
+    const allDates = enumerateDates(startDate, endDate);
+    // Chunk the *entire* window — we always refetch since there's no cache.
+    const chunks = chunkMissingDates(allDates, PRICE_CALENDAR_CHUNK_DAYS);
+
+    increment('rapidapi-kiwi', 'primary');
+    const fetched: KiwiCalendarDay[] = [];
+    try {
+      for (const [s, e] of chunks) {
+        const days = await fetchRapidApiKiwiCalendar(originIata, destinationIata, s, e, 'USD');
+        fetched.push(...days);
+      }
+    } catch (err) {
+      log().error(
+        { originIata, destinationIata, startDate, endDate, err },
+        'FlightService.priceCalendar Kiwi call failed',
+      );
+      throw err;
+    }
+
+    // De-dupe across chunk boundaries by taking the lowest price per day.
+    const byDay = new Map<string, KiwiCalendarDay>();
+    for (const day of fetched) {
+      const existing = byDay.get(day.date);
+      if (!existing || day.priceUsd < existing.priceUsd) byDay.set(day.date, day);
+    }
+
+    const days: CalendarDayResult[] = [...byDay.values()]
+      .filter((d) => d.date >= startDate && d.date <= endDate)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((d) => ({
+        date: d.date,
+        priceUsd: d.priceUsd,
+        currency: d.currency,
+        bookingUrl: d.bookingUrl,
+        itinerary: d.itinerary,
+      }));
+
+    const cheapest = days.length === 0
+      ? null
+      : days.reduce((a, b) => (a.priceUsd <= b.priceUsd ? a : b));
+
+    return {
+      origin: originIata,
+      destination: destinationIata,
+      start: startDate,
+      end: endDate,
+      days,
+      cheapest,
+      cacheStatus: 'live',
+    };
   }
 
   /** Ordered list of providers to try, from primary to fallback. */

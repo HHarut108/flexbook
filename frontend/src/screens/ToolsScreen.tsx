@@ -7,10 +7,10 @@ import {
   Lock,
   ArrowRight,
   Sparkles,
-  Route,
   Check,
   X,
   LogIn,
+  CalendarSearch,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -46,6 +46,22 @@ const TOOLS: Tool[] = [
     requiresAuth: true,
     icon: Wallet,
     gradient: 'linear-gradient(135deg, rgba(55,48,163,0.97) 0%, rgba(79,70,229,0.97) 100%)',
+  },
+  {
+    id: 'when-to-go',
+    name: 'When To Go',
+    tagline: "Find the cheapest day to fly between any two cities",
+    description:
+      "Pick a departure city, an arrival city, and a flexible window — we'll show you the single cheapest day to fly. Change anything and the answer updates live.",
+    features: [
+      'Search any city pair, no account needed',
+      'Use a preset (this month, next 90 days) or a custom date range',
+      'Tap "Book this flight" to jump straight into the cheapest itinerary',
+    ],
+    path: '/when-to-go',
+    requiresAuth: false,
+    icon: CalendarSearch,
+    gradient: 'linear-gradient(135deg, rgba(13,148,136,0.97) 0%, rgba(16,185,129,0.97) 100%)',
   },
 ];
 
@@ -104,39 +120,52 @@ function AuthPrompt({ tool, onClose }: { tool: Tool; onClose: () => void }) {
 function ToolLauncher({ tool, onOpen }: { tool: Tool; onOpen: (tool: Tool) => void }) {
   const Icon = tool.icon;
   return (
-    <div className="section-shell overflow-hidden">
-      {/* Visual */}
-      <div className="relative h-32 flex items-center justify-center overflow-hidden" style={{ background: tool.gradient }}>
-        <div className="absolute -top-8 -right-6 w-28 h-28 rounded-full bg-white/10" />
-        <div className="absolute -bottom-10 -left-8 w-32 h-32 rounded-full bg-white/[0.07]" />
-        <Route size={52} className="absolute right-5 bottom-4 text-white/15" strokeWidth={1.5} />
-        <div className="relative w-16 h-16 rounded-2xl bg-white/15 border border-white/25 flex items-center justify-center backdrop-blur-sm">
-          <Icon size={28} className="text-white" />
-        </div>
-      </div>
-
-      {/* Body */}
-      <div className="p-6">
-        <div className="flex items-center gap-2 mb-1.5">
-          <h2 className="text-lg font-bold text-text-primary">{tool.name}</h2>
-          {tool.requiresAuth && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-soft border border-indigo-border text-[11px] font-bold text-indigo">
-              <Lock size={10} /> Sign in
-            </span>
-          )}
-        </div>
-        <p className="text-sm font-medium text-text-secondary mb-4">{tool.tagline}</p>
-
-        <button
-          onClick={() => onOpen(tool)}
-          className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl bg-indigo text-white text-sm font-bold hover:bg-indigo/90 transition-all active:scale-[0.98]"
-          style={{ boxShadow: '0 10px 28px rgba(55,48,163,0.28)' }}
+    <div className="section-shell p-6 transition-colors hover:border-indigo-border">
+      {/* Header — compact icon + title row, no oversized banner */}
+      <div className="flex items-start gap-4 mb-3">
+        <div
+          className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
+          style={{ background: tool.gradient, boxShadow: '0 8px 24px rgba(15,23,42,0.10)' }}
         >
-          Open {tool.name}
-          <ArrowRight size={15} />
-        </button>
-        <p className="text-center text-xs text-text-muted/70 mt-4">More tools coming soon.</p>
+          <Icon size={22} className="text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <h2 className="text-lg font-bold text-text-primary leading-tight">{tool.name}</h2>
+            {tool.requiresAuth && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-soft border border-indigo-border text-[11px] font-bold text-indigo">
+                <Lock size={10} /> Sign in
+              </span>
+            )}
+          </div>
+          <p className="text-xs font-semibold text-indigo-mid">{tool.tagline}</p>
+        </div>
       </div>
+
+      {/* Full description — the heavy lifter explaining what the tool does */}
+      <p className="text-sm text-text-secondary leading-relaxed mb-4">{tool.description}</p>
+
+      {/* Per-tool feature checklist — moved here from the left rail so each
+          card carries its own value props instead of a mixed pool. */}
+      <ul className="space-y-2 mb-5">
+        {tool.features.map((f) => (
+          <li key={f} className="flex items-start gap-2.5 text-xs text-text-secondary">
+            <span className="mt-0.5 w-4 h-4 rounded-full bg-emerald/10 flex items-center justify-center shrink-0">
+              <Check size={10} className="text-emerald" strokeWidth={3} />
+            </span>
+            <span className="leading-relaxed">{f}</span>
+          </li>
+        ))}
+      </ul>
+
+      <button
+        onClick={() => onOpen(tool)}
+        className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl bg-indigo text-white text-sm font-bold hover:bg-indigo/90 transition-all active:scale-[0.98]"
+        style={{ boxShadow: '0 10px 28px rgba(55,48,163,0.28)' }}
+      >
+        Open {tool.name}
+        <ArrowRight size={15} />
+      </button>
     </div>
   );
 }
@@ -145,7 +174,6 @@ export function ToolsScreen({ onMenuOpen }: Props) {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const [authPrompt, setAuthPrompt] = useState<Tool | null>(null);
-  const primaryTool = TOOLS[0];
 
   function openTool(tool: Tool) {
     if (tool.requiresAuth && !user) {
@@ -170,19 +198,34 @@ export function ToolsScreen({ onMenuOpen }: Props) {
       </h1>
 
       <p className="mt-5 text-base md:text-lg text-text-muted leading-7 max-w-[46ch]">
-        A growing toolkit built for multi-stop travellers. Pick a tool and let FlexBook do the heavy lifting.
+        A growing toolkit built for multi-stop travellers. Each tool tackles a
+        different part of the trip — pick one and let FlexBook do the heavy
+        lifting.
       </p>
 
-      <ul className="mt-6 space-y-2.5">
-        {primaryTool.features.map((f) => (
-          <li key={f} className="flex items-start gap-2.5 text-sm text-text-muted">
-            <span className="mt-0.5 w-5 h-5 rounded-full bg-emerald/10 flex items-center justify-center shrink-0">
-              <Check size={12} className="text-emerald" />
-            </span>
-            {f}
-          </li>
-        ))}
-      </ul>
+      {/* Tool count + free-tier callout so the rail still has personality
+          without duplicating per-card feature bullets. */}
+      <div className="mt-7 flex flex-wrap gap-3">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-2 border border-border text-xs font-semibold text-text-secondary">
+          <Sparkles size={11} className="text-indigo" />
+          {TOOLS.length} tool{TOOLS.length === 1 ? '' : 's'} live
+        </span>
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald/10 border border-emerald/20 text-xs font-semibold text-emerald">
+          <Check size={11} strokeWidth={3} />
+          Free to use
+        </span>
+      </div>
+    </div>
+  );
+
+  const right = (
+    <div className="flex flex-col gap-4">
+      {TOOLS.map((tool) => (
+        <ToolLauncher key={tool.id} tool={tool} onOpen={openTool} />
+      ))}
+      <p className="text-center text-xs text-text-muted/70 pt-1">
+        More tools coming soon.
+      </p>
     </div>
   );
 
@@ -191,10 +234,10 @@ export function ToolsScreen({ onMenuOpen }: Props) {
       <MarketingShell
         active="tools"
         title="Tools"
-        description="FlexBook Tools — smart planning utilities for multi-stop travellers, including the Budget Planner that builds the cheapest trip within your budget."
+        description="FlexBook Tools — smart planning utilities for multi-stop travellers, including When To Go (cheapest day to fly) and the Budget Planner."
         onMenuOpen={onMenuOpen}
         left={left}
-        right={<ToolLauncher tool={primaryTool} onOpen={openTool} />}
+        right={right}
       />
       {authPrompt && <AuthPrompt tool={authPrompt} onClose={() => setAuthPrompt(null)} />}
     </>
