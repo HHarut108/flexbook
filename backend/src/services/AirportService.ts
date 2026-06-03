@@ -5,6 +5,11 @@ import { haversineKm } from '../utils/haversine';
 const rawAirports: RawAirport[] = require('../data/airports.json');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const rawGazetteer: GazetteerEntry[] = require('../data/airports.gazetteer.json');
+/** OpenFlights-derived map of `originIATA -> directDestIATA[]`. Updated by
+ *  `scripts/build-routes.ts`. Used to filter the When To Go suggested-routes
+ *  endpoint so we only inspire users with flights they can take non-stop. */
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const rawDirectRoutes: Record<string, string[]> = require('../data/direct-routes.json');
 
 interface RawAirport {
   iata: string;
@@ -82,9 +87,27 @@ export class AirportService {
   private airports: RawAirport[] = rawAirports;
   private gazetteer: GazetteerEntry[] = rawGazetteer;
   private byIata: Map<string, RawAirport>;
+  /** Per-origin Set of destination IATAs with at least one non-stop service. */
+  private directDestsByOrigin: Map<string, Set<string>>;
+  /** Global popularity score: how many origins serve a given destination. Used
+   *  to rank residual direct-destination fallbacks when the curated list runs
+   *  out — busier hubs are more inspiring than tiny regional pairings. */
+  private destinationPopularity: Map<string, number>;
 
   constructor() {
     this.byIata = new Map(this.airports.map((a) => [a.iata.toUpperCase(), a]));
+
+    this.directDestsByOrigin = new Map();
+    this.destinationPopularity = new Map();
+    for (const [origin, dests] of Object.entries(rawDirectRoutes)) {
+      this.directDestsByOrigin.set(origin, new Set(dests));
+      for (const dest of dests) {
+        this.destinationPopularity.set(
+          dest,
+          (this.destinationPopularity.get(dest) ?? 0) + 1,
+        );
+      }
+    }
   }
 
   /** Fuzzy search across IATA, city, airport name, and keyword aliases.
@@ -203,6 +226,28 @@ export class AirportService {
   getByIata(iata: string): Airport | undefined {
     const raw = this.byIata.get(iata.toUpperCase());
     return raw ? toAirport(raw) : undefined;
+  }
+
+  /** True if `origin` has at least one non-stop service to `dest` according
+   *  to the OpenFlights-derived dataset (see scripts/build-routes.ts). */
+  hasDirectRoute(originIata: string, destIata: string): boolean {
+    const set = this.directDestsByOrigin.get(originIata.toUpperCase());
+    if (!set) return false;
+    return set.has(destIata.toUpperCase());
+  }
+
+  /** Non-stop destinations served from `origin`, ranked by global popularity
+   *  (how many origins also serve that destination — busier hubs first). The
+   *  suggested-routes endpoint uses this as a last-resort fallback when the
+   *  curated regional list runs dry for a small origin airport. */
+  directDestinations(originIata: string): string[] {
+    const set = this.directDestsByOrigin.get(originIata.toUpperCase());
+    if (!set) return [];
+    return [...set].sort((a, b) => {
+      const pa = this.destinationPopularity.get(a) ?? 0;
+      const pb = this.destinationPopularity.get(b) ?? 0;
+      return pb - pa || a.localeCompare(b);
+    });
   }
 }
 
