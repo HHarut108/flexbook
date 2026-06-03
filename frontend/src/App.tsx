@@ -10,6 +10,8 @@ import { ExpiredLinkModal } from './components/ExpiredLinkModal';
 import { RequireOrigin } from './components/RequireOrigin';
 import { ShareRedirect } from './components/ShareRedirect';
 import { HomeScreen } from './screens/HomeScreen';
+import { HopPlannerScreen } from './screens/HopPlannerScreen';
+import { SearchResultsScreen } from './screens/SearchResultsScreen';
 import { FlightResultsScreen } from './screens/FlightResultsScreen';
 import { StayDurationScreen } from './screens/StayDurationScreen';
 import { DecisionScreen } from './screens/DecisionScreen';
@@ -84,6 +86,8 @@ export default function App() {
 
       <Routes>
         <Route path="/" element={<HomeScreen onMenuOpen={() => setDrawerOpen(true)} />} />
+        <Route path="/hop-planner" element={<HopPlannerScreen onMenuOpen={() => setDrawerOpen(true)} />} />
+        <Route path="/search" element={<SearchResultsScreen onMenuOpen={() => setDrawerOpen(true)} />} />
         <Route path="/share/:slug" element={<ShareRedirect />} />
         <Route path="/signup" element={<SignUpScreen />} />
         <Route path="/verify-email" element={<VerifyOtpScreen />} />
