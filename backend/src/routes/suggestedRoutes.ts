@@ -82,13 +82,16 @@ function taglineFor(destIata: string): string {
 }
 
 /* Build a SuggestedRoute by resolving a destination IATA against the airport
-   service. Returns null if the destination IATA is unknown or equals origin. */
+   service. Returns null if the destination IATA is unknown, equals origin, or
+   isn't served by a non-stop flight from origin — suggestions are direct-only
+   so we never inspire the user with a route that requires a layover. */
 function buildRoute(
   origin: Airport,
   destIata: string,
   source: 'analytics' | 'curated',
 ): SuggestedRoute | null {
   if (destIata.toUpperCase() === origin.iata.toUpperCase()) return null;
+  if (!airportService.hasDirectRoute(origin.iata, destIata)) return null;
   const dest = airportService.getByIata(destIata);
   if (!dest) return null;
   return { from: origin, to: dest, tagline: taglineFor(dest.iata), source };
@@ -183,6 +186,24 @@ export async function suggestedRoutesRoutes(app: FastifyInstance) {
       const region = regionForOrigin(fromIata);
       const curated = CURATED_BY_REGION[region] ?? CURATED_BY_REGION.GLOBAL;
       for (const iata of curated) {
+        if (routes.length >= limit) break;
+        if (seen.has(iata)) continue;
+        const route = buildRoute(origin, iata, 'curated');
+        if (route) {
+          routes.push(route);
+          seen.add(iata);
+        }
+      }
+    }
+
+    /* Last-resort fallback for small airports whose curated regional list has
+       no non-stop service (e.g. BUS / Batumi has only 5 direct destinations,
+       none of which appear in our hand-picked EU/MENA list). Pull straight
+       from the OpenFlights direct-routes data, ranked by global hub size — so
+       even a remote origin still surfaces *something* the user can fly. */
+    if (routes.length < limit) {
+      const directIatas = airportService.directDestinations(fromIata);
+      for (const iata of directIatas) {
         if (routes.length >= limit) break;
         if (seen.has(iata)) continue;
         const route = buildRoute(origin, iata, 'curated');
