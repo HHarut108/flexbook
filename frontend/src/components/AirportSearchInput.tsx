@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Airport } from '@fast-travel/shared';
 import { PlaneTakeoff, Search, Loader2, X, ArrowRight } from 'lucide-react';
 import { useAirportSearch } from '../hooks/useAirportSearch';
@@ -64,9 +64,14 @@ export function AirportSearchInput({
   ariaLabel = 'Search airport',
   accentButton = false,
 }: Props) {
-  const { results, fallback, loading, error } = useAirportSearch(value);
+  const [lastSelected, setLastSelected] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const showResults = value.trim().length > 0;
+  // Once a result is picked, the input shows "City (IATA)". Keep the dropdown
+  // suppressed for that exact string — otherwise it stays open and re-queries
+  // for "City (IATA)", which both looks broken and yields a 500 from the
+  // airport search backend (parens aren't a valid query).
+  const showResults = value.trim().length > 0 && value !== lastSelected;
+  const { results, fallback, loading, error } = useAirportSearch(showResults ? value : '');
 
   return (
     <div className="relative">
@@ -153,7 +158,10 @@ export function AirportSearchInput({
             <AirportRow
               key={airport.iata}
               airport={airport}
-              onSelect={() => onSelect(airport)}
+              onSelect={() => {
+                setLastSelected(`${airport.city.name} (${airport.iata})`);
+                onSelect(airport);
+              }}
               delay={i * 20}
             />
           ))}
