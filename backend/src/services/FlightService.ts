@@ -1,10 +1,12 @@
-import { FlightOption } from '@fast-travel/shared';
+import { FlightOption, RoundTripOption } from '@fast-travel/shared';
 import { config } from '../config';
 import {
   fetchRapidApiKiwiFlights,
   fetchRapidApiKiwiCalendar,
+  fetchRapidApiKiwiRoundTrip,
   KiwiSearchOptions,
   KiwiCalendarDay,
+  KiwiRoundTripOptions,
 } from '../providers/RapidApiKiwiFlightProvider';
 import { fetchSerpApiFlights, fetchSerpApiOpenFlights } from '../providers/SerpApiFlightProvider';
 import { fetchMockFlights } from '../providers/MockFlightProvider';
@@ -343,6 +345,80 @@ export class FlightService {
       cheapest,
       cacheStatus: 'live',
     };
+  }
+
+  /**
+   * Bundled round-trip search via Kiwi's /round-trip endpoint. Returns pairs of
+   * (outbound, inbound) sold together at a single fare — typically cheaper than
+   * two independently-purchased one-ways.
+   *
+   * No cache: pair prices move per-airline-bundle and we have no per-pair cache
+   * layer. Kiwi-only: SerpAPI has a different round-trip surface that would
+   * need its own mapper; if Kiwi fails, we currently error out rather than
+   * silently fall back to two one-way searches (which would defeat the point).
+   */
+  async searchRoundTrip(
+    originIata: string,
+    destinationIata: string,
+    outboundDate: string,
+    inboundDate: string,
+    options: KiwiRoundTripOptions = {},
+    apiMode?: 'real' | 'mock',
+  ): Promise<{ pairs: RoundTripOption[] }> {
+    if (apiMode === 'mock' || !config.RAPIDAPI_KEY) {
+      const pairs = await this.buildMockRoundTrips(originIata, destinationIata, outboundDate, inboundDate, options);
+      return { pairs };
+    }
+
+    increment('rapidapi-kiwi', 'primary');
+    const pairs = await fetchRapidApiKiwiRoundTrip(
+      originIata,
+      destinationIata,
+      outboundDate,
+      inboundDate,
+      options,
+    );
+    return { pairs };
+  }
+
+  /**
+   * Mock-mode round-trip: pair the cheapest mock outbound with the cheapest
+   * mock inbound and synthesize a pretend bundled fare. Used in dev/tests so
+   * the frontend integration can run without a RapidAPI key.
+   */
+  private async buildMockRoundTrips(
+    originIata: string,
+    destinationIata: string,
+    outboundDate: string,
+    inboundDate: string,
+    options: KiwiRoundTripOptions,
+  ): Promise<RoundTripOption[]> {
+    const originCity = airportService.getByIata(originIata)?.city.name ?? originIata;
+    const destCity = airportService.getByIata(destinationIata)?.city.name ?? destinationIata;
+    const passengers = options.passengers ?? 1;
+    const limit = options.limit ?? 15;
+
+    const outboundLegs = (await fetchMockFlights(originIata, originCity, outboundDate, destinationIata)).slice(0, limit);
+    const inboundLegs = (await fetchMockFlights(destinationIata, destCity, inboundDate, originIata)).slice(0, limit);
+    const pairs: RoundTripOption[] = [];
+    const pairCount = Math.min(outboundLegs.length, inboundLegs.length, limit);
+    for (let i = 0; i < pairCount; i++) {
+      const out = outboundLegs[i];
+      const ret = inboundLegs[i];
+      // Mock bundled fare = 90% of the sum, so the round-trip discount is visible.
+      const bundledTotal = Math.round((out.priceUsd + ret.priceUsd) * 0.9 * passengers);
+      const tripId = `mock-rt:${out.flightId}:${ret.flightId}`;
+      const outbound: FlightOption = { ...out, flightId: `${tripId}:out`, priceUsd: bundledTotal };
+      const inbound: FlightOption = { ...ret, flightId: `${tripId}:in`, priceUsd: bundledTotal };
+      pairs.push({
+        tripId,
+        outbound,
+        inbound,
+        priceUsd: bundledTotal,
+        bookingUrl: out.bookingUrl || ret.bookingUrl || '',
+      });
+    }
+    return pairs;
   }
 
   /** Ordered list of providers to try, from primary to fallback. */

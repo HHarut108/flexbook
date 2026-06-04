@@ -33,3 +33,24 @@ export interface FlightOption {
   priceInfo?: PriceInfo;     // enriched price metadata populated by the cache layer
   weather?: WeatherSummary;
 }
+
+/**
+ * A bundled round-trip itinerary — outbound + return paired by the provider
+ * at a single combined price. Airlines often bundle these cheaper than two
+ * separately-purchased one-ways, so we keep the pair intact rather than
+ * splitting the response back into independent legs.
+ *
+ * `priceUsd` is the *combined* total. `outbound.priceUsd` and
+ * `inbound.priceUsd` echo it for compatibility with code that consumes a
+ * single FlightOption — they should not be summed.
+ */
+export interface RoundTripOption {
+  /** Stable id for the bundled pair. */
+  tripId: string;
+  outbound: FlightOption;
+  inbound: FlightOption;
+  /** Combined total fare (already includes passenger multiplier when provided). */
+  priceUsd: number;
+  /** Single deep link that books the whole pair. */
+  bookingUrl: string;
+}

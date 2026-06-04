@@ -1,4 +1,4 @@
-import { FlightOption } from '@fast-travel/shared';
+import { FlightOption, RoundTripOption } from '@fast-travel/shared';
 import { apiClient, getApiMode } from './client';
 
 export interface FlightSearchOptions {
@@ -61,4 +61,50 @@ export async function searchFlights(
     },
   );
   return data.results;
+}
+
+export interface RoundTripSearchOptions {
+  passengers?: number;
+  currency?: string;
+  cabinClass?: 'M' | 'W' | 'C' | 'F';
+  /** Max stopovers per leg. 0 = direct only. */
+  maxStopovers?: number;
+  /** Cap on bundled pairs returned by the provider. Default backend cap: 15. */
+  limit?: number;
+}
+
+/**
+ * Bundled round-trip search. Each result is an outbound + inbound pair sold
+ * together at one combined fare (often cheaper than two separate one-ways).
+ */
+export async function searchRoundTrip(
+  originIata: string,
+  destinationIata: string,
+  outboundDate: string,
+  inboundDate: string,
+  options: RoundTripSearchOptions = {},
+): Promise<RoundTripOption[]> {
+  const mode = getApiMode();
+  const { passengers, currency, cabinClass, maxStopovers, limit } = options;
+  const { data } = await apiClient.get<{
+    origin: string;
+    destination: string;
+    outboundDate: string;
+    inboundDate: string;
+    pairs: RoundTripOption[];
+  }>('/flights/round-trip', {
+    params: {
+      originIata,
+      destinationIata,
+      outboundDate,
+      inboundDate,
+      ...(passengers !== undefined && { passengers }),
+      ...(currency && { currency }),
+      ...(cabinClass && { cabinClass }),
+      ...(maxStopovers !== undefined && { maxStopovers }),
+      ...(limit !== undefined && { limit }),
+      apiMode: mode,
+    },
+  });
+  return data.pairs;
 }

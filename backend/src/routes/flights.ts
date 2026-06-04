@@ -21,6 +21,22 @@ const searchQuerySchema = z.object({
   country: z.string().length(2).toUpperCase().optional(),
 });
 
+const roundTripQuerySchema = z.object({
+  originIata: z.string().length(3).toUpperCase(),
+  destinationIata: z.string().length(3).toUpperCase(),
+  outboundDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'outboundDate must be YYYY-MM-DD'),
+  inboundDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'inboundDate must be YYYY-MM-DD'),
+  currency: z.string().length(3).toUpperCase().default('USD'),
+  cabinClass: z.enum(['M', 'W', 'C', 'F']).optional(),
+  passengers: z.coerce.number().int().min(1).max(9).default(1),
+  maxStopovers: z.coerce.number().int().min(0).max(2).optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(15),
+  apiMode: z.enum(['real', 'mock']).optional(),
+}).refine((d) => d.inboundDate >= d.outboundDate, {
+  message: 'inboundDate must be on or after outboundDate',
+  path: ['inboundDate'],
+});
+
 export async function flightRoutes(app: FastifyInstance) {
   app.get('/flights/search', async (request, reply) => {
     const parsed = searchQuerySchema.safeParse(request.query);
@@ -70,6 +86,41 @@ export async function flightRoutes(app: FastifyInstance) {
       }
       app.log.error(err, 'Flight search failed');
       return reply.status(502).send(fail('FLIGHT_API_UNAVAILABLE', 'Could not fetch flights. Please try again.', true));
+    }
+  });
+
+  app.get('/flights/round-trip', async (request, reply) => {
+    const parsed = roundTripQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send(fail('INVALID_PARAMS', parsed.error.issues[0]?.message ?? 'Invalid params'));
+    }
+    const { originIata, destinationIata, outboundDate, inboundDate, currency, cabinClass, passengers, maxStopovers, limit, apiMode } = parsed.data;
+    try {
+      const { pairs } = await flightService.searchRoundTrip(
+        originIata,
+        destinationIata,
+        outboundDate,
+        inboundDate,
+        { currency, cabinClass, passengers, maxStopovers, limit },
+        apiMode,
+      );
+      return ok({ origin: originIata, destination: destinationIata, outboundDate, inboundDate, pairs });
+    } catch (err) {
+      if (err instanceof RapidApiRateLimitError) {
+        return reply.status(429).headers({ 'Retry-After': '60' }).send(
+          fail('RATE_LIMITED', 'RapidAPI rate limit reached. Please wait a moment and try again.', true),
+        );
+      }
+      if (err instanceof RapidApiAuthError) {
+        app.log.error(err, 'RapidAPI auth failure — invalid or missing API key');
+        return reply.status(503).send(fail('FLIGHT_API_AUTH_ERROR', 'Flight search is temporarily unavailable. Please try again shortly.', true));
+      }
+      if (err instanceof RapidApiUnavailableError) {
+        app.log.warn(err, 'RapidAPI temporarily unavailable');
+        return reply.status(503).send(fail('FLIGHT_API_UNAVAILABLE', 'Flight search is temporarily unavailable. Please try again shortly.', true));
+      }
+      app.log.error(err, 'Round-trip search failed');
+      return reply.status(502).send(fail('FLIGHT_API_UNAVAILABLE', 'Could not fetch round-trip flights. Please try again.', true));
     }
   });
 }
