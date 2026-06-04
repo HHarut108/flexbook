@@ -74,6 +74,25 @@ describe('FlightService.search — deduplication', () => {
     const { flights } = await svc.search('LHR', 'London', '2030-06-02', undefined, false);
     expect(flights.filter((f) => f.destinationIata === 'CDG')).toHaveLength(2);
   });
+
+  // Regression: until 2026-06-04 the route-search results screen always
+  // collapsed to a single result for any specific (origin, destination)
+  // search because dedup was applied even when destinationIata was set —
+  // every itinerary shares the same destinationIata so the map kept only
+  // the cheapest. With a destination specified the user wants variety
+  // across airlines, times, and stops, so dedup must auto-disable.
+  it('returns every itinerary when destinationIata is specified, regardless of deduplicate flag', async () => {
+    const svc = new FlightService();
+    mockFetch.mockResolvedValue([
+      makeFlight({ flightId: 'f1', destinationIata: 'BCN', priceUsd: 103, airlineName: 'Wizz Air', stops: 1 }),
+      makeFlight({ flightId: 'f2', destinationIata: 'BCN', priceUsd: 145, airlineName: 'Vueling', stops: 0 }),
+      makeFlight({ flightId: 'f3', destinationIata: 'BCN', priceUsd: 180, airlineName: 'KLM', stops: 1 }),
+    ]);
+
+    const { flights } = await svc.search('EVN', 'Yerevan', '2030-06-11', 'BCN', true);
+    expect(flights).toHaveLength(3);
+    expect(flights.map((f) => f.flightId).sort()).toEqual(['f1', 'f2', 'f3']);
+  });
 });
 
 describe('FlightService.search — sorting', () => {

@@ -250,6 +250,13 @@ export class FlightService {
     const chain = this.providerChain(apiMode);
     const country = options.country;
 
+    // Dedup is "one cheapest flight per destination IATA" — only meaningful
+    // for "anywhere" searches (no destinationIata) where the user expects a
+    // single row per city. When destinationIata is set every result already
+    // has the same destinationIata, so dedup collapses the entire list to one
+    // result. Force it off in that case regardless of the caller's request.
+    const effectiveDedup = deduplicate && !destinationIata;
+
     const cachedSchedule = bypassCache ? undefined : await getScheduleCache(originIata, date, destinationIata, country);
     if (cachedSchedule) {
       const { flights, hasStale, hasMissing } = await attachCachedPrices(cachedSchedule);
@@ -257,7 +264,7 @@ export class FlightService {
       // entries with no cached price — otherwise the user sees an empty list.
       if (flights.length > 0) {
         if (hasStale || hasMissing) {
-          this.refreshInBackground({ originIata, originCity, date, destinationIata, chain, options, deduplicate });
+          this.refreshInBackground({ originIata, originCity, date, destinationIata, chain, options, deduplicate: effectiveDedup });
         }
         return { flights, cacheStatus: 'schedule_cached' };
       }
@@ -266,7 +273,7 @@ export class FlightService {
     const { raw, usedProvider } = await this.callWithFallback(
       chain, originIata, originCity, date, destinationIata, options,
     );
-    const processed = this.processFlights(raw, originIata, deduplicate);
+    const processed = this.processFlights(raw, originIata, effectiveDedup);
 
     setScheduleCache(originIata, date, processed.map(toScheduleEntry), destinationIata, country);
     const withPrices = storePricesAndAttach(processed, usedProvider, date);

@@ -17,11 +17,11 @@ import { deleteCache } from './cache';
 
 describe('scheduleKey', () => {
   it('formats without destination as "any"', () => {
-    expect(scheduleKey('EVN', '2026-05-05')).toBe('flights:schedule:EVN:2026-05-05:any');
+    expect(scheduleKey('EVN', '2026-05-05')).toBe('flights:schedule:v2:EVN:2026-05-05:any');
   });
 
   it('formats with destination uppercased', () => {
-    expect(scheduleKey('evn', '2026-05-05', 'bud')).toBe('flights:schedule:EVN:2026-05-05:BUD');
+    expect(scheduleKey('evn', '2026-05-05', 'bud')).toBe('flights:schedule:v2:EVN:2026-05-05:BUD');
   });
 });
 
