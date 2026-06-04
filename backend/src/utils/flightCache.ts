@@ -26,10 +26,13 @@ export interface ScheduleEntry {
   departureDatetime: string;
   arrivalDatetime: string;
   durationMinutes: number;
+  flightTimeMinutes?: number;
   airlineName: string;
   airlineCode?: string;
+  carriers?: string[];
   stops: number;
   viaIatas?: string[];
+  layovers?: Array<{ iata: string; durationMinutes: number; selfTransfer: boolean }>;
 }
 
 interface PriceCacheEntry {

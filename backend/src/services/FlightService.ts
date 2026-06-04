@@ -69,10 +69,13 @@ function toScheduleEntry(f: FlightOption): ScheduleEntry {
     departureDatetime: f.departureDatetime,
     arrivalDatetime: f.arrivalDatetime,
     durationMinutes: f.durationMinutes,
+    flightTimeMinutes: f.flightTimeMinutes,
     airlineName: f.airlineName,
     airlineCode: f.airlineCode,
+    carriers: f.carriers,
     stops: f.stops,
     viaIatas: f.viaIatas,
+    layovers: f.layovers,
   };
 }
 

@@ -1,12 +1,40 @@
 import { FlightOption, RoundTripOption } from '@fast-travel/shared';
 import { formatTime, durationLabel, formatDate } from '../utils/date.utils';
 import { formatPrice } from '../utils/price.utils';
-import { ArrowRight, ChevronRight, Plane } from 'lucide-react';
+import { AlertTriangle, ArrowRight, ChevronRight, Moon, Plane, Users } from 'lucide-react';
 
 interface Props {
   trip: RoundTripOption;
   passengers: number;
   onSelect: (trip: RoundTripOption) => void;
+}
+
+/** Whole nights between outbound arrival and inbound departure. Floor — if you
+ *  land Mon 22:00 and fly home Wed 06:00 that's 1 night, not 2. */
+function stayNights(outboundArrivalIso: string, inboundDepartureIso: string): number {
+  const arrive = new Date(outboundArrivalIso);
+  const depart = new Date(inboundDepartureIso);
+  const ms = depart.getTime() - arrive.getTime();
+  if (!Number.isFinite(ms) || ms <= 0) return 0;
+  return Math.floor(ms / (1000 * 60 * 60 * 24));
+}
+
+/** Same shape as FlightCard's helpers, kept inline so the two cards stay
+ *  visually consistent without coupling components. */
+function formatCarriers(leg: FlightOption): string {
+  const list = leg.carriers ?? (leg.airlineName ? [leg.airlineName] : []);
+  if (list.length === 0) return leg.airlineName;
+  if (list.length === 1) return list[0];
+  if (list.length === 2) return `${list[0]} + ${list[1]}`;
+  return `${list[0]} + ${list[1]} + ${list.length - 2} more`;
+}
+
+function formatLayovers(leg: FlightOption): string | null {
+  if (!leg.layovers || leg.layovers.length === 0) return null;
+  return leg.layovers
+    .filter((l) => l.durationMinutes > 0)
+    .map((l) => `${durationLabel(l.durationMinutes)} ${l.iata}`)
+    .join(' + ');
 }
 
 /**
@@ -15,6 +43,9 @@ interface Props {
  * multiplier (set by the backend), so we render it as the trip total.
  */
 export function RoundTripCard({ trip, passengers, onSelect }: Props) {
+  const nights = stayNights(trip.outbound.arrivalDatetime, trip.inbound.departureDatetime);
+  const stayCity = trip.outbound.destinationCity;
+
   return (
     <button
       type="button"
@@ -23,7 +54,7 @@ export function RoundTripCard({ trip, passengers, onSelect }: Props) {
     >
       <div className="flex-1 min-w-0 flex flex-col gap-2">
         <LegRow leg={trip.outbound} direction="outbound" />
-        <div className="border-t border-border/60" />
+        <StayDivider nights={nights} city={stayCity} />
         <LegRow leg={trip.inbound} direction="return" />
       </div>
 
@@ -42,16 +73,37 @@ export function RoundTripCard({ trip, passengers, onSelect }: Props) {
   );
 }
 
+function StayDivider({ nights, city }: { nights: number; city: string }) {
+  if (nights <= 0) {
+    return <div className="border-t border-border/60" />;
+  }
+  return (
+    <div className="flex items-center gap-2" aria-label={`${nights} night${nights === 1 ? '' : 's'} in ${city}`}>
+      <div className="flex-1 border-t border-border/60" />
+      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-mid shrink-0">
+        <Moon size={9} />
+        {nights} night{nights === 1 ? '' : 's'} in {city}
+      </span>
+      <div className="flex-1 border-t border-border/60" />
+    </div>
+  );
+}
+
 function LegRow({ leg, direction }: { leg: FlightOption; direction: 'outbound' | 'return' }) {
   const directionLabel = direction === 'outbound' ? 'Out' : 'Return';
   const directionColor = direction === 'outbound' ? 'text-indigo' : 'text-orange';
+  const carriersLabel = formatCarriers(leg);
+  const multiCarrier = (leg.carriers?.length ?? 1) > 1;
+  const hasSelfTransfer = leg.layovers?.some((l) => l.selfTransfer) ?? false;
+  const layoverLabel = formatLayovers(leg);
+
   return (
-    <div className="flex items-center gap-2 min-w-0">
-      <span className={`text-[10px] font-bold uppercase tracking-wider ${directionColor} shrink-0 w-12`}>
+    <div className="flex items-start gap-2 min-w-0">
+      <span className={`text-[10px] font-bold uppercase tracking-wider ${directionColor} shrink-0 w-12 mt-0.5`}>
         {directionLabel}
       </span>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2 min-w-0 flex-wrap">
           <span className="font-mono text-[11px] font-bold text-text-primary shrink-0">{leg.originIata}</span>
           <ArrowRight size={11} className="text-text-xmuted shrink-0" />
           <span className="font-mono text-[11px] font-bold text-text-primary shrink-0">{leg.destinationIata}</span>
@@ -67,9 +119,25 @@ function LegRow({ leg, direction }: { leg: FlightOption; direction: 'outbound' |
               )}
             </span>
           )}
+          {multiCarrier && (
+            <span
+              className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400 shrink-0"
+              title="Leg uses multiple airlines"
+            >
+              <Users size={9} /> Mixed
+            </span>
+          )}
+          {hasSelfTransfer && (
+            <span
+              className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-rose-700 dark:text-rose-400 shrink-0"
+              title="You must collect bags and re-check between flights"
+            >
+              <AlertTriangle size={9} /> Self-transfer
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 mt-0.5 text-[11px] text-text-muted min-w-0">
-          <span className="truncate max-w-[7rem]">{leg.airlineName}</span>
+          <span className="truncate max-w-[9rem]">{carriersLabel}</span>
           <span className="text-text-xmuted">·</span>
           <span className="text-text-muted shrink-0">{formatDate(leg.departureDatetime)}</span>
           <span className="text-text-xmuted hidden sm:inline">·</span>
@@ -81,6 +149,11 @@ function LegRow({ leg, direction }: { leg: FlightOption; direction: 'outbound' |
           <span className="text-text-xmuted hidden md:inline">·</span>
           <span className="hidden md:inline text-text-muted shrink-0">{durationLabel(leg.durationMinutes)}</span>
         </div>
+        {layoverLabel && (
+          <div className="mt-0.5 text-[10px] text-text-xmuted truncate">
+            Layover: {layoverLabel}
+          </div>
+        )}
       </div>
     </div>
   );
