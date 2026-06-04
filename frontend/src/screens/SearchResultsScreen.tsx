@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FlightOption } from '@fast-travel/shared';
+import { FlightOption, RoundTripOption } from '@fast-travel/shared';
 import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { searchFlights } from '../api/flights.api';
+import { searchFlights, searchRoundTrip } from '../api/flights.api';
 import { FlightCard, FlightCardSkeleton } from '../components/FlightCard';
+import { RoundTripCard, RoundTripCardSkeleton } from '../components/RoundTripCard';
 import { GoHomeLogo } from '../components/GoHomeLogo';
 import { useAuthStore } from '../store/auth.store';
 import { format } from 'date-fns';
@@ -35,6 +36,29 @@ interface LegResult {
 }
 
 const RESULTS_LIMIT = 30;
+const ROUND_TRIP_LIMIT = 15;
+
+type StopsFilter = 'any' | 'direct' | 'one' | 'twoplus';
+
+const STOPS_FILTER_OPTIONS: { value: StopsFilter; label: string }[] = [
+  { value: 'any', label: 'Any' },
+  { value: 'direct', label: 'Direct' },
+  { value: 'one', label: '1 stop' },
+  { value: 'twoplus', label: '2+ stops' },
+];
+
+function legMatchesStopsFilter(leg: { stops: number }, filter: StopsFilter): boolean {
+  switch (filter) {
+    case 'any':
+      return true;
+    case 'direct':
+      return leg.stops === 0;
+    case 'one':
+      return leg.stops === 1;
+    case 'twoplus':
+      return leg.stops >= 2;
+  }
+}
 
 function decodeLegs(raw: string): Leg[] {
   return raw
@@ -136,6 +160,135 @@ function ToolCrossSell() {
           <ArrowRight size={14} className="text-text-xmuted group-hover:text-indigo shrink-0" />
         </Link>
       </div>
+    </div>
+  );
+}
+
+function StopsFilterChips({
+  value,
+  onChange,
+}: {
+  value: StopsFilter;
+  onChange: (next: StopsFilter) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Filter by stops">
+      {STOPS_FILTER_OPTIONS.map((opt) => {
+        const active = opt.value === value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(opt.value)}
+            className={
+              'px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ' +
+              (active
+                ? 'bg-indigo text-white border-indigo'
+                : 'bg-surface text-text-secondary border-border hover:border-indigo-border hover:text-text-primary')
+            }
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+interface RoundTripResult {
+  loading: boolean;
+  error: string | null;
+  pairs: RoundTripOption[];
+}
+
+function RoundTripSection({
+  result,
+  passengers,
+}: {
+  result: RoundTripResult;
+  passengers: number;
+}) {
+  const [stopsFilter, setStopsFilter] = useState<StopsFilter>('any');
+
+  const filtered = useMemo(() => {
+    return result.pairs.filter(
+      (p) =>
+        legMatchesStopsFilter(p.outbound, stopsFilter) &&
+        legMatchesStopsFilter(p.inbound, stopsFilter),
+    );
+  }, [result.pairs, stopsFilter]);
+
+  function handleSelect(trip: RoundTripOption) {
+    if (trip.bookingUrl) {
+      window.open(trip.bookingUrl, '_blank', 'noopener,noreferrer');
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-end justify-between mb-3 gap-3 flex-wrap">
+        <div>
+          <h2 className="text-sm font-bold text-text-primary">Round-trip options</h2>
+          <p className="text-[11px] text-text-muted mt-0.5">
+            Outbound + return sold together — often cheaper than two one-ways.
+          </p>
+        </div>
+        {filtered.length > 0 && (
+          <p className="text-xs text-text-muted">
+            <strong className="text-text-secondary">{filtered.length}</strong> result
+            {filtered.length === 1 ? '' : 's'} · cheapest first
+          </p>
+        )}
+      </div>
+
+      <div className="mb-3">
+        <StopsFilterChips value={stopsFilter} onChange={setStopsFilter} />
+      </div>
+
+      {result.loading && (
+        <div className="space-y-2.5">
+          <RoundTripCardSkeleton />
+          <RoundTripCardSkeleton />
+          <RoundTripCardSkeleton />
+        </div>
+      )}
+
+      {!result.loading && result.error && (
+        <div className="section-shell p-5 text-center">
+          <SearchX size={28} className="text-text-xmuted mx-auto mb-2" />
+          <p className="text-sm text-text-secondary">{result.error}</p>
+        </div>
+      )}
+
+      {!result.loading && !result.error && result.pairs.length === 0 && (
+        <div className="section-shell p-6 text-center">
+          <SearchX size={28} className="text-text-xmuted mx-auto mb-2" />
+          <p className="text-sm font-semibold text-text-primary">No round-trip pairs found</p>
+          <p className="text-xs text-text-muted mt-1">
+            Try shifting the dates a day or two — bundled fares are date-sensitive.
+          </p>
+        </div>
+      )}
+
+      {!result.loading && !result.error && result.pairs.length > 0 && filtered.length === 0 && (
+        <div className="section-shell p-5 text-center">
+          <p className="text-sm text-text-secondary">
+            No round-trips match this stops filter. Try a less strict choice.
+          </p>
+        </div>
+      )}
+
+      {!result.loading && filtered.length > 0 && (
+        <div className="space-y-2.5">
+          {filtered.map((trip, i) => (
+            <div key={trip.tripId} style={{ animationDelay: `${i * 30}ms` }}>
+              <RoundTripCard trip={trip} passengers={passengers} onSelect={handleSelect} />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -252,10 +405,53 @@ export function SearchResultsScreen({ onMenuOpen }: { onMenuOpen?: () => void })
   }, [searchParams, type]);
 
   const [results, setResults] = useState<LegResult[]>([]);
+  const [roundTrip, setRoundTrip] = useState<RoundTripResult>({
+    loading: false,
+    error: null,
+    pairs: [],
+  });
 
-  // Fire one searchFlights call per leg, in parallel. Each leg's loading and
-  // results live in its own row so independent legs render as they resolve.
+  // Round-trip path: one bundled-pair call instead of two independent one-ways.
+  // Splits cleanly from the leg-by-leg effect below — they never run together
+  // for the same `type`.
   useEffect(() => {
+    if (type !== 'return') return;
+    const origin = searchParams.get('origin');
+    const destination = searchParams.get('destination');
+    const depart = searchParams.get('depart');
+    const ret = searchParams.get('return');
+    if (!origin || !destination || !depart || !ret) return;
+
+    let cancelled = false;
+    setRoundTrip({ loading: true, error: null, pairs: [] });
+    searchRoundTrip(origin, destination, depart, ret, {
+      passengers,
+      limit: ROUND_TRIP_LIMIT,
+    })
+      .then((pairs) => {
+        if (cancelled) return;
+        setRoundTrip({ loading: false, error: null, pairs });
+      })
+      .catch((err: Error) => {
+        if (cancelled) return;
+        setRoundTrip({
+          loading: false,
+          error: err.message || 'Could not load round-trip options',
+          pairs: [],
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [type, searchParams, passengers]);
+
+  // One-way + multi: fire one searchFlights call per leg, in parallel. Each
+  // leg's loading and results live in its own row so independent legs render
+  // as they resolve. Skipped for `return` — round-trip uses a single bundled
+  // call above instead.
+  useEffect(() => {
+    if (type === 'return') return;
     if (legs.length === 0) return;
     let cancelled = false;
     setResults(legs.map((leg) => ({ leg, loading: true, error: null, flights: [] })));
@@ -287,12 +483,18 @@ export function SearchResultsScreen({ onMenuOpen }: { onMenuOpen?: () => void })
     return () => {
       cancelled = true;
     };
-  }, [legs, passengers]);
+  }, [type, legs, passengers]);
 
   const hasInvalidParams = legs.length === 0;
-  const allDone = results.length > 0 && results.every((r) => !r.loading);
-  const totalFlights = results.reduce((sum, r) => sum + r.flights.length, 0);
-  const noResults = allDone && totalFlights === 0;
+  const allDone =
+    type === 'return'
+      ? !roundTrip.loading
+      : results.length > 0 && results.every((r) => !r.loading);
+  const totalFlights =
+    type === 'return'
+      ? roundTrip.pairs.length
+      : results.reduce((sum, r) => sum + r.flights.length, 0);
+  const noResults = allDone && totalFlights === 0 && !roundTrip.error;
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -414,24 +616,24 @@ export function SearchResultsScreen({ onMenuOpen }: { onMenuOpen?: () => void })
           </div>
         ) : (
           <div className="space-y-8">
-            {results.map((result, index) => {
-              const heading =
-                type === 'oneway'
-                  ? 'Available flights'
-                  : type === 'return'
-                    ? index === 0
-                      ? 'Outbound flights'
-                      : 'Return flights'
+            {type === 'return' ? (
+              <RoundTripSection result={roundTrip} passengers={passengers} />
+            ) : (
+              results.map((result, index) => {
+                const heading =
+                  type === 'oneway'
+                    ? 'Available flights'
                     : `Leg ${index + 1}: ${result.leg.origin} → ${result.leg.destination}`;
-              return (
-                <ResultsSection
-                  key={`${result.leg.origin}-${result.leg.destination}-${result.leg.date}`}
-                  heading={heading}
-                  result={result}
-                  passengers={passengers}
-                />
-              );
-            })}
+                return (
+                  <ResultsSection
+                    key={`${result.leg.origin}-${result.leg.destination}-${result.leg.date}`}
+                    heading={heading}
+                    result={result}
+                    passengers={passengers}
+                  />
+                );
+              })
+            )}
 
             {noResults && <ToolCrossSell />}
           </div>
