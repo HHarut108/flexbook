@@ -11,6 +11,20 @@ export interface PriceInfo {
   priceStatus: PriceStatus;
 }
 
+/**
+ * Layover metadata between two consecutive flight segments. Captured so the
+ * card can tell the user "3h FCO + 2h 40m SVQ" instead of the old viaIatas
+ * list, and surface self-transfer warnings (the user must collect and
+ * re-check bags, separate ticket risk if a flight is delayed).
+ */
+export interface Layover {
+  iata: string;
+  durationMinutes: number;
+  /** True when the layover is between two different carriers and the
+   *  itinerary is sold as separate tickets (no through-checked bags). */
+  selfTransfer: boolean;
+}
+
 export interface FlightOption {
   flightId: string;
   originIata: string;
@@ -22,12 +36,25 @@ export interface FlightOption {
   destinationLng: number;
   departureDatetime: string; // ISO 8601
   arrivalDatetime: string;   // ISO 8601
+  /** Door-to-door duration: arrivalDatetime − departureDatetime in minutes,
+   *  including layovers. This is the number the user actually cares about
+   *  ("how long until I'm there?"). For flight-only time, use flightTimeMinutes. */
   durationMinutes: number;
+  /** Sum of segment flight times in minutes (excludes layovers). Optional —
+   *  callers that only need door-to-door duration don't need to populate this. */
+  flightTimeMinutes?: number;
   airlineName: string;
   airlineCode?: string;
+  /** All unique carriers operating the itinerary, in order of first appearance.
+   *  Single-carrier itineraries have one entry; multi-carrier ones
+   *  (e.g. Wizz Air Malta + Ryanair) reveal the mix. */
+  carriers?: string[];
   stops: number;             // 0 = direct
   viaIatas?: string[];       // intermediate airport codes, e.g. ['BUD'] for BCN→BUD→EVN
   viaCoords?: Array<{ lat: number; lng: number }>;  // coordinates for each entry in viaIatas
+  /** Per-layover metadata (one entry per stop). Aligned 1:1 with viaIatas
+   *  when present. Empty/undefined for direct flights. */
+  layovers?: Layover[];
   priceUsd: number;
   bookingUrl: string;
   priceInfo?: PriceInfo;     // enriched price metadata populated by the cache layer

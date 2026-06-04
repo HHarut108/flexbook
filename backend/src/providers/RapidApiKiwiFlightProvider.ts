@@ -1,4 +1,4 @@
-import { FlightOption, RoundTripOption } from '@fast-travel/shared';
+import { FlightOption, RoundTripOption, Layover } from '@fast-travel/shared';
 import axios, { AxiosError } from 'axios';
 import { config } from '../config';
 
@@ -55,9 +55,23 @@ interface RapidKiwiSegment {
   cabinClass?: string;
 }
 
+/**
+ * Layover metadata from Kiwi. `isBaggageRecheck=true` means the user must
+ * collect bags and check in again at the layover airport — i.e. the legs
+ * are not interlined and the itinerary is a "self-transfer". Same-carrier
+ * legs can still be self-transfer if booked across non-interlining tickets.
+ */
+interface RapidKiwiLayover {
+  duration?: number;
+  isBaggageRecheck?: boolean;
+  isWalkingDistance?: boolean;
+  transferDuration?: number | null;
+  id?: string;
+}
+
 interface RapidKiwiSector {
   id: string;
-  sectorSegments: { segment: RapidKiwiSegment; layover: unknown }[];
+  sectorSegments: { segment: RapidKiwiSegment; layover: RapidKiwiLayover | null }[];
 }
 
 interface RapidKiwiItinerary {
@@ -109,7 +123,18 @@ function sectorToFlightOption(
   const last = segments[segments.length - 1];
   const origStation = first.source.station;
   const destStation = last.destination.station;
-  const totalDurationSec = segments.reduce((sum, s) => sum + (s.duration ?? 0), 0);
+  const flightTimeSec = segments.reduce((sum, s) => sum + (s.duration ?? 0), 0);
+
+  // Door-to-door duration: departure-of-first → arrival-of-last in UTC.
+  // We prefer utcTime when present (immune to DST/timezone arithmetic);
+  // fall back to localTime parsed as a date. This is what the card surfaces
+  // because total elapsed time is what the user actually plans around.
+  const departureUtc = first.source.utcTime ?? first.source.localTime;
+  const arrivalUtc = last.destination.utcTime ?? last.destination.localTime;
+  const totalMs = new Date(arrivalUtc).getTime() - new Date(departureUtc).getTime();
+  const durationMinutes = Number.isFinite(totalMs) && totalMs > 0
+    ? Math.round(totalMs / 60000)
+    : Math.round(flightTimeSec / 60); // fall back to flight time if dates can't be parsed
 
   const viaIatas =
     segments.length > 1 ? segments.slice(0, -1).map((s) => s.destination.station.code) : undefined;
@@ -124,6 +149,50 @@ function sectorToFlightOption(
           .filter((c) => c.lat !== 0 || c.lng !== 0)
       : undefined;
 
+  // Layovers: one entry per inter-segment gap. Duration = arrival of leg i to
+  // departure of leg i+1. selfTransfer comes from Kiwi's `isBaggageRecheck`
+  // flag when present — that's the authoritative signal (e.g. same-carrier
+  // legs can still be self-transfer when booked across separate tickets).
+  // Fallback when the flag is absent: different carrier codes across the
+  // gap is a strong proxy that the user has to recheck bags themselves.
+  const sectorSegmentsRaw = sector.sectorSegments ?? [];
+  let layovers: Layover[] | undefined;
+  if (segments.length > 1) {
+    layovers = [];
+    for (let i = 0; i < segments.length - 1; i++) {
+      const prev = segments[i];
+      const next = segments[i + 1];
+      const arr = prev.destination.utcTime ?? prev.destination.localTime;
+      const dep = next.source.utcTime ?? next.source.localTime;
+      const gapMs = new Date(dep).getTime() - new Date(arr).getTime();
+      const gapMinutes = Number.isFinite(gapMs) && gapMs > 0 ? Math.round(gapMs / 60000) : 0;
+      // The layover sits on the segment AFTER the gap (sectorSegments[i+1]),
+      // mirroring Kiwi's response: the first segment has layover=null.
+      const kiwiLayover = sectorSegmentsRaw[i + 1]?.layover ?? null;
+      const selfTransfer =
+        kiwiLayover?.isBaggageRecheck === true ||
+        (kiwiLayover === null && prev.carrier.code !== next.carrier.code);
+      layovers.push({
+        iata: prev.destination.station.code,
+        durationMinutes: gapMinutes,
+        selfTransfer,
+      });
+    }
+  }
+
+  // Unique carriers in order of first appearance. Reveals multi-carrier
+  // itineraries (e.g. Wizz Air Malta + Ryanair) that the single airlineName
+  // field hides today.
+  const carrierNames: string[] = [];
+  const seenCarriers = new Set<string>();
+  for (const s of segments) {
+    const name = s.carrier.name ?? s.carrier.code;
+    if (!seenCarriers.has(name)) {
+      seenCarriers.add(name);
+      carrierNames.push(name);
+    }
+  }
+
   return {
     flightId: `${itineraryId}:${legSuffix}`,
     originIata: origStation.code,
@@ -135,12 +204,15 @@ function sectorToFlightOption(
     destinationLng: destStation.gps?.lng ?? 0,
     departureDatetime: first.source.localTime,
     arrivalDatetime: last.destination.localTime,
-    durationMinutes: Math.round(totalDurationSec / 60),
+    durationMinutes,
+    flightTimeMinutes: Math.round(flightTimeSec / 60),
     airlineName: first.carrier.name ?? first.carrier.code,
     airlineCode: first.carrier.code,
+    carriers: carrierNames.length > 0 ? carrierNames : undefined,
     stops: segments.length - 1,
     viaIatas,
     viaCoords: viaCoords?.length ? viaCoords : undefined,
+    layovers: layovers && layovers.length > 0 ? layovers : undefined,
   };
 }
 

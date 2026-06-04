@@ -106,6 +106,113 @@ describe('fetchRapidApiKiwiRoundTrip', () => {
     expect(pairs[0].inbound.stops).toBe(0);
   });
 
+  it('computes door-to-door duration including layovers, plus separate flightTimeMinutes', async () => {
+    mockedAxios.get = vi.fn().mockResolvedValue({ data: { itineraries: [roundTripWithStopover] } });
+
+    const pairs = await fetchRapidApiKiwiRoundTrip('LHR', 'LIS', '2030-04-10', '2030-04-17');
+    const out = pairs[0].outbound;
+
+    // Flight time = 10800s (3h) + 5400s (1h30m) = 4h 30m = 270 minutes
+    expect(out.flightTimeMinutes).toBe(270);
+    // Door-to-door = 07:00 → 12:30 = 5h 30m = 330 minutes (includes the 1h MAD layover)
+    expect(out.durationMinutes).toBe(330);
+  });
+
+  it('populates carriers and layovers for multi-segment legs', async () => {
+    const mixedCarrierItin = {
+      id: 'rt-mix',
+      price: { amount: '199.00' },
+      bookingOptions: { edges: [{ node: { bookingUrl: '/book/mix' } }] },
+      outbound: {
+        id: 'out-mix',
+        sectorSegments: [
+          { segment: segment('LHR', 'MAD', '2030-04-10T07:00:00', '2030-04-10T10:00:00', 10800, 'W6'), layover: null },
+          // No Kiwi flag → falls back to carrier-code heuristic.
+          { segment: segment('MAD', 'LIS', '2030-04-10T13:30:00', '2030-04-10T15:00:00', 5400, 'FR'), layover: null },
+        ],
+      },
+      inbound: {
+        id: 'in-mix',
+        sectorSegments: [
+          { segment: segment('LIS', 'LHR', '2030-04-17T16:00:00', '2030-04-17T18:30:00', 9000), layover: null },
+        ],
+      },
+    };
+    mockedAxios.get = vi.fn().mockResolvedValue({ data: { itineraries: [mixedCarrierItin] } });
+
+    const pairs = await fetchRapidApiKiwiRoundTrip('LHR', 'LIS', '2030-04-10', '2030-04-17');
+    const out = pairs[0].outbound;
+
+    expect(out.carriers).toEqual(['W6', 'FR']);
+    expect(out.layovers).toHaveLength(1);
+    expect(out.layovers![0]).toEqual({
+      iata: 'MAD',
+      durationMinutes: 210, // 10:00 → 13:30
+      selfTransfer: true,   // fallback heuristic: different carrier codes
+    });
+
+    // Inbound is single-segment → no layovers, single carrier.
+    expect(pairs[0].inbound.layovers).toBeUndefined();
+    expect(pairs[0].inbound.carriers).toEqual(['British Airways']);
+  });
+
+  it('marks layovers as non-self-transfer when consecutive segments share a carrier', async () => {
+    const sameCarrierItin = {
+      id: 'rt-same',
+      price: { amount: '150.00' },
+      bookingOptions: { edges: [{ node: { bookingUrl: '/book/same' } }] },
+      outbound: {
+        id: 'out-same',
+        sectorSegments: [
+          { segment: segment('LHR', 'MAD', '2030-04-10T07:00:00', '2030-04-10T10:00:00', 10800, 'IB'), layover: null },
+          { segment: segment('MAD', 'LIS', '2030-04-10T11:00:00', '2030-04-10T12:30:00', 5400, 'IB'), layover: null },
+        ],
+      },
+      inbound: {
+        id: 'in-same',
+        sectorSegments: [
+          { segment: segment('LIS', 'LHR', '2030-04-17T16:00:00', '2030-04-17T18:30:00', 9000), layover: null },
+        ],
+      },
+    };
+    mockedAxios.get = vi.fn().mockResolvedValue({ data: { itineraries: [sameCarrierItin] } });
+
+    const pairs = await fetchRapidApiKiwiRoundTrip('LHR', 'LIS', '2030-04-10', '2030-04-17');
+    expect(pairs[0].outbound.layovers![0].selfTransfer).toBe(false);
+    expect(pairs[0].outbound.carriers).toEqual(['IB']);
+  });
+
+  it('prefers Kiwi isBaggageRecheck flag over the carrier-code heuristic', async () => {
+    // Same carrier (W6) on both legs — heuristic alone would mark
+    // selfTransfer=false. But Kiwi sets isBaggageRecheck=true on the layover
+    // because the legs are sold as separate tickets. The flag must win.
+    const sameCarrierSelfTransferItin = {
+      id: 'rt-flag',
+      price: { amount: '120.00' },
+      bookingOptions: { edges: [{ node: { bookingUrl: '/book/flag' } }] },
+      outbound: {
+        id: 'out-flag',
+        sectorSegments: [
+          { segment: segment('LHR', 'MAD', '2030-04-10T07:00:00', '2030-04-10T10:00:00', 10800, 'W6'), layover: null },
+          {
+            segment: segment('MAD', 'LIS', '2030-04-10T13:00:00', '2030-04-10T14:30:00', 5400, 'W6'),
+            layover: { duration: 10800, isBaggageRecheck: true, isWalkingDistance: true, transferDuration: null, id: 'L1' },
+          },
+        ],
+      },
+      inbound: {
+        id: 'in-flag',
+        sectorSegments: [
+          { segment: segment('LIS', 'LHR', '2030-04-17T16:00:00', '2030-04-17T18:30:00', 9000), layover: null },
+        ],
+      },
+    };
+    mockedAxios.get = vi.fn().mockResolvedValue({ data: { itineraries: [sameCarrierSelfTransferItin] } });
+
+    const pairs = await fetchRapidApiKiwiRoundTrip('LHR', 'LIS', '2030-04-10', '2030-04-17');
+    expect(pairs[0].outbound.layovers![0].selfTransfer).toBe(true);
+  });
+
   it('multiplies bundled price by passengers', async () => {
     mockedAxios.get = vi.fn().mockResolvedValue({ data: { itineraries: [roundTripItinerary] } });
 
