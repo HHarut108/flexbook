@@ -250,6 +250,66 @@ describe('FlightService.search — priceInfo', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
+  it('searchOneWayFanOut merges results from each origin × destination pair', async () => {
+    const svc = new FlightService();
+    // Simulate two Rome airports → two London airports. Each (origin,dest)
+    // pair returns one cheap flight with a unique id so the merge keeps all.
+    mockFetch.mockImplementation(async (origin: string, _city: string, _date: string, dest?: string) => {
+      return [makeFlight({
+        flightId: `${origin}-${dest}-X`,
+        originIata: origin,
+        destinationIata: dest ?? 'XXX',
+        priceUsd: origin === 'FCO' ? 150 : 200,
+      })];
+    });
+
+    const result = await svc.searchOneWayFanOut(
+      ['FCO', 'CIA'],
+      '2030-11-01',
+      ['LHR', 'LGW'],
+    );
+
+    // 2 origins × 2 destinations = 4 underlying provider calls.
+    expect(mockFetch).toHaveBeenCalledTimes(4);
+    // All 4 flightIds are distinct → merge keeps them all.
+    expect(result.flights).toHaveLength(4);
+    // Price-ascending sort.
+    for (let i = 1; i < result.flights.length; i++) {
+      expect(result.flights[i].priceUsd).toBeGreaterThanOrEqual(result.flights[i - 1].priceUsd);
+    }
+  });
+
+  it('searchOneWayFanOut: same flightId across pairs keeps the cheapest price', async () => {
+    const svc = new FlightService();
+    // Both origin airports surface the same flight id (rare — would require
+    // the provider to dedupe by itinerary). The merge keeps the cheapest.
+    mockFetch.mockImplementation(async (origin: string) => {
+      return [makeFlight({
+        flightId: 'DUPLICATE-ID',
+        originIata: origin,
+        destinationIata: 'CDG',
+        priceUsd: origin === 'JFK' ? 500 : 450,
+      })];
+    });
+
+    const result = await svc.searchOneWayFanOut(['JFK', 'LGA'], '2030-11-02', ['CDG']);
+    expect(result.flights).toHaveLength(1);
+    expect(result.flights[0].priceUsd).toBe(450);
+  });
+
+  it('searchOneWayFanOut with single origin and single destination = single call', async () => {
+    const svc = new FlightService();
+    mockFetch.mockResolvedValue([makeFlight({ destinationIata: 'CDG', priceUsd: 100 })]);
+
+    await svc.searchOneWayFanOut(['LHR'], '2030-11-03', ['CDG']);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('searchOneWayFanOut throws when no origin airports provided', async () => {
+    const svc = new FlightService();
+    await expect(svc.searchOneWayFanOut([], '2030-11-04', ['CDG'])).rejects.toThrow();
+  });
+
   it('triggers background refresh when a price is missing and repopulates for the next request', async () => {
     const keepId = 'BG-REFRESH-KEEP';
     const evictId = 'BG-REFRESH-EVICT';

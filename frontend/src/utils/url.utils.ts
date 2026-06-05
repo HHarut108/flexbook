@@ -19,6 +19,10 @@ const citySchema = z.object({
   countryName: z.string(),
   lat: z.number(),
   lng: z.number(),
+  // Multi-airport metro members (e.g. Rome → ['FCO','CIA']). Only populated
+  // for derived City entries from /api/airports/search; absent for the City
+  // embedded inside an Airport. Optional so legacy URLs decode unchanged.
+  airports: z.array(z.string()).optional(),
 });
 
 const airportSchema = z.object({
@@ -77,6 +81,9 @@ const tripLegSchema = flightOptionSchema.extend({
 
 const itinerarySchema = z.object({
   origin: airportSchema,
+  // City id for multi-airport "Rome (city)" picks — flight searches will fan
+  // out across the city's member airports. Absent for plain-airport picks.
+  originCityId: z.string().optional(),
   legs: z.array(tripLegSchema),
   status: z.enum(['planning', 'complete']),
   createdAt: z.string(),

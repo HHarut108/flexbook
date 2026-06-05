@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Airport } from '@fast-travel/shared';
+import { Airport, LocationSelection } from '@fast-travel/shared';
 import { nearbyAirportsByCoords } from '../api/airports.api';
 import { resolveUserCoords, readCachedCoords, readCachedNearby, cacheNearby } from '../utils/geolocation.utils';
 import { useNavigate } from 'react-router-dom';
@@ -216,15 +216,25 @@ export function HopPlannerScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
   }, []);
 
   const selectAirport = useCallback(
-    (airport: Airport) => {
-      setOrigin(airport);
+    (selection: LocationSelection) => {
+      setOrigin(selection);
       setStorePassengers(passengers);
       setSelectedDate(departureDate);
       setQuery('');
+      const trackOrigin =
+        selection.kind === 'airport'
+          ? selection.airport.iata
+          : `@${selection.city.id}`;
+      const trackCity =
+        selection.kind === 'airport' ? selection.airport.city.name : selection.city.name;
+      const trackCountry =
+        selection.kind === 'airport'
+          ? selection.airport.city.countryCode
+          : selection.city.countryCode;
       track(AnalyticsEvent.TripSearchStarted, {
-        origin: airport.iata,
-        originCity: airport.city?.name,
-        originCountry: airport.city?.countryCode,
+        origin: trackOrigin,
+        originCity: trackCity,
+        originCountry: trackCountry,
         passengers,
         departureDate,
       });
@@ -413,7 +423,7 @@ export function HopPlannerScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
             <AirportCard
               key={airport.iata}
               airport={airport}
-              onSelect={() => selectAirport(airport)}
+              onSelect={() => selectAirport({ kind: 'airport', airport })}
             />
           ))}
         {!geoLoading &&
@@ -422,7 +432,7 @@ export function HopPlannerScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
             <AirportCard
               key={airport.iata}
               airport={airport as Airport}
-              onSelect={() => selectAirport(airport as Airport)}
+              onSelect={() => selectAirport({ kind: 'airport', airport: airport as Airport })}
             />
           ))}
       </div>

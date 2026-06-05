@@ -4,9 +4,16 @@ import { Airport } from '@fast-travel/shared';
 import { config } from '../config';
 import { airportService } from '../services/AirportService';
 import { ok, fail } from '../utils/response';
+import { resolveLocation } from '../utils/resolveLocation';
+
+const LOCATION_MARKER = /^([A-Z]{3}|@[a-z0-9_]+)$/;
+
+function normalizeMarker(raw: string): string {
+  return raw.startsWith('@') ? '@' + raw.slice(1).toLowerCase() : raw.toUpperCase();
+}
 
 const querySchema = z.object({
-  from: z.string().length(3).toUpperCase(),
+  from: z.string().min(1).max(40).transform(normalizeMarker).refine((v) => LOCATION_MARKER.test(v), 'from must be a 3-letter IATA or @city_id'),
   limit: z.coerce.number().int().min(1).max(10).default(3),
 });
 
@@ -81,22 +88,6 @@ function taglineFor(destIata: string): string {
   return TAGLINES[destIata] ?? 'Popular right now';
 }
 
-/* Build a SuggestedRoute by resolving a destination IATA against the airport
-   service. Returns null if the destination IATA is unknown, equals origin, or
-   isn't served by a non-stop flight from origin — suggestions are direct-only
-   so we never inspire the user with a route that requires a layover. */
-function buildRoute(
-  origin: Airport,
-  destIata: string,
-  source: 'analytics' | 'curated',
-): SuggestedRoute | null {
-  if (destIata.toUpperCase() === origin.iata.toUpperCase()) return null;
-  if (!airportService.hasDirectRoute(origin.iata, destIata)) return null;
-  const dest = airportService.getByIata(destIata);
-  if (!dest) return null;
-  return { from: origin, to: dest, tagline: taglineFor(dest.iata), source };
-}
-
 /* Query PostHog HogQL for the top N destinations from a given origin in the
    last 30 days. Returns [] on any failure (network, auth, parse) — the caller
    then backfills from the curated list. */
@@ -153,29 +144,42 @@ export async function suggestedRoutesRoutes(app: FastifyInstance) {
         .status(400)
         .send(fail('INVALID_PARAMS', 'Query param "from" must be a 3-letter IATA'));
     }
-    const { from: fromIata, limit } = parsed.data;
+    const { from: fromMarker, limit } = parsed.data;
 
-    const origin = airportService.getByIata(fromIata);
+    // For city markers, resolveLocation orders members by direct-route
+    // popularity DESC, so the first IATA is the busiest hub — use it as
+    // the canonical "origin" airport in the response (kept for FE map
+    // anchoring) and as the analytics-query key. Direct-route inspiration
+    // is unioned across all member airports so a Milan-city pick can
+    // surface a route that's only direct from BGY but not MXP.
+    const originIatas = resolveLocation(fromMarker);
+    if (originIatas.length === 0) {
+      return reply
+        .status(404)
+        .send(fail('NOT_FOUND', `Unknown origin marker "${fromMarker}"`));
+    }
+    const primaryIata = originIatas[0];
+    const origin = airportService.getByIata(primaryIata);
     if (!origin) {
       return reply
         .status(404)
-        .send(fail('NOT_FOUND', `Unknown origin IATA "${fromIata}"`));
+        .send(fail('NOT_FOUND', `Unknown origin IATA "${primaryIata}"`));
     }
 
-    const cacheKey = `${fromIata}:${limit}`;
+    const cacheKey = `${fromMarker}:${limit}`;
     const cached = cache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       return ok({ origin, routes: cached.routes });
     }
 
-    const analyticsIatas = await fetchPostHogTopDestinations(fromIata, limit);
+    const analyticsIatas = await fetchPostHogTopDestinations(primaryIata, limit);
     const routes: SuggestedRoute[] = [];
-    const seen = new Set<string>([fromIata]);
+    const seen = new Set<string>(originIatas);
 
     for (const iata of analyticsIatas) {
       if (routes.length >= limit) break;
       if (seen.has(iata)) continue;
-      const route = buildRoute(origin, iata, 'analytics');
+      const route = buildRouteFromAny(originIatas, origin, iata, 'analytics');
       if (route) {
         routes.push(route);
         seen.add(iata);
@@ -183,12 +187,12 @@ export async function suggestedRoutesRoutes(app: FastifyInstance) {
     }
 
     if (routes.length < limit) {
-      const region = regionForOrigin(fromIata);
+      const region = regionForOrigin(primaryIata);
       const curated = CURATED_BY_REGION[region] ?? CURATED_BY_REGION.GLOBAL;
       for (const iata of curated) {
         if (routes.length >= limit) break;
         if (seen.has(iata)) continue;
-        const route = buildRoute(origin, iata, 'curated');
+        const route = buildRouteFromAny(originIatas, origin, iata, 'curated');
         if (route) {
           routes.push(route);
           seen.add(iata);
@@ -200,13 +204,14 @@ export async function suggestedRoutesRoutes(app: FastifyInstance) {
        no non-stop service (e.g. BUS / Batumi has only 5 direct destinations,
        none of which appear in our hand-picked EU/MENA list). Pull straight
        from the OpenFlights direct-routes data, ranked by global hub size — so
-       even a remote origin still surfaces *something* the user can fly. */
+       even a remote origin still surfaces *something* the user can fly. For
+       city markers, union the direct destinations across all member airports. */
     if (routes.length < limit) {
-      const directIatas = airportService.directDestinations(fromIata);
+      const directIatas = unionDirectDestinations(originIatas);
       for (const iata of directIatas) {
         if (routes.length >= limit) break;
         if (seen.has(iata)) continue;
-        const route = buildRoute(origin, iata, 'curated');
+        const route = buildRouteFromAny(originIatas, origin, iata, 'curated');
         if (route) {
           routes.push(route);
           seen.add(iata);
@@ -217,4 +222,36 @@ export async function suggestedRoutesRoutes(app: FastifyInstance) {
     cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, routes });
     return ok({ origin, routes });
   });
+}
+
+/** True if ANY member airport in `originIatas` has a non-stop service to
+ *  `destIata`. Used so a city-origin can inspire routes that may only be
+ *  direct from one of its airports (e.g. Wizz routes from BGY but not MXP). */
+function buildRouteFromAny(
+  originIatas: string[],
+  primaryOrigin: Airport,
+  destIata: string,
+  source: 'analytics' | 'curated',
+): SuggestedRoute | null {
+  if (originIatas.some((o) => o.toUpperCase() === destIata.toUpperCase())) return null;
+  const anyDirect = originIatas.some((o) => airportService.hasDirectRoute(o, destIata));
+  if (!anyDirect) return null;
+  const dest = airportService.getByIata(destIata);
+  if (!dest) return null;
+  return { from: primaryOrigin, to: dest, tagline: taglineFor(dest.iata), source };
+}
+
+/** Union of direct destinations across all origin airports, de-duplicated.
+ *  Order preserved from the first airport that contributed each IATA. */
+function unionDirectDestinations(originIatas: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const origin of originIatas) {
+    for (const dest of airportService.directDestinations(origin)) {
+      if (seen.has(dest)) continue;
+      seen.add(dest);
+      out.push(dest);
+    }
+  }
+  return out;
 }

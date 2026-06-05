@@ -131,8 +131,11 @@ export async function searchMultiCity(
 ): Promise<MultiCityOption[]> {
   const mode = getApiMode();
   const { passengers, currency, cabinClass, maxStopovers, limit } = options;
+  // Preserve "@<cityId>" markers verbatim — they're lowercase. Plain IATA
+  // values are uppercased; mixed origins/destinations work either way.
+  const normalize = (v: string) => (v.startsWith('@') ? v : v.toUpperCase());
   const encodedLegs = legs
-    .map((leg) => `${leg.origin.toUpperCase()},${leg.destination.toUpperCase()},${leg.date}`)
+    .map((leg) => `${normalize(leg.origin)},${normalize(leg.destination)},${leg.date}`)
     .join('|');
   const { data } = await apiClient.get<{
     legs: { originIata: string; destinationIata: string; date: string }[];

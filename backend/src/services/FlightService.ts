@@ -450,11 +450,12 @@ export class FlightService {
    * Multi-city search: a user-defined ordered list of legs (each with its own
    * origin/destination/date), stitched into bundled-display trip cards.
    *
-   * Kiwi has no /multi-city endpoint, so each leg is a separate /one-way call
-   * (fired in parallel). We then take the top-K cheapest candidates per leg
-   * and enumerate combinations, sort by total price, and return the top N
-   * trips. K-per-leg is chosen so the combinatorial enumeration stays bounded
-   * even for the 6-leg max:
+   * Each leg's origin and destination is a list of IATAs (single airport, OR
+   * all airports in a city group when the user picked "Rome (city)" etc).
+   * Per leg we fan out across the (origin × destination) cartesian, merge
+   * candidates by flightId, take the top-K cheapest, then enumerate trip
+   * combinations across legs. K-per-leg keeps the combinatorial enumeration
+   * bounded even for the 6-leg max:
    *
    *   2 legs → K=10  → 100 combos
    *   3 legs → K=8   → 512
@@ -466,7 +467,7 @@ export class FlightService {
    * bookingUrl and we return no trip-level deep link.
    */
   async searchMultiCity(
-    legs: { originIata: string; destinationIata: string; date: string }[],
+    legs: { originIatas: string[]; destinationIatas: string[]; date: string }[],
     options: KiwiSearchOptions & { limit?: number } = {},
     apiMode?: 'real' | 'mock',
   ): Promise<{ trips: MultiCityOption[] }> {
@@ -482,19 +483,16 @@ export class FlightService {
     // schedule cache hits without a separate code path.
     const perLeg = await Promise.all(
       legs.map(async (leg) => {
-        const originCity = airportService.getByIata(leg.originIata)?.city.name ?? leg.originIata;
-        const result = await this.search(
-          leg.originIata,
-          originCity,
+        const merged = await this.searchOneWayFanOut(
+          leg.originIatas,
           leg.date,
-          leg.destinationIata,
-          false, // never dedupe-by-destination for multi-city — we want the cheapest options to that specific airport
+          leg.destinationIatas,
           searchOptions,
           apiMode,
           false,
         );
-        // search() already returns price-ascending. Keep only the top K for combo enumeration.
-        return result.flights.slice(0, perLegBudget);
+        // searchOneWayFanOut returns price-ascending. Keep only top K for combo enumeration.
+        return merged.flights.slice(0, perLegBudget);
       }),
     );
 
@@ -505,6 +503,143 @@ export class FlightService {
 
     const trips = enumerateMultiCityTrips(perLeg, limit);
     return { trips };
+  }
+
+  /**
+   * Fan-out wrapper around search(): given one or more origin IATAs and zero
+   * or more destination IATAs, fire a search per (origin, destination?) pair
+   * in parallel and merge results. Used when a user picks "Rome (city)" and
+   * we need to surface flights from/to all member airports as one combined
+   * list. Single-airport callers pass single-element arrays — same code path,
+   * just one task in the Promise.all.
+   *
+   * Caps & cost: callers are expected to have already capped each side via
+   * resolveLocation()'s CITY_AIRPORT_CAP (default 4). Worst-case cartesian is
+   * 4×4 = 16 Kiwi requests; single-airport-both-sides is the unchanged 1
+   * request.
+   *
+   * Merge: union flights by flightId (Kiwi IDs are globally unique per
+   * itinerary). If the same flight surfaces from two pairs (rare — typically
+   * only on through-routing), keep the cheapest price.
+   *
+   * cacheStatus: 'live' if ANY underlying call was live (so the FE knows
+   * fresh data is mixed in); otherwise 'schedule_cached'.
+   */
+  async searchOneWayFanOut(
+    originIatas: string[],
+    date: string,
+    destinationIatas: string[] | undefined,
+    options: KiwiSearchOptions = {},
+    apiMode?: 'real' | 'mock',
+    bypassCache = false,
+  ): Promise<FlightSearchResult> {
+    if (originIatas.length === 0) {
+      throw new Error('searchOneWayFanOut requires at least 1 origin');
+    }
+    const dests: (string | undefined)[] =
+      destinationIatas && destinationIatas.length > 0 ? destinationIatas : [undefined];
+
+    const tasks: Promise<FlightSearchResult>[] = [];
+    for (const origin of originIatas) {
+      const originCity = airportService.getByIata(origin)?.city.name ?? origin;
+      for (const dest of dests) {
+        tasks.push(
+          this.search(origin, originCity, date, dest, false, options, apiMode, bypassCache),
+        );
+      }
+    }
+
+    const results = await Promise.all(tasks);
+    const byId = new Map<string, FlightOption>();
+    let anyLive = false;
+    for (const r of results) {
+      if (r.cacheStatus === 'live') anyLive = true;
+      for (const f of r.flights) {
+        const existing = byId.get(f.flightId);
+        if (!existing || f.priceUsd < existing.priceUsd) byId.set(f.flightId, f);
+      }
+    }
+    const merged = [...byId.values()].sort((a, b) => a.priceUsd - b.priceUsd);
+    return { flights: merged, cacheStatus: anyLive ? 'live' : 'schedule_cached' };
+  }
+
+  /**
+   * Fan-out wrapper around priceCalendar(): for city-origin or city-destination
+   * "When To Go" queries, call priceCalendar once per (origin, destination) pair
+   * and merge per-day results keeping the cheapest. Used by /flights/cheapest-day
+   * so "Milan (city) → London (city)" surfaces the cheapest day across any
+   * member-airport pairing.
+   */
+  async priceCalendarFanOut(
+    originIatas: string[],
+    destinationIatas: string[],
+    startDate: string,
+    endDate: string,
+  ): Promise<PriceCalendarResult> {
+    if (originIatas.length === 0 || destinationIatas.length === 0) {
+      throw new Error('priceCalendarFanOut requires at least 1 origin and 1 destination');
+    }
+    const tasks: Promise<PriceCalendarResult>[] = [];
+    for (const origin of originIatas) {
+      for (const dest of destinationIatas) {
+        tasks.push(this.priceCalendar(origin, dest, startDate, endDate));
+      }
+    }
+    const results = await Promise.all(tasks);
+
+    // Merge per-day, keep the cheapest across all (origin,dest) calendars.
+    const byDay = new Map<string, CalendarDayResult>();
+    for (const r of results) {
+      for (const day of r.days) {
+        const existing = byDay.get(day.date);
+        if (!existing || day.priceUsd < existing.priceUsd) byDay.set(day.date, day);
+      }
+    }
+    const days = [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date));
+    const cheapest = days.length === 0 ? null : days.reduce((a, b) => (a.priceUsd <= b.priceUsd ? a : b));
+
+    return {
+      origin: originIatas.join('|'),
+      destination: destinationIatas.join('|'),
+      start: startDate,
+      end: endDate,
+      days,
+      cheapest,
+      cacheStatus: 'live',
+    };
+  }
+
+  /**
+   * Fan-out wrapper around searchRoundTrip(): for a city-to-city round-trip,
+   * issue one Kiwi /round-trip call per (origin, destination) pair, merge
+   * pairs by tripId. Worst case is 4×4 = 16 calls with the CITY_AIRPORT_CAP.
+   */
+  async searchRoundTripFanOut(
+    originIatas: string[],
+    destinationIatas: string[],
+    outboundDate: string,
+    inboundDate: string,
+    options: KiwiRoundTripOptions = {},
+    apiMode?: 'real' | 'mock',
+  ): Promise<{ pairs: RoundTripOption[] }> {
+    if (originIatas.length === 0 || destinationIatas.length === 0) {
+      throw new Error('searchRoundTripFanOut requires at least 1 origin and 1 destination');
+    }
+    const tasks: Promise<{ pairs: RoundTripOption[] }>[] = [];
+    for (const origin of originIatas) {
+      for (const dest of destinationIatas) {
+        tasks.push(this.searchRoundTrip(origin, dest, outboundDate, inboundDate, options, apiMode));
+      }
+    }
+    const results = await Promise.all(tasks);
+    const byId = new Map<string, RoundTripOption>();
+    for (const r of results) {
+      for (const p of r.pairs) {
+        const existing = byId.get(p.tripId);
+        if (!existing || p.priceUsd < existing.priceUsd) byId.set(p.tripId, p);
+      }
+    }
+    return { pairs: [...byId.values()].sort((a, b) => a.priceUsd - b.priceUsd) };
   }
 
   /**

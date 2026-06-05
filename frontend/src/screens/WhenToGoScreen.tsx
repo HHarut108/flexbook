@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import axios from 'axios';
-import { Airport } from '@fast-travel/shared';
+import { Airport, LocationSelection, selectionToMarker } from '@fast-travel/shared';
 import {
   ArrowLeft,
   ArrowLeftRight,
@@ -108,8 +108,11 @@ function isNextDay(departISO: string, arriveISO: string): boolean {
 
 interface CityPickerProps {
   label: string;
+  /** Display marker — either a 3-letter IATA or "@<cityId>" for a city pick.
+   *  Shown as-is in the chip; for city markers the user sees "@rome_it"
+   *  until they re-pick. Acceptable v1 trade-off; nicer label is a follow-up. */
   iata: string;
-  onSelect: (airport: Airport) => void;
+  onSelect: (selection: LocationSelection) => void;
   onClear: () => void;
 }
 
@@ -123,8 +126,8 @@ function CityPicker({ label, iata, onSelect, onClear }: CityPickerProps) {
     if (open) inputRef.current?.focus();
   }, [open]);
 
-  function pick(airport: Airport) {
-    onSelect(airport);
+  function pick(selection: LocationSelection) {
+    onSelect(selection);
     setQuery('');
     setOpen(false);
   }
@@ -206,28 +209,54 @@ function CityPicker({ label, iata, onSelect, onClear }: CityPickerProps) {
           {!loading && results.length === 0 && (
             <div className="px-4 py-3 text-xs text-text-muted">No matches.</div>
           )}
-          {results.slice(0, 6).map((a) => (
-            <button
-              key={a.iata}
-              onClick={() => pick(a)}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-indigo-soft/50 transition-colors border-b border-border/40 last:border-0 text-left"
-            >
-              <div className="w-8 h-8 rounded-xl bg-indigo-soft border border-indigo-border flex items-center justify-center shrink-0">
-                <Plane size={13} className="text-indigo" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-2 min-w-0">
-                  <span className="text-sm font-semibold text-text-primary truncate">
-                    {a.city.name}
-                  </span>
-                  <span className="text-[11px] font-mono font-bold text-indigo-mid shrink-0">
-                    {a.iata}
-                  </span>
+          {results.slice(0, 6).map((entry) => {
+            if (entry.kind === 'city') {
+              const city = entry.city;
+              return (
+                <button
+                  key={`city:${city.id}`}
+                  onClick={() => pick({ kind: 'city', city })}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-amber-50/60 transition-colors border-b border-border/40 last:border-0 text-left"
+                >
+                  <div className="w-8 h-8 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0">
+                    <Plane size={13} className="text-amber-700" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2 min-w-0">
+                      <span className="text-sm font-semibold text-text-primary truncate">{city.name}</span>
+                      <span className="text-[10px] font-bold uppercase text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">
+                        City · {city.airports.length}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-text-muted truncate">All {city.airports.length} airports: {city.airports.join(', ')}</div>
+                  </div>
+                </button>
+              );
+            }
+            const a = entry.airport;
+            return (
+              <button
+                key={`airport:${a.iata}`}
+                onClick={() => pick({ kind: 'airport', airport: a })}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-indigo-soft/50 transition-colors border-b border-border/40 last:border-0 text-left"
+              >
+                <div className="w-8 h-8 rounded-xl bg-indigo-soft border border-indigo-border flex items-center justify-center shrink-0">
+                  <Plane size={13} className="text-indigo" />
                 </div>
-                <div className="text-[11px] text-text-muted truncate">{a.name}</div>
-              </div>
-            </button>
-          ))}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline gap-2 min-w-0">
+                    <span className="text-sm font-semibold text-text-primary truncate">
+                      {a.city.name}
+                    </span>
+                    <span className="text-[11px] font-mono font-bold text-indigo-mid shrink-0">
+                      {a.iata}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-text-muted truncate">{a.name}</div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
@@ -539,8 +568,14 @@ export function WhenToGoScreen() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const fromIata = (params.get('from') ?? '').toUpperCase();
-  const toIata = (params.get('to') ?? '').toUpperCase();
+  // URL `from` and `to` accept either a 3-letter IATA or a "@<cityId>" marker
+  // for multi-airport city picks. IATAs are uppercased for consistency with
+  // the rest of the codebase; city markers stay lowercase so they round-trip
+  // identically through the backend.
+  const normalizeMarkerParam = (raw: string) =>
+    raw.startsWith('@') ? '@' + raw.slice(1).toLowerCase() : raw.toUpperCase();
+  const fromIata = normalizeMarkerParam(params.get('from') ?? '');
+  const toIata = normalizeMarkerParam(params.get('to') ?? '');
   const startParam = params.get('start') ?? '';
   const endParam = params.get('end') ?? '';
 
@@ -686,22 +721,51 @@ export function WhenToGoScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromIata, toIata, start, end]);
 
-  /* Drop cached Airport metadata if the URL IATA no longer matches — keeps
+  /* Drop cached Airport metadata if the URL marker no longer matches — keeps
      the map preview honest when the user pastes a fresh share link or clears
-     a side via the URL. */
+     a side via the URL. For city markers the projected airport's IATA won't
+     equal the marker, so compare against the city's projected primary IATA
+     OR fall through when the marker has no recoverable Airport context. */
   useEffect(() => {
-    if (fromAirport && fromAirport.iata !== fromIata) setFromAirport(null);
+    if (!fromAirport) return;
+    const markerIsAirport = !fromIata.startsWith('@');
+    if (markerIsAirport && fromAirport.iata !== fromIata) setFromAirport(null);
+    // City marker: leave fromAirport alone — it was projected at pick time.
+    // On URL paste with `@cityid` and no fromAirport yet, the chip falls back
+    // to the marker string until the user re-picks.
   }, [fromIata, fromAirport]);
   useEffect(() => {
-    if (toAirport && toAirport.iata !== toIata) setToAirport(null);
+    if (!toAirport) return;
+    const markerIsAirport = !toIata.startsWith('@');
+    if (markerIsAirport && toAirport.iata !== toIata) setToAirport(null);
   }, [toIata, toAirport]);
 
   const canSearch = !!fromIata && !!toIata && !!start && !!end && fromIata !== toIata && !loading;
 
-  function setFrom(airport: Airport) {
-    setFromAirport(airport);
+  /** Project a city selection onto an Airport shape (using city centroid +
+   *  primary IATA) so the map can render before the user runs a search. */
+  function selectionToAirport(sel: LocationSelection): Airport {
+    if (sel.kind === 'airport') return sel.airport;
+    const primary = sel.city.airports[0];
+    return {
+      iata: primary,
+      name: `${sel.city.name} Airport`,
+      city: {
+        id: primary,
+        name: sel.city.name,
+        countryCode: sel.city.countryCode,
+        countryName: sel.city.countryName,
+        lat: sel.city.lat,
+        lng: sel.city.lng,
+      },
+      timezone: '',
+    };
+  }
+
+  function setFrom(selection: LocationSelection) {
+    setFromAirport(selectionToAirport(selection));
     const next = new URLSearchParams(params);
-    next.set('from', airport.iata);
+    next.set('from', selectionToMarker(selection));
     setParams(next, { replace: true });
   }
   function clearFrom() {
@@ -712,10 +776,10 @@ export function WhenToGoScreen() {
     setResult(null);
     setError(null);
   }
-  function setTo(airport: Airport) {
-    setToAirport(airport);
+  function setTo(selection: LocationSelection) {
+    setToAirport(selectionToAirport(selection));
     const next = new URLSearchParams(params);
-    next.set('to', airport.iata);
+    next.set('to', selectionToMarker(selection));
     setParams(next, { replace: true });
   }
   function clearTo() {
