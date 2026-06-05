@@ -1,4 +1,4 @@
-import { FlightOption, RoundTripOption } from '@fast-travel/shared';
+import { FlightOption, RoundTripOption, MultiCityOption } from '@fast-travel/shared';
 import { apiClient, getApiMode } from './client';
 
 export interface FlightSearchOptions {
@@ -107,4 +107,46 @@ export async function searchRoundTrip(
     },
   });
   return data.pairs;
+}
+
+export interface MultiCitySearchOptions {
+  passengers?: number;
+  currency?: string;
+  cabinClass?: 'M' | 'W' | 'C' | 'F';
+  maxStopovers?: number;
+  /** Cap on bundled trips returned. Default backend cap: 30. */
+  limit?: number;
+}
+
+/**
+ * Stitched multi-city search. The backend fires one /one-way call per leg in
+ * parallel, then enumerates trip combinations (top-K candidates per leg) and
+ * returns the cheapest N trips. Each trip's `priceUsd` is the sum of its
+ * legs' fares — Kiwi has no bundled multi-city endpoint, so legs are booked
+ * as separate one-way tickets.
+ */
+export async function searchMultiCity(
+  legs: { origin: string; destination: string; date: string }[],
+  options: MultiCitySearchOptions = {},
+): Promise<MultiCityOption[]> {
+  const mode = getApiMode();
+  const { passengers, currency, cabinClass, maxStopovers, limit } = options;
+  const encodedLegs = legs
+    .map((leg) => `${leg.origin.toUpperCase()},${leg.destination.toUpperCase()},${leg.date}`)
+    .join('|');
+  const { data } = await apiClient.get<{
+    legs: { originIata: string; destinationIata: string; date: string }[];
+    trips: MultiCityOption[];
+  }>('/flights/multi-city', {
+    params: {
+      legs: encodedLegs,
+      ...(passengers !== undefined && { passengers }),
+      ...(currency && { currency }),
+      ...(cabinClass && { cabinClass }),
+      ...(maxStopovers !== undefined && { maxStopovers }),
+      ...(limit !== undefined && { limit }),
+      apiMode: mode,
+    },
+  });
+  return data.trips;
 }

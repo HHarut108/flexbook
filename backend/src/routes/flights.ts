@@ -21,6 +21,24 @@ const searchQuerySchema = z.object({
   country: z.string().length(2).toUpperCase().optional(),
 });
 
+/**
+ * Multi-city legs encoded as a single query param:
+ *   legs=FROM1,TO1,YYYY-MM-DD|FROM2,TO2,YYYY-MM-DD|…
+ * Same wire format the FE already produces for the per-leg one-way fallback,
+ * so existing URLs stay valid.
+ */
+const LEG_SEGMENT = /^([A-Z]{3}),([A-Z]{3}),(\d{4}-\d{2}-\d{2})$/;
+
+const multiCityQuerySchema = z.object({
+  legs: z.string().min(1),
+  currency: z.string().length(3).toUpperCase().default('USD'),
+  cabinClass: z.enum(['M', 'W', 'C', 'F']).optional(),
+  passengers: z.coerce.number().int().min(1).max(9).default(1),
+  maxStopovers: z.coerce.number().int().min(0).max(2).optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(30),
+  apiMode: z.enum(['real', 'mock']).optional(),
+});
+
 const roundTripQuerySchema = z.object({
   originIata: z.string().length(3).toUpperCase(),
   destinationIata: z.string().length(3).toUpperCase(),
@@ -86,6 +104,55 @@ export async function flightRoutes(app: FastifyInstance) {
       }
       app.log.error(err, 'Flight search failed');
       return reply.status(502).send(fail('FLIGHT_API_UNAVAILABLE', 'Could not fetch flights. Please try again.', true));
+    }
+  });
+
+  app.get('/flights/multi-city', async (request, reply) => {
+    const parsed = multiCityQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send(fail('INVALID_PARAMS', parsed.error.issues[0]?.message ?? 'Invalid params'));
+    }
+    const { legs: legsRaw, currency, cabinClass, passengers, maxStopovers, limit, apiMode } = parsed.data;
+
+    const legs = legsRaw.split('|').map((seg) => seg.toUpperCase().match(LEG_SEGMENT));
+    if (legs.some((m) => !m)) {
+      return reply.status(400).send(fail('INVALID_PARAMS', 'legs must be FROM,TO,YYYY-MM-DD segments joined by |'));
+    }
+    const parsedLegs = legs.map((m) => ({
+      originIata: m![1],
+      destinationIata: m![2],
+      date: m![3],
+    }));
+    if (parsedLegs.length < 2) {
+      return reply.status(400).send(fail('INVALID_PARAMS', 'multi-city requires at least 2 legs'));
+    }
+    if (parsedLegs.length > 6) {
+      return reply.status(400).send(fail('INVALID_PARAMS', 'multi-city supports at most 6 legs'));
+    }
+
+    try {
+      const { trips } = await flightService.searchMultiCity(
+        parsedLegs,
+        { currency, cabinClass, passengers, maxStopovers, limit },
+        apiMode,
+      );
+      return ok({ legs: parsedLegs, trips });
+    } catch (err) {
+      if (err instanceof RapidApiRateLimitError) {
+        return reply.status(429).headers({ 'Retry-After': '60' }).send(
+          fail('RATE_LIMITED', 'RapidAPI rate limit reached. Please wait a moment and try again.', true),
+        );
+      }
+      if (err instanceof RapidApiAuthError) {
+        app.log.error(err, 'RapidAPI auth failure — invalid or missing API key');
+        return reply.status(503).send(fail('FLIGHT_API_AUTH_ERROR', 'Flight search is temporarily unavailable. Please try again shortly.', true));
+      }
+      if (err instanceof RapidApiUnavailableError) {
+        app.log.warn(err, 'RapidAPI temporarily unavailable');
+        return reply.status(503).send(fail('FLIGHT_API_UNAVAILABLE', 'Flight search is temporarily unavailable. Please try again shortly.', true));
+      }
+      app.log.error(err, 'Multi-city search failed');
+      return reply.status(502).send(fail('FLIGHT_API_UNAVAILABLE', 'Could not fetch multi-city flights. Please try again.', true));
     }
   });
 

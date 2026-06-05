@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FlightOption, RoundTripOption } from '@fast-travel/shared';
+import { FlightOption, RoundTripOption, MultiCityOption } from '@fast-travel/shared';
 import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { searchFlights, searchRoundTrip } from '../api/flights.api';
+import { searchFlights, searchRoundTrip, searchMultiCity } from '../api/flights.api';
 import { FlightCard, FlightCardSkeleton } from '../components/FlightCard';
 import { RoundTripCard, RoundTripCardSkeleton } from '../components/RoundTripCard';
+import { MultiCityCard, MultiCityCardSkeleton } from '../components/MultiCityCard';
 import { GoHomeLogo } from '../components/GoHomeLogo';
 import { useAuthStore } from '../store/auth.store';
 import { format } from 'date-fns';
@@ -37,6 +38,7 @@ interface LegResult {
 
 const RESULTS_LIMIT = 30;
 const ROUND_TRIP_LIMIT = 15;
+const MULTI_CITY_LIMIT = 30;
 
 type StopsFilter = 'any' | 'direct' | 'one' | 'twoplus';
 
@@ -293,6 +295,105 @@ function RoundTripSection({
   );
 }
 
+interface MultiCityResult {
+  loading: boolean;
+  error: string | null;
+  trips: MultiCityOption[];
+}
+
+function MultiCitySection({
+  result,
+  legCount,
+  passengers,
+}: {
+  result: MultiCityResult;
+  legCount: number;
+  passengers: number;
+}) {
+  const [stopsFilter, setStopsFilter] = useState<StopsFilter>('any');
+
+  const filtered = useMemo(() => {
+    return result.trips.filter((trip) => trip.legs.every((leg) => legMatchesStopsFilter(leg, stopsFilter)));
+  }, [result.trips, stopsFilter]);
+
+  function handleSelect(trip: MultiCityOption) {
+    // No bundled deep link — open each leg in its own tab. Browsers may block
+    // multi-tab opens without user gesture; the onClick is the gesture so this
+    // is allowed. If a popup is blocked we still surface the first leg.
+    for (const leg of trip.legs) {
+      if (leg.bookingUrl) {
+        window.open(leg.bookingUrl, '_blank', 'noopener,noreferrer');
+      }
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-end justify-between mb-3 gap-3 flex-wrap">
+        <div>
+          <h2 className="text-sm font-bold text-text-primary">Multi-city trips</h2>
+          <p className="text-[11px] text-text-muted mt-0.5">
+            All {legCount} legs combined — each leg is booked as a separate ticket.
+          </p>
+        </div>
+        {filtered.length > 0 && (
+          <p className="text-xs text-text-muted">
+            <strong className="text-text-secondary">{filtered.length}</strong> trip
+            {filtered.length === 1 ? '' : 's'} · cheapest first
+          </p>
+        )}
+      </div>
+
+      <div className="mb-3">
+        <StopsFilterChips value={stopsFilter} onChange={setStopsFilter} />
+      </div>
+
+      {result.loading && (
+        <div className="space-y-2.5">
+          <MultiCityCardSkeleton legCount={legCount} />
+          <MultiCityCardSkeleton legCount={legCount} />
+          <MultiCityCardSkeleton legCount={legCount} />
+        </div>
+      )}
+
+      {!result.loading && result.error && (
+        <div className="section-shell p-5 text-center">
+          <SearchX size={28} className="text-text-xmuted mx-auto mb-2" />
+          <p className="text-sm text-text-secondary">{result.error}</p>
+        </div>
+      )}
+
+      {!result.loading && !result.error && result.trips.length === 0 && (
+        <div className="section-shell p-6 text-center">
+          <SearchX size={28} className="text-text-xmuted mx-auto mb-2" />
+          <p className="text-sm font-semibold text-text-primary">No multi-city trips found</p>
+          <p className="text-xs text-text-muted mt-1">
+            One of the legs had no flights on its date — try shifting a date or swapping airports.
+          </p>
+        </div>
+      )}
+
+      {!result.loading && !result.error && result.trips.length > 0 && filtered.length === 0 && (
+        <div className="section-shell p-5 text-center">
+          <p className="text-sm text-text-secondary">
+            No trips match this stops filter. Try a less strict choice.
+          </p>
+        </div>
+      )}
+
+      {!result.loading && filtered.length > 0 && (
+        <div className="space-y-2.5">
+          {filtered.map((trip, i) => (
+            <div key={trip.tripId} style={{ animationDelay: `${i * 30}ms` }}>
+              <MultiCityCard trip={trip} passengers={passengers} onSelect={handleSelect} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ResultsSection({
   heading,
   result,
@@ -410,6 +511,11 @@ export function SearchResultsScreen({ onMenuOpen }: { onMenuOpen?: () => void })
     error: null,
     pairs: [],
   });
+  const [multiCity, setMultiCity] = useState<MultiCityResult>({
+    loading: false,
+    error: null,
+    trips: [],
+  });
 
   // Round-trip path: one bundled-pair call instead of two independent one-ways.
   // Splits cleanly from the leg-by-leg effect below — they never run together
@@ -446,12 +552,42 @@ export function SearchResultsScreen({ onMenuOpen }: { onMenuOpen?: () => void })
     };
   }, [type, searchParams, passengers]);
 
-  // One-way + multi: fire one searchFlights call per leg, in parallel. Each
-  // leg's loading and results live in its own row so independent legs render
-  // as they resolve. Skipped for `return` — round-trip uses a single bundled
-  // call above instead.
+  // Multi-city path: a single backend call enumerates trip combinations
+  // (top-K candidates per leg) and returns the cheapest bundled trips. We
+  // render each trip as one card with all legs stacked — same UX shape as
+  // round-trip, but legs are booked separately (Kiwi has no /multi-city).
   useEffect(() => {
-    if (type === 'return') return;
+    if (type !== 'multi') return;
+    if (legs.length < 2) return;
+    let cancelled = false;
+    setMultiCity({ loading: true, error: null, trips: [] });
+
+    searchMultiCity(
+      legs.map((l) => ({ origin: l.origin, destination: l.destination, date: l.date })),
+      { passengers, limit: MULTI_CITY_LIMIT },
+    )
+      .then((trips) => {
+        if (cancelled) return;
+        setMultiCity({ loading: false, error: null, trips });
+      })
+      .catch((err: Error) => {
+        if (cancelled) return;
+        setMultiCity({
+          loading: false,
+          error: err.message || 'Could not load multi-city trips',
+          trips: [],
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [type, legs, passengers]);
+
+  // One-way: fire one searchFlights call per leg (there's only one). Kept as
+  // its own effect so round-trip + multi paths above don't trigger it.
+  useEffect(() => {
+    if (type !== 'oneway') return;
     if (legs.length === 0) return;
     let cancelled = false;
     setResults(legs.map((leg) => ({ leg, loading: true, error: null, flights: [] })));
@@ -489,12 +625,17 @@ export function SearchResultsScreen({ onMenuOpen }: { onMenuOpen?: () => void })
   const allDone =
     type === 'return'
       ? !roundTrip.loading
+      : type === 'multi'
+      ? !multiCity.loading
       : results.length > 0 && results.every((r) => !r.loading);
   const totalFlights =
     type === 'return'
       ? roundTrip.pairs.length
+      : type === 'multi'
+      ? multiCity.trips.length
       : results.reduce((sum, r) => sum + r.flights.length, 0);
-  const noResults = allDone && totalFlights === 0 && !roundTrip.error;
+  const noResults =
+    allDone && totalFlights === 0 && !roundTrip.error && !multiCity.error;
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -618,21 +759,17 @@ export function SearchResultsScreen({ onMenuOpen }: { onMenuOpen?: () => void })
           <div className="space-y-8">
             {type === 'return' ? (
               <RoundTripSection result={roundTrip} passengers={passengers} />
+            ) : type === 'multi' ? (
+              <MultiCitySection result={multiCity} legCount={legs.length} passengers={passengers} />
             ) : (
-              results.map((result, index) => {
-                const heading =
-                  type === 'oneway'
-                    ? 'Available flights'
-                    : `Leg ${index + 1}: ${result.leg.origin} → ${result.leg.destination}`;
-                return (
-                  <ResultsSection
-                    key={`${result.leg.origin}-${result.leg.destination}-${result.leg.date}`}
-                    heading={heading}
-                    result={result}
-                    passengers={passengers}
-                  />
-                );
-              })
+              results.map((result) => (
+                <ResultsSection
+                  key={`${result.leg.origin}-${result.leg.destination}-${result.leg.date}`}
+                  heading="Available flights"
+                  result={result}
+                  passengers={passengers}
+                />
+              ))
             )}
 
             {noResults && <ToolCrossSell />}
