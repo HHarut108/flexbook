@@ -1,12 +1,14 @@
 import { useRef, useState } from 'react';
-import { Airport } from '@fast-travel/shared';
-import { PlaneTakeoff, Search, Loader2, X, ArrowRight } from 'lucide-react';
+import { Airport, AirportSearchEntry, City, LocationSelection, selectionLabel } from '@fast-travel/shared';
+import { PlaneTakeoff, Search, Loader2, X, ArrowRight, Building2 } from 'lucide-react';
 import { useAirportSearch } from '../hooks/useAirportSearch';
 
 interface Props {
   value: string;
   onChange: (v: string) => void;
-  onSelect: (airport: Airport) => void;
+  /** Receives either a single-airport selection or a multi-airport city pick
+   *  (e.g. "Rome (all airports)" → fans out to FCO+CIA on search). */
+  onSelect: (selection: LocationSelection) => void;
   placeholder?: string;
   autoFocus?: boolean;
   ariaLabel?: string;
@@ -49,6 +51,46 @@ function AirportRow({
         </p>
       </div>
       <div className="w-8 h-8 rounded-full bg-indigo-soft/60 text-indigo flex items-center justify-center shrink-0">
+        <ArrowRight size={14} />
+      </div>
+    </button>
+  );
+}
+
+function CityRow({
+  city,
+  onSelect,
+  delay,
+}: {
+  city: City & { airports: string[] };
+  onSelect: () => void;
+  delay: number;
+}) {
+  const count = city.airports.length;
+  return (
+    <button
+      className="w-full flex items-center gap-3.5 px-4 py-3.5 hover:bg-amber-50/60 transition-colors border-b border-border/40 last:border-0 text-left"
+      style={{ animationDelay: `${delay}ms` }}
+      onClick={onSelect}
+      aria-label={`Select ${city.name} — all ${count} airports`}
+    >
+      <div className="w-9 h-9 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0">
+        <Building2 size={14} className="text-amber-700" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <p className="text-[15px] font-semibold text-text-primary truncate">
+            {city.name}
+          </p>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">
+            City · {count} airports
+          </span>
+        </div>
+        <p className="text-xs text-text-muted mt-0.5 truncate">
+          Search all {count}: {city.airports.join(', ')}
+        </p>
+      </div>
+      <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
         <ArrowRight size={14} />
       </div>
     </button>
@@ -154,17 +196,34 @@ export function AirportSearchInput({
               </p>
             </div>
           )}
-          {results.map((airport, i) => (
-            <AirportRow
-              key={airport.iata}
-              airport={airport}
-              onSelect={() => {
-                setLastSelected(`${airport.city.name} (${airport.iata})`);
-                onSelect(airport);
-              }}
-              delay={i * 20}
-            />
-          ))}
+          {results.map((entry: AirportSearchEntry, i) => {
+            if (entry.kind === 'city') {
+              return (
+                <CityRow
+                  key={`city:${entry.city.id}`}
+                  city={entry.city}
+                  onSelect={() => {
+                    const selection: LocationSelection = { kind: 'city', city: entry.city };
+                    setLastSelected(selectionLabel(selection));
+                    onSelect(selection);
+                  }}
+                  delay={i * 20}
+                />
+              );
+            }
+            return (
+              <AirportRow
+                key={`airport:${entry.airport.iata}`}
+                airport={entry.airport}
+                onSelect={() => {
+                  const selection: LocationSelection = { kind: 'airport', airport: entry.airport };
+                  setLastSelected(selectionLabel(selection));
+                  onSelect(selection);
+                }}
+                delay={i * 20}
+              />
+            );
+          })}
         </div>
       )}
     </div>

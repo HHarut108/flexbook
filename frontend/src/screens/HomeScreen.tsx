@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Airport } from '@fast-travel/shared';
+import { LocationSelection, selectionLabel, selectionToMarker } from '@fast-travel/shared';
 import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth.store';
@@ -24,9 +24,9 @@ type TripType = 'oneway' | 'return' | 'multi';
 
 interface Leg {
   fromQuery: string;
-  fromAirport: Airport | null;
+  fromAirport: LocationSelection | null;
   toQuery: string;
-  toAirport: Airport | null;
+  toAirport: LocationSelection | null;
   date: string;
 }
 
@@ -38,9 +38,9 @@ const TRIP_TYPE_OPTIONS: { value: TripType; label: string }[] = [
 
 const MAX_LEGS = 6;
 
-function emptyLeg(date: string, fromAirport: Airport | null = null): Leg {
+function emptyLeg(date: string, fromAirport: LocationSelection | null = null): Leg {
   return {
-    fromQuery: fromAirport ? `${fromAirport.city.name} (${fromAirport.iata})` : '',
+    fromQuery: fromAirport ? selectionLabel(fromAirport) : '',
     fromAirport,
     toQuery: '',
     toAirport: null,
@@ -156,9 +156,9 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
 
   // Shared single-trip state (one-way & return).
   const [fromQuery, setFromQuery] = useState('');
-  const [fromAirport, setFromAirport] = useState<Airport | null>(null);
+  const [fromAirport, setFromAirport] = useState<LocationSelection | null>(null);
   const [toQuery, setToQuery] = useState('');
-  const [toAirport, setToAirport] = useState<Airport | null>(null);
+  const [toAirport, setToAirport] = useState<LocationSelection | null>(null);
   const [departDate, setDepartDate] = useState(defaultDepart);
   const [returnDate, setReturnDate] = useState(defaultReturn);
 
@@ -168,21 +168,21 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
     emptyLeg(formatYMD(addDays(new Date(), 10))),
   ]);
 
-  const selectFromForLeg = useCallback((index: number, airport: Airport) => {
+  const selectFromForLeg = useCallback((index: number, selection: LocationSelection) => {
     setLegs((prev) =>
       prev.map((leg, i) =>
         i === index
-          ? { ...leg, fromAirport: airport, fromQuery: `${airport.city.name} (${airport.iata})` }
+          ? { ...leg, fromAirport: selection, fromQuery: selectionLabel(selection) }
           : leg,
       ),
     );
   }, []);
 
-  const selectToForLeg = useCallback((index: number, airport: Airport) => {
+  const selectToForLeg = useCallback((index: number, selection: LocationSelection) => {
     setLegs((prev) => {
       const next = prev.map((leg, i) =>
         i === index
-          ? { ...leg, toAirport: airport, toQuery: `${airport.city.name} (${airport.iata})` }
+          ? { ...leg, toAirport: selection, toQuery: selectionLabel(selection) }
           : leg,
       );
       // If a downstream leg has no origin yet, pre-fill it with this leg's destination
@@ -190,8 +190,8 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
       if (index + 1 < next.length && !next[index + 1].fromAirport) {
         next[index + 1] = {
           ...next[index + 1],
-          fromAirport: airport,
-          fromQuery: `${airport.city.name} (${airport.iata})`,
+          fromAirport: selection,
+          fromQuery: selectionLabel(selection),
         };
       }
       return next;
@@ -229,12 +229,12 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
 
     if (tripType === 'multi') {
       const encoded = legs
-        .map((leg) => `${leg.fromAirport!.iata},${leg.toAirport!.iata},${leg.date}`)
+        .map((leg) => `${selectionToMarker(leg.fromAirport!)},${selectionToMarker(leg.toAirport!)},${leg.date}`)
         .join('|');
       params.set('legs', encoded);
     } else {
-      params.set('origin', fromAirport!.iata);
-      params.set('destination', toAirport!.iata);
+      params.set('origin', selectionToMarker(fromAirport!));
+      params.set('destination', selectionToMarker(toAirport!));
       params.set('depart', departDate);
       if (tripType === 'return') params.set('return', returnDate);
     }
@@ -390,9 +390,9 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
                       setFromQuery(v);
                       if (fromAirport) setFromAirport(null);
                     }}
-                    onSelect={(airport) => {
-                      setFromAirport(airport);
-                      setFromQuery(`${airport.city.name} (${airport.iata})`);
+                    onSelect={(selection) => {
+                      setFromAirport(selection);
+                      setFromQuery(selectionLabel(selection));
                     }}
                     placeholder="Origin city or airport code"
                     ariaLabel="Origin airport"
@@ -406,9 +406,9 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
                       setToQuery(v);
                       if (toAirport) setToAirport(null);
                     }}
-                    onSelect={(airport) => {
-                      setToAirport(airport);
-                      setToQuery(`${airport.city.name} (${airport.iata})`);
+                    onSelect={(selection) => {
+                      setToAirport(selection);
+                      setToQuery(selectionLabel(selection));
                     }}
                     placeholder="Destination city or airport code"
                     ariaLabel="Destination airport"
