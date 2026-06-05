@@ -81,3 +81,24 @@ export interface RoundTripOption {
   /** Single deep link that books the whole pair. */
   bookingUrl: string;
 }
+
+/**
+ * A stitched multi-city itinerary: N legs with different origin/destination
+ * pairs, each booked as a separate one-way ticket. Unlike RoundTripOption,
+ * the provider does not bundle these — Kiwi has no /multi-city endpoint, so
+ * we fetch one-way fares per leg and pair the cheapest combinations on the
+ * backend.
+ *
+ * `priceUsd` is the *sum* of `legs[i].priceUsd` (passenger multiplier already
+ * applied per leg by the provider). Booking is per-leg: each leg has its own
+ * `bookingUrl`. The frontend should make clear these are separate tickets —
+ * no through-baggage, no missed-connection protection.
+ */
+export interface MultiCityOption {
+  /** Stable id for the stitched trip — derived from the leg flightIds. */
+  tripId: string;
+  /** Legs in user-requested order (leg 1 first). */
+  legs: FlightOption[];
+  /** Sum of per-leg fares for the requested passenger count. */
+  priceUsd: number;
+}

@@ -1,4 +1,4 @@
-import { FlightOption, RoundTripOption } from '@fast-travel/shared';
+import { FlightOption, RoundTripOption, MultiCityOption } from '@fast-travel/shared';
 import { config } from '../config';
 import {
   fetchRapidApiKiwiFlights,
@@ -239,6 +239,61 @@ export interface PriceCalendarResult {
 
 const PRICE_CALENDAR_CHUNK_DAYS = 14;
 
+/**
+ * How many cheapest one-way candidates to keep per leg before enumerating
+ * trip combinations. Tuned so K^N stays bounded across the FE's max 6 legs
+ * (worst case 4^6 = 4096 combos). Single-leg multi-city is invalid; the
+ * service rejects fewer than 2 legs upstream.
+ */
+function perLegCandidateCount(legCount: number): number {
+  if (legCount <= 2) return 10;
+  if (legCount === 3) return 8;
+  if (legCount === 4) return 6;
+  if (legCount === 5) return 5;
+  return 4;
+}
+
+/**
+ * Cartesian product of per-leg candidates, summed by price, sorted ascending,
+ * truncated to `limit`. Generates one MultiCityOption per combo with
+ * leg-derived tripId so React can stable-key the list.
+ */
+function enumerateMultiCityTrips(perLeg: FlightOption[][], limit: number): MultiCityOption[] {
+  const combos: { legs: FlightOption[]; total: number }[] = [];
+  const N = perLeg.length;
+
+  // Iterative index array — avoids recursion blow-up at 6 legs.
+  const idx = new Array(N).fill(0);
+  while (true) {
+    const picked: FlightOption[] = [];
+    let total = 0;
+    for (let i = 0; i < N; i++) {
+      const f = perLeg[i][idx[i]];
+      picked.push(f);
+      total += f.priceUsd;
+    }
+    combos.push({ legs: picked, total });
+
+    // Advance the index array as a mixed-radix counter (rightmost wraps first).
+    let k = N - 1;
+    while (k >= 0) {
+      idx[k]++;
+      if (idx[k] < perLeg[k].length) break;
+      idx[k] = 0;
+      k--;
+    }
+    if (k < 0) break;
+  }
+
+  combos.sort((a, b) => a.total - b.total);
+
+  return combos.slice(0, limit).map((c) => ({
+    tripId: c.legs.map((l) => l.flightId).join('|'),
+    legs: c.legs,
+    priceUsd: c.total,
+  }));
+}
+
 export class FlightService {
   async search(
     originIata: string,
@@ -382,6 +437,67 @@ export class FlightService {
       options,
     );
     return { pairs };
+  }
+
+  /**
+   * Multi-city search: a user-defined ordered list of legs (each with its own
+   * origin/destination/date), stitched into bundled-display trip cards.
+   *
+   * Kiwi has no /multi-city endpoint, so each leg is a separate /one-way call
+   * (fired in parallel). We then take the top-K cheapest candidates per leg
+   * and enumerate combinations, sort by total price, and return the top N
+   * trips. K-per-leg is chosen so the combinatorial enumeration stays bounded
+   * even for the 6-leg max:
+   *
+   *   2 legs → K=10  → 100 combos
+   *   3 legs → K=8   → 512
+   *   4 legs → K=6   → 1296
+   *   5 legs → K=5   → 3125
+   *   6 legs → K=4   → 4096
+   *
+   * Booking is per-leg (no airline bundling), so each leg keeps its own
+   * bookingUrl and we return no trip-level deep link.
+   */
+  async searchMultiCity(
+    legs: { originIata: string; destinationIata: string; date: string }[],
+    options: KiwiSearchOptions & { limit?: number } = {},
+    apiMode?: 'real' | 'mock',
+  ): Promise<{ trips: MultiCityOption[] }> {
+    if (legs.length < 2) {
+      throw new Error('searchMultiCity requires at least 2 legs');
+    }
+    const { limit = 30, ...searchOptions } = options;
+
+    const perLegBudget = perLegCandidateCount(legs.length);
+
+    // Fetch all legs in parallel. Cache layer + provider fallback chain run
+    // through the existing search() path so multi-city benefits from any
+    // schedule cache hits without a separate code path.
+    const perLeg = await Promise.all(
+      legs.map(async (leg) => {
+        const originCity = airportService.getByIata(leg.originIata)?.city.name ?? leg.originIata;
+        const result = await this.search(
+          leg.originIata,
+          originCity,
+          leg.date,
+          leg.destinationIata,
+          false, // never dedupe-by-destination for multi-city — we want the cheapest options to that specific airport
+          searchOptions,
+          apiMode,
+          false,
+        );
+        // search() already returns price-ascending. Keep only the top K for combo enumeration.
+        return result.flights.slice(0, perLegBudget);
+      }),
+    );
+
+    // If any leg returned zero candidates, there's no trip to build.
+    if (perLeg.some((leg) => leg.length === 0)) {
+      return { trips: [] };
+    }
+
+    const trips = enumerateMultiCityTrips(perLeg, limit);
+    return { trips };
   }
 
   /**
