@@ -21,6 +21,7 @@ export function useUrlSync() {
   const status     = useTripStore((s) => s.status);
   const createdAt  = useTripStore((s) => s.createdAt);
   const passengers = useTripStore((s) => s.passengers);
+  const picks      = useTripStore((s) => s.picks);
   const selectedFlight = useSessionStore((s) => s.selectedFlight);
   const selectedDate   = useSessionStore((s) => s.selectedDate);
 
@@ -51,7 +52,14 @@ export function useUrlSync() {
 
       let changed = false;
 
-      const encodedTrip = encodeItinerary({ origin, legs, status, createdAt, passengers });
+      const encodedTrip = encodeItinerary({
+        origin,
+        legs,
+        status,
+        createdAt,
+        passengers,
+        ...(picks.length > 0 ? { picks } : {}),
+      });
       if (encodedTrip !== lastTripRef.current) {
         url.searchParams.set(TRIP_KEY, encodedTrip);
         lastTripRef.current = encodedTrip;
@@ -104,7 +112,7 @@ export function useUrlSync() {
     timerRef.current = setTimeout(writeUrl, DEBOUNCE_MS);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [
-    origin, legs, status, createdAt, passengers,
+    origin, legs, status, createdAt, passengers, picks,
     selectedFlight, selectedDate,
     location.pathname,
   ]);

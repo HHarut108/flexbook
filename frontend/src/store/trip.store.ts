@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Airport, TripLeg, Itinerary, LocationSelection } from '@fast-travel/shared';
+import { Airport, TripLeg, Itinerary, LocationSelection, Pick, PickKind } from '@fast-travel/shared';
 
 const MAX_LEGS = 15;
 
@@ -14,6 +14,7 @@ interface TripState {
   status: 'planning' | 'complete';
   createdAt: string;
   passengers: number;
+  picks: Pick[];
 
   /** Accepts either kind of selection. City picks store the primary airport
    *  in `origin` AND the city id in `originCityId`. */
@@ -21,6 +22,8 @@ interface TripState {
   setPassengers: (count: number) => void;
   addLeg: (leg: TripLeg) => void;
   updateStay: (stopIndex: number, days: number, nextDepartureDate: string) => void;
+  togglePick: (pick: Pick) => void;
+  isPicked: (city: string, kind: PickKind, name: string) => boolean;
   finalize: () => void;
   reset: () => void;
   loadFromItinerary: (itinerary: Itinerary) => void;
@@ -41,6 +44,7 @@ export const useTripStore = create<TripState>((set, get) => ({
   status: 'planning',
   createdAt: new Date().toISOString(),
   passengers: 1,
+  picks: [],
 
   setOrigin: (selection) => {
     if (selection.kind === 'city') {
@@ -66,6 +70,7 @@ export const useTripStore = create<TripState>((set, get) => ({
         legs: [],
         status: 'planning',
         createdAt: new Date().toISOString(),
+        picks: [],
       });
     } else {
       set({
@@ -74,6 +79,7 @@ export const useTripStore = create<TripState>((set, get) => ({
         legs: [],
         status: 'planning',
         createdAt: new Date().toISOString(),
+        picks: [],
       });
     }
   },
@@ -102,10 +108,28 @@ export const useTripStore = create<TripState>((set, get) => ({
       ),
     })),
 
+  togglePick: (pick) =>
+    set((s) => {
+      const idx = s.picks.findIndex(
+        (p) => p.city === pick.city && p.kind === pick.kind && p.name === pick.name,
+      );
+      if (idx >= 0) {
+        const next = [...s.picks];
+        next.splice(idx, 1);
+        return { picks: next };
+      }
+      return { picks: [...s.picks, pick] };
+    }),
+
+  isPicked: (city, kind, name) => {
+    const { picks } = get();
+    return picks.some((p) => p.city === city && p.kind === kind && p.name === name);
+  },
+
   finalize: () => set({ status: 'complete' }),
 
   reset: () =>
-    set({ origin: null, originCityId: null, legs: [], status: 'planning', createdAt: new Date().toISOString(), passengers: 1 }),
+    set({ origin: null, originCityId: null, legs: [], status: 'planning', createdAt: new Date().toISOString(), passengers: 1, picks: [] }),
 
   loadFromItinerary: (it) =>
     set({
@@ -115,6 +139,7 @@ export const useTripStore = create<TripState>((set, get) => ({
       status: it.status,
       createdAt: it.createdAt,
       passengers: it.passengers ?? 1,
+      picks: it.picks ?? [],
     }),
 
   canContinue: () => {
@@ -149,7 +174,7 @@ export const useTripStore = create<TripState>((set, get) => ({
   },
 
   toItinerary: () => {
-    const { origin, originCityId, legs, status, createdAt, passengers } = get();
+    const { origin, originCityId, legs, status, createdAt, passengers, picks } = get();
     if (!origin) return null;
     return {
       origin,
@@ -158,6 +183,7 @@ export const useTripStore = create<TripState>((set, get) => ({
       status,
       createdAt,
       passengers,
+      ...(picks.length > 0 ? { picks } : {}),
     };
   },
 

@@ -10,6 +10,18 @@ export interface TripLeg extends FlightOption {
 
 export type ItineraryStatus = 'planning' | 'complete';
 
+export type PickKind = 'stay' | 'do' | 'eat';
+
+/** A user-tagged Stay/Do/Eat item from the destination guide. The item is
+ *  identified by (city, kind, name) — names are unique within a kind+city
+ *  in the /city-guide payload, so this is enough to round-trip across
+ *  reloads without storing the full place blob. */
+export interface Pick {
+  city: string;
+  kind: PickKind;
+  name: string;
+}
+
 export interface Itinerary {
   origin: Airport;
   /** Set when the user picked a multi-airport city (e.g. "Rome (all airports)")
@@ -23,4 +35,5 @@ export interface Itinerary {
   createdAt: string;         // ISO 8601
   completedAt?: string;      // ISO 8601
   passengers: number;        // 1–9 adults
+  picks?: Pick[];
 }
