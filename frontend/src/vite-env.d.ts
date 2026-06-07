@@ -6,6 +6,8 @@ interface ImportMetaEnv {
   readonly VITE_POSTHOG_KEY?: string;
   /** PostHog ingestion host, e.g. https://us.i.posthog.com or https://eu.i.posthog.com */
   readonly VITE_POSTHOG_HOST?: string;
+  /** When '1' or 'true', render the V2 layout (hub home + new tool pages) by default. */
+  readonly VITE_LAYOUT_V2?: string;
 }
 
 interface ImportMeta {
