@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
+import { FlightOption } from '@fast-travel/shared';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
 import { formatPrice, totalPrice } from '../utils/price.utils';
@@ -10,7 +11,8 @@ import { TripTimeline } from '../components/TripTimeline';
 import { PlanStayNudge } from '../components/PlanStayNudge';
 import { DestinationGuideCard } from '../components/DestinationGuideCard';
 import { MapErrorBoundary } from '../components/MapErrorBoundary';
-import { ArrowLeft, Ticket } from 'lucide-react';
+import { WhenToFlyHomeModal } from '../components/WhenToFlyHomeModal';
+import { ArrowLeft, Plane, Ticket } from 'lucide-react';
 import { getDecisionHeadline } from '../utils/copy.utils';
 
 const TripMap = lazy(() =>
@@ -22,9 +24,12 @@ export function DecisionScreen() {
   const origin = useTripStore((s) => s.origin);
   const legs = useTripStore((s) => s.legs);
   const passengers = useTripStore((s) => s.passengers);
+  const addLeg = useTripStore((s) => s.addLeg);
+  const finalize = useTripStore((s) => s.finalize);
   const canContinue = useTripStore((s) => s.canContinue());
   const { setSelectedDate } = useSessionStore();
   const [planVisited, setPlanVisited] = useState(false);
+  const [whenToFlyOpen, setWhenToFlyOpen] = useState(false);
 
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
   const lastLeg = nonReturnLegs.at(-1)!;
@@ -42,6 +47,19 @@ export function DecisionScreen() {
 
   function handleGoHome() {
     navigate('/return');
+  }
+
+  function handleAcceptHomeFlight(flight: FlightOption) {
+    addLeg({
+      ...flight,
+      stopIndex: nonReturnLegs.length + 1,
+      stayDurationDays: 0,
+      nextDepartureDate: '',
+      isReturn: true,
+    });
+    finalize();
+    setWhenToFlyOpen(false);
+    navigate('/itinerary');
   }
 
   return (
@@ -156,6 +174,14 @@ export function DecisionScreen() {
           <button className="btn-secondary" onClick={handleGoHome}>
             Wrap up and fly home
           </button>
+          {origin && (
+            <button
+              className="btn-outline flex items-center justify-center gap-2"
+              onClick={() => setWhenToFlyOpen(true)}
+            >
+              <Plane size={16} /> When to fly home?
+            </button>
+          )}
           <button
             className="btn-outline flex items-center justify-center gap-2"
             onClick={() => navigate('/book/partial')}
@@ -164,6 +190,21 @@ export function DecisionScreen() {
           </button>
         </div>
       </div>
+
+      {origin && (
+        <WhenToFlyHomeModal
+          isOpen={whenToFlyOpen}
+          onClose={() => setWhenToFlyOpen(false)}
+          fromIata={lastLeg.destinationIata}
+          fromCity={lastLeg.destinationCity}
+          toIata={origin.iata}
+          toCity={origin.city.name}
+          arrivalDatetime={lastLeg.arrivalDatetime}
+          nextDepartureDate={lastLeg.nextDepartureDate}
+          passengers={passengers}
+          onSelect={handleAcceptHomeFlight}
+        />
+      )}
     </div>
   );
 }
