@@ -12,7 +12,7 @@ import { PlanStayNudge } from '../components/PlanStayNudge';
 import { DestinationGuideCard } from '../components/DestinationGuideCard';
 import { MapErrorBoundary } from '../components/MapErrorBoundary';
 import { WhenToFlyHomeModal } from '../components/WhenToFlyHomeModal';
-import { ArrowLeft, Plane, Ticket } from 'lucide-react';
+import { ArrowLeft, Ticket } from 'lucide-react';
 import { getDecisionHeadline } from '../utils/copy.utils';
 
 const TripMap = lazy(() =>
@@ -45,7 +45,15 @@ export function DecisionScreen() {
     navigate('/flights');
   }
 
-  function handleGoHome() {
+  function handleWrapUp() {
+    // Open the cheapest-day modal first as decision-support. The user can either
+    // accept the suggested cheapest flight, or click "See more options" to open
+    // the full /return picker.
+    setWhenToFlyOpen(true);
+  }
+
+  function handleSeeMoreReturnOptions() {
+    setWhenToFlyOpen(false);
     navigate('/return');
   }
 
@@ -171,22 +179,20 @@ export function DecisionScreen() {
               This trip has reached the current stop limit.
             </p>
           )}
-          <button className="btn-secondary" onClick={handleGoHome}>
+          <button className="btn-secondary" onClick={handleWrapUp}>
             Wrap up and fly home
           </button>
-          {origin && (
-            <button
-              className="btn-outline flex items-center justify-center gap-2"
-              onClick={() => setWhenToFlyOpen(true)}
-            >
-              <Plane size={16} /> When to fly home?
-            </button>
-          )}
+        </div>
+
+        {/* Secondary, lower-stakes link — visually de-emphasized so it doesn't
+            compete with the two primary commitments above. */}
+        <div className="mt-4 text-center">
           <button
-            className="btn-outline flex items-center justify-center gap-2"
+            type="button"
             onClick={() => navigate('/book/partial')}
+            className="inline-flex items-center gap-1.5 text-xs text-text-muted hover:text-indigo underline-offset-2 hover:underline transition-colors"
           >
-            <Ticket size={16} /> Get tickets for flights so far
+            <Ticket size={12} /> Get tickets for flights so far
           </button>
         </div>
       </div>
@@ -203,6 +209,7 @@ export function DecisionScreen() {
           nextDepartureDate={lastLeg.nextDepartureDate}
           passengers={passengers}
           onSelect={handleAcceptHomeFlight}
+          onSeeMoreOptions={handleSeeMoreReturnOptions}
         />
       )}
     </div>
