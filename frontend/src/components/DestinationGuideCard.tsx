@@ -13,7 +13,6 @@ import {
   Music,
   Navigation,
   UtensilsCrossed,
-  Sparkles,
 } from 'lucide-react';
 
 interface Hotel {
@@ -198,9 +197,9 @@ export function DestinationGuideCard({
         {onOpenFullGuide && (
           <button
             onClick={onOpenFullGuide}
-            className="hidden lg:inline-flex items-center gap-1.5 rounded-xl bg-indigo-soft border border-indigo-border px-3 py-1.5 text-xs font-semibold text-indigo hover:bg-indigo hover:text-white hover:border-indigo transition-all active:scale-[0.97]"
+            className="hidden lg:inline-flex items-center rounded-xl bg-indigo-soft border border-indigo-border px-3 py-1.5 text-xs font-semibold text-indigo hover:bg-indigo hover:text-white hover:border-indigo transition-all active:scale-[0.97]"
           >
-            <Sparkles size={12} /> Open full guide
+            Open full guide
           </button>
         )}
       </div>

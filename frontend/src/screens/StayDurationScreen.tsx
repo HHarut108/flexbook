@@ -143,21 +143,6 @@ export function StayDurationScreen() {
             </div>
           )}
 
-          {/* Trip so far — only render once we have at least one leg in store */}
-          {priorLegs.length > 0 && (
-            <div className="mt-6 pt-5 border-t border-border/60 max-w-md">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] text-text-muted uppercase tracking-[0.16em] font-semibold">
-                  Trip so far
-                </p>
-                <span className="font-mono text-orange text-xs font-bold">
-                  {formatPrice(totalPrice(priorLegs))}
-                </span>
-              </div>
-              <TripTimeline legs={legs} highlightLast={false} />
-            </div>
-          )}
-
           {/* Desktop-only Stay/Do/Eat preview — gives the user a sense of
               what awaits them while they pick the duration. Hidden on mobile
               to keep the picker the primary action. */}
@@ -292,6 +277,21 @@ export function StayDurationScreen() {
           >
             Back to flight options
           </button>
+
+          {/* Trip so far — only render once we have at least one leg in store */}
+          {priorLegs.length > 0 && (
+            <div className="mt-6 pt-5 border-t border-border/60">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] text-text-muted uppercase tracking-[0.16em] font-semibold">
+                  Trip so far
+                </p>
+                <span className="font-mono text-orange text-xs font-bold">
+                  {formatPrice(totalPrice(priorLegs))}
+                </span>
+              </div>
+              <TripTimeline legs={legs} highlightLast={false} />
+            </div>
+          )}
         </div>
       </div>
     </div>
