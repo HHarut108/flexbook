@@ -79,6 +79,12 @@ const tripLegSchema = flightOptionSchema.extend({
   isReturn: z.boolean(),
 });
 
+const pickSchema = z.object({
+  city: z.string(),
+  kind: z.enum(['stay', 'do', 'eat']),
+  name: z.string(),
+});
+
 const itinerarySchema = z.object({
   origin: airportSchema,
   // City id for multi-airport "Rome (city)" picks — flight searches will fan
@@ -89,6 +95,7 @@ const itinerarySchema = z.object({
   createdAt: z.string(),
   completedAt: z.string().optional(),
   passengers: z.number(),
+  picks: z.array(pickSchema).optional(),
 });
 
 const urlSessionSchema = z.object({

@@ -8,6 +8,7 @@ import { formatPrice, totalPrice } from '../utils/price.utils';
 import { countryDisplayName } from '../utils/country.utils';
 import { ArrowLeft, ArrowRight, Minus, Plus, AlertTriangle, Waypoints, MapPin } from 'lucide-react';
 import { TripTimeline } from '../components/TripTimeline';
+import { DestinationGuideCard } from '../components/DestinationGuideCard';
 import { getStayDurationHint } from '../utils/copy.utils';
 import { useCurrentPassport } from '../hooks/useCurrentPassport';
 import { useVisaCountries, resolveCountryCode } from '../hooks/useVisaCountries';
@@ -26,7 +27,16 @@ export function StayDurationScreen() {
   const { selectedFlight, showToast } = useSessionStore();
   const legs = useTripStore((s) => s.legs);
   const addLeg = useTripStore((s) => s.addLeg);
+  const passengers = useTripStore((s) => s.passengers);
   const [days, setDays] = useState(3);
+
+  // Debounce the live `days` value before passing it to the destination
+  // guide so quick +/- stepper clicks don't spam the /city-guide API.
+  const [guideNights, setGuideNights] = useState(days);
+  useEffect(() => {
+    const t = setTimeout(() => setGuideNights(days), 350);
+    return () => clearTimeout(t);
+  }, [days]);
 
   // Look up visa info for the destination country so we can warn the user
   // when their planned stay exceeds the visa-free / on-arrival / eVisa window.
@@ -147,6 +157,20 @@ export function StayDurationScreen() {
               <TripTimeline legs={legs} highlightLast={false} />
             </div>
           )}
+
+          {/* Desktop-only Stay/Do/Eat preview — gives the user a sense of
+              what awaits them while they pick the duration. Hidden on mobile
+              to keep the picker the primary action. */}
+          <div className="hidden lg:block mt-8">
+            <DestinationGuideCard
+              city={destinationCity}
+              country={destinationCountryName}
+              nights={guideNights}
+              checkin={selectedFlight.arrivalDatetime?.slice(0, 10)}
+              checkout={nextDeparture}
+              passengers={passengers}
+            />
+          </div>
         </div>
 
         {/* RIGHT — picker card */}
