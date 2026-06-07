@@ -12,6 +12,9 @@ import { MobileViewToggle, type MobileView } from '../components/MobileViewToggl
 import { nearbyAirportsByCoords } from '../api/airports.api';
 import { resolveUserCoords, readCachedCoords, readCachedNearby, cacheNearby } from '../utils/geolocation.utils';
 import { formatYMD } from '../utils/date.utils';
+import { useTripStore } from '../store/trip.store';
+import { useSessionStore } from '../store/session.store';
+import { track, AnalyticsEvent } from '../lib/analytics';
 
 interface Props {
   onMenuOpen?: () => void;
@@ -32,6 +35,9 @@ function airportToSelection(a: Airport): LocationSelection {
 
 export function HopPlannerScreenV2({ onMenuOpen }: Props) {
   const navigate = useNavigate();
+  const setStoreOrigin = useTripStore((s) => s.setOrigin);
+  const setStorePassengers = useTripStore((s) => s.setPassengers);
+  const setSelectedDate = useSessionStore((s) => s.setSelectedDate);
   const [originQuery, setOriginQuery] = useState('');
   const [origin, setOrigin] = useState<LocationSelection | null>(null);
   const [date, setDate] = useState<string>(formatYMD(addDays(new Date(), 7)));
@@ -82,8 +88,24 @@ export function HopPlannerScreenV2({ onMenuOpen }: Props) {
   }, []);
 
   function handleProceed() {
-    // Hand off to V1 Trip Builder once origin + date are set.
-    navigate('/hop-planner');
+    if (!origin || !date) return;
+    setStoreOrigin(origin);
+    setStorePassengers(1);
+    setSelectedDate(date);
+    const trackOrigin =
+      origin.kind === 'airport' ? origin.airport.iata : `@${origin.city.id}`;
+    const trackCity =
+      origin.kind === 'airport' ? origin.airport.city.name : origin.city.name;
+    const trackCountry =
+      origin.kind === 'airport' ? origin.airport.city.countryCode : origin.city.countryCode;
+    track(AnalyticsEvent.TripSearchStarted, {
+      origin: trackOrigin,
+      originCity: trackCity,
+      originCountry: trackCountry,
+      passengers: 1,
+      departureDate: date,
+    });
+    navigate('/flights');
   }
 
   const canProceed = !!origin && !!date;
