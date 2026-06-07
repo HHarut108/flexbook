@@ -6,13 +6,7 @@ import { airportService } from '../services/AirportService';
 import { weatherService } from '../services/WeatherService';
 import { requireAuth } from '../utils/requireAuth';
 import { ok, fail } from '../utils/response';
-import { resolveLocation } from '../utils/resolveLocation';
 import { fetchVisaFreeDestinations } from './visa';
-
-const LOCATION_MARKER = /^([A-Z]{3}|@[a-z0-9_]+)$/;
-function normalizeMarker(raw: string): string {
-  return raw.startsWith('@') ? '@' + raw.slice(1).toLowerCase() : raw.toUpperCase();
-}
 
 const BEAM_WIDTH = 3;
 const RETURN_RESERVE_RATIO = 0.35;
@@ -49,13 +43,7 @@ function sunWeatherScore(weather: WeatherSummary | null | undefined): number {
 }
 
 const bodySchema = z.object({
-  // originIata accepts a 3-letter airport IATA OR an @city_id marker. City
-  // markers are resolved to the city's busiest (primary) airport for the
-  // beam search — true per-airport fan-out is deferred to a follow-up PR
-  // because each beam run respects its own 75 s deadline and would blow
-  // the wall clock if multiplied. Member airports are still added to the
-  // `visited` set so the algorithm won't propose intra-city hops.
-  originIata: z.string().min(1).max(40).transform(normalizeMarker).refine((v) => LOCATION_MARKER.test(v), 'originIata must be a 3-letter IATA or @city_id'),
+  originIata: z.string().length(3).toUpperCase(),
   departureDateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   departureDateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   budgetPerPerson: z.number().int().min(100).max(100_000),
@@ -272,20 +260,12 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const {
-      originIata: originMarker, departureDateFrom, departureDateTo, budgetPerPerson, passengers,
+      originIata, departureDateFrom, departureDateTo, budgetPerPerson, passengers,
       maxStops, nightsPerStop, nightsPerStopArray, tripStyle, excludedDestinations, passportCode,
     } = parsed.data;
 
     // ── A4 UNKNOWN_ORIGIN ────────────────────────────────────────────────────
-    // For city markers resolveLocation orders members by direct-route popularity
-    // DESC, so [0] is the city's busiest hub — used as the seed for the beam
-    // search. All member airports go into the `visited` set so the algorithm
-    // won't suggest intra-city hops (FCO→CIA as a "leg" would be absurd).
-    const originIatas = resolveLocation(originMarker);
-    if (originIatas.length === 0) {
-      return reply.status(400).send(fail('UNKNOWN_ORIGIN', "We don't recognize that origin airport. Pick another."));
-    }
-    const originIata = originIatas[0];
+    // Catch typos / removed airports / API misuse before they waste a flight search.
     const originAirport = airportService.getByIata(originIata);
     if (!originAirport) {
       return reply.status(400).send(fail('UNKNOWN_ORIGIN', "We don't recognize that origin airport. Pick another."));
@@ -336,7 +316,7 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
       remainingBudget: budgetPerPerson,
       currentOriginIata: originIata,
       currentDate: departureDateFrom,
-      visited: new Set<string>(originIatas),
+      visited: new Set<string>([originIata]),
       warnings: [],
     }];
 
@@ -536,23 +516,22 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
     // B7 revision: never strand the user. If no return fits the remaining budget,
     // take the cheapest available return (direct preferred, else connecting) and
     // attach an OVER_BUDGET warning. The cycle ALWAYS closes for active beams.
-    const originIataSet = new Set(originIatas);
     const finalBeam = await Promise.all(
       activeBeam.map(async (state): Promise<BeamState> => {
-        // Already back at origin (any member airport when origin is a city).
-        if (originIataSet.has(state.currentOriginIata)) return state;
+        // Already back at origin (shouldn't happen since outbound visited-filter
+        // blocks origin, but kept defensively).
+        if (state.currentOriginIata === originIata) return state;
+
+        const returnOriginCity = airportService.getByIata(state.currentOriginIata)?.city.name ?? state.currentOriginIata;
 
         try {
-          // Fan out the return search across all city-origin airports so the
-          // user can return to any of them (e.g. London-origin trip might
-          // return cheapest into LGW instead of LHR).
-          const result = await flightService.searchOneWayFanOut(
-            [state.currentOriginIata],
-            state.currentDate,
-            originIatas,
+          const result = await flightService.search(
+            state.currentOriginIata, returnOriginCity, state.currentDate,
+            originIata, // back home
+            true,
             { sort: 'price', passengers },
           );
-          const allReturnHome = result.flights.filter((f) => originIataSet.has(f.destinationIata));
+          const allReturnHome = result.flights.filter((f) => f.destinationIata === originIata);
           const directReturn = allReturnHome.filter((f) => f.stops === 0);
           const returnPool = directReturn.length > 0 ? directReturn : allReturnHome;
 
@@ -598,10 +577,9 @@ export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
       }),
     );
 
-    // Only closed cycles are valid trips. "Home" means any member airport when
-    // origin is a city marker, so a Rome trip can return to FCO or CIA.
+    // Only closed cycles are valid trips.
     const hasReturn = (s: BeamState) =>
-      s.legs.some((l) => l.isReturn) || originIataSet.has(s.currentOriginIata);
+      s.legs.some((l) => l.isReturn) || s.currentOriginIata === originIata;
     const closedBeam = finalBeam.filter(hasReturn);
 
     if (closedBeam.length === 0) {

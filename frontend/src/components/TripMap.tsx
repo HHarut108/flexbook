@@ -114,35 +114,6 @@ function AutoFit({ pins }: { pins: MapPin[] }) {
   return null;
 }
 
-/* ── Pinless mode controller ──
- * When the map has no pins (empty state on the When To Go / Trip Planner
- * screens before a route is picked), drive the center imperatively so it
- * can react to async geolocation. MapContainer.center is honoured only on
- * first render, so we use map.setView() here.
- *
- * - centerCoords present → zoom onto the user's location, no pin.
- * - centerCoords null   → render the full world map (zoom 2, lat 20, lng 0).
- */
-function PinlessCenter({
-  centerCoords,
-}: {
-  centerCoords: { lat: number; lng: number } | null | undefined;
-}) {
-  const map = useMap();
-  // Depend on the scalar lat/lng so consumers can pass new `{lat, lng}`
-  // objects without forcing a re-pan when the actual coordinates didn't change.
-  const lat = centerCoords?.lat;
-  const lng = centerCoords?.lng;
-  useEffect(() => {
-    if (lat != null && lng != null) {
-      map.setView([lat, lng], 5, { animate: false });
-    } else {
-      map.setView([20, 0], 2, { animate: false });
-    }
-  }, [map, lat, lng]);
-  return null;
-}
-
 /* ── Keep Leaflet in sync with container size ──
  *
  * Without this, tiles render gray / misaligned whenever the wrapper resizes
@@ -216,26 +187,13 @@ function TripTotalPill({ legs }: { legs: TripLeg[] }) {
 /* ── Main map component ── */
 
 interface Props {
-  /** Anchor airport. Renders the origin pin + label and is the source for
-   *  AutoFit. Pass `null` for the empty-state map (no route picked yet) —
-   *  the map will then use `centerCoords` for its initial view, or fall
-   *  back to a full world map. */
-  origin: Airport | null;
+  origin: Airport;
   legs: TripLeg[];
-  /** Optional coordinates used when `origin` is null. Lets the screen show
-   *  the user's resolved geolocation as the map center even before we've
-   *  identified their nearest commercial airport. */
-  centerCoords?: { lat: number; lng: number } | null;
 }
 
-export function TripMap({ origin, legs, centerCoords }: Props) {
+export function TripMap({ origin, legs }: Props) {
   // Memoize so AutoFit / arc useMemo don't refire on every parent render.
-  // When origin is null we build an empty payload — the PinlessCenter
-  // controller below takes over to position the map.
-  const { pins, lines } = useMemo(
-    () => (origin ? buildMapData(origin, legs) : { pins: [], lines: [] }),
-    [origin, legs],
-  );
+  const { pins, lines } = useMemo(() => buildMapData(origin, legs), [origin, legs]);
 
   // Pre-compute arcs for all lines (must be before early return — hooks rule)
   const arcs = useMemo(
@@ -243,10 +201,8 @@ export function TripMap({ origin, legs, centerCoords }: Props) {
     [lines]
   );
 
-  // Guard: leaflet crashes with undefined/NaN coordinates when an origin is
-  // passed in. Empty-state (origin null) always renders — the controller
-  // either pans to centerCoords or to the full world.
-  if (origin && (origin.city.lat == null || origin.city.lng == null || Number.isNaN(origin.city.lat) || Number.isNaN(origin.city.lng))) {
+  // Guard: leaflet crashes with undefined/NaN coordinates
+  if (origin.city.lat == null || origin.city.lng == null || Number.isNaN(origin.city.lat) || Number.isNaN(origin.city.lng)) {
     return (
       <div className="h-full flex items-center justify-center text-text-muted text-sm">
         Map unavailable — location data missing for {origin.city.name}.
@@ -254,20 +210,11 @@ export function TripMap({ origin, legs, centerCoords }: Props) {
     );
   }
 
-  // Initial center — meaningful only on first render. Subsequent updates
-  // run through AutoFit (when pins exist) or PinlessCenter (when they don't).
-  const initialCenter: [number, number] = origin
-    ? [origin.city.lat, origin.city.lng]
-    : centerCoords
-      ? [centerCoords.lat, centerCoords.lng]
-      : [20, 0];
-  const initialZoom = origin ? 4 : centerCoords ? 5 : 2;
-
   return (
     <div className="trip-map-wrapper">
       <MapContainer
-        center={initialCenter}
-        zoom={initialZoom}
+        center={[origin.city.lat, origin.city.lng]}
+        zoom={4}
         minZoom={2}
         maxZoom={8}
         style={{ height: '100%', width: '100%' }}
@@ -284,9 +231,7 @@ export function TripMap({ origin, legs, centerCoords }: Props) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
         />
         <SizeWatcher />
-        {pins.length > 0
-          ? <AutoFit pins={pins} />
-          : <PinlessCenter centerCoords={centerCoords} />}
+        <AutoFit pins={pins} />
         <ZoomControl position="topright" />
 
         {/* Glow underline for arcs (rendered first, behind) */}
@@ -351,9 +296,8 @@ export function TripMap({ origin, legs, centerCoords }: Props) {
         &copy; OpenStreetMap &copy; CARTO
       </div>
 
-      {/* Route legend overlay (line-types only) — skip in empty-state map
-          where there's no origin and no legs to legend. */}
-      {origin && <RouteLegend origin={origin} legs={legs} />}
+      {/* Route legend overlay (line-types only) */}
+      <RouteLegend origin={origin} legs={legs} />
 
       {/* Trip total — separate corner so it doesn't read as "return = $X" */}
       <TripTotalPill legs={legs} />

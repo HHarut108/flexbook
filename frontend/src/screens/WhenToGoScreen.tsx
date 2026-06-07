@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import axios from 'axios';
-import { Airport, LocationSelection, selectionToMarker } from '@fast-travel/shared';
+import { Airport } from '@fast-travel/shared';
 import {
   ArrowLeft,
   ArrowLeftRight,
@@ -25,10 +25,8 @@ import { format, addDays, addMonths, endOfMonth, startOfMonth } from 'date-fns';
 import { useAirportSearch } from '../hooks/useAirportSearch';
 import { fetchCheapestDay, CheapestDayResponse, CalendarDay } from '../api/whenToGo.api';
 import { nearbyAirportsByCoords } from '../api/airports.api';
-import { fetchSuggestedRoutes, SuggestedRoute } from '../api/suggestedRoutes.api';
 import {
   resolveUserCoords,
-  getBrowserCoords,
   readCachedCoords,
   readCachedNearby,
   cacheNearby,
@@ -39,6 +37,33 @@ import { SingleFlightMap } from '../components/SingleFlightMap';
 
 const TripMap = lazy(() => import('../components/TripMap').then((m) => ({ default: m.TripMap })));
 
+/* Popular fallback origins — mirrors TripPlannerScreen so the right column
+   always has a map to render even before geolocation resolves. */
+const POPULAR_AIRPORTS: Airport[] = [
+  { iata: 'IST', name: 'Istanbul Airport', timezone: 'Europe/Istanbul', city: { id: 'ist', name: 'Istanbul', countryCode: 'TR', countryName: 'Turkey', lat: 41.01, lng: 28.98 } },
+  { iata: 'LHR', name: 'Heathrow Airport', timezone: 'Europe/London', city: { id: 'lon', name: 'London', countryCode: 'GB', countryName: 'United Kingdom', lat: 51.47, lng: -0.46 } },
+  { iata: 'CDG', name: 'Charles de Gaulle', timezone: 'Europe/Paris', city: { id: 'par', name: 'Paris', countryCode: 'FR', countryName: 'France', lat: 49.01, lng: 2.55 } },
+];
+
+/* Inspiration shown in the desktop empty state. Picking one fills the route
+   form so the user has a real starting point instead of a blank panel. */
+const SUGGESTED_ROUTES: { from: Airport; to: Airport; tagline: string }[] = [
+  {
+    from: { iata: 'IST', name: 'Istanbul Airport', timezone: 'Europe/Istanbul', city: { id: 'ist', name: 'Istanbul', countryCode: 'TR', countryName: 'Turkey', lat: 41.01, lng: 28.98 } },
+    to: { iata: 'CDG', name: 'Charles de Gaulle', timezone: 'Europe/Paris', city: { id: 'par', name: 'Paris', countryCode: 'FR', countryName: 'France', lat: 49.01, lng: 2.55 } },
+    tagline: 'City break favourite',
+  },
+  {
+    from: { iata: 'LHR', name: 'Heathrow Airport', timezone: 'Europe/London', city: { id: 'lon', name: 'London', countryCode: 'GB', countryName: 'United Kingdom', lat: 51.47, lng: -0.46 } },
+    to: { iata: 'BCN', name: 'Barcelona–El Prat', timezone: 'Europe/Madrid', city: { id: 'bcn', name: 'Barcelona', countryCode: 'ES', countryName: 'Spain', lat: 41.29, lng: 2.07 } },
+    tagline: 'Sun & tapas',
+  },
+  {
+    from: { iata: 'CDG', name: 'Charles de Gaulle', timezone: 'Europe/Paris', city: { id: 'par', name: 'Paris', countryCode: 'FR', countryName: 'France', lat: 49.01, lng: 2.55 } },
+    to: { iata: 'JFK', name: 'JFK International', timezone: 'America/New_York', city: { id: 'nyc', name: 'New York', countryCode: 'US', countryName: 'United States', lat: 40.64, lng: -73.78 } },
+    tagline: 'Transatlantic deal',
+  },
+];
 
 /* ────────────────────────────────────────────────────────────────────────────
    When To Go — pick origin, destination, and a window. The user hits Search
@@ -108,11 +133,8 @@ function isNextDay(departISO: string, arriveISO: string): boolean {
 
 interface CityPickerProps {
   label: string;
-  /** Display marker — either a 3-letter IATA or "@<cityId>" for a city pick.
-   *  Shown as-is in the chip; for city markers the user sees "@rome_it"
-   *  until they re-pick. Acceptable v1 trade-off; nicer label is a follow-up. */
   iata: string;
-  onSelect: (selection: LocationSelection) => void;
+  onSelect: (airport: Airport) => void;
   onClear: () => void;
 }
 
@@ -126,8 +148,8 @@ function CityPicker({ label, iata, onSelect, onClear }: CityPickerProps) {
     if (open) inputRef.current?.focus();
   }, [open]);
 
-  function pick(selection: LocationSelection) {
-    onSelect(selection);
+  function pick(airport: Airport) {
+    onSelect(airport);
     setQuery('');
     setOpen(false);
   }
@@ -209,54 +231,28 @@ function CityPicker({ label, iata, onSelect, onClear }: CityPickerProps) {
           {!loading && results.length === 0 && (
             <div className="px-4 py-3 text-xs text-text-muted">No matches.</div>
           )}
-          {results.slice(0, 6).map((entry) => {
-            if (entry.kind === 'city') {
-              const city = entry.city;
-              return (
-                <button
-                  key={`city:${city.id}`}
-                  onClick={() => pick({ kind: 'city', city })}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-amber-50/60 transition-colors border-b border-border/40 last:border-0 text-left"
-                >
-                  <div className="w-8 h-8 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0">
-                    <Plane size={13} className="text-amber-700" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-2 min-w-0">
-                      <span className="text-sm font-semibold text-text-primary truncate">{city.name}</span>
-                      <span className="text-[10px] font-bold uppercase text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">
-                        City · {city.airports.length}
-                      </span>
-                    </div>
-                    <div className="text-[11px] text-text-muted truncate">All {city.airports.length} airports: {city.airports.join(', ')}</div>
-                  </div>
-                </button>
-              );
-            }
-            const a = entry.airport;
-            return (
-              <button
-                key={`airport:${a.iata}`}
-                onClick={() => pick({ kind: 'airport', airport: a })}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-indigo-soft/50 transition-colors border-b border-border/40 last:border-0 text-left"
-              >
-                <div className="w-8 h-8 rounded-xl bg-indigo-soft border border-indigo-border flex items-center justify-center shrink-0">
-                  <Plane size={13} className="text-indigo" />
+          {results.slice(0, 6).map((a) => (
+            <button
+              key={a.iata}
+              onClick={() => pick(a)}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-indigo-soft/50 transition-colors border-b border-border/40 last:border-0 text-left"
+            >
+              <div className="w-8 h-8 rounded-xl bg-indigo-soft border border-indigo-border flex items-center justify-center shrink-0">
+                <Plane size={13} className="text-indigo" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2 min-w-0">
+                  <span className="text-sm font-semibold text-text-primary truncate">
+                    {a.city.name}
+                  </span>
+                  <span className="text-[11px] font-mono font-bold text-indigo-mid shrink-0">
+                    {a.iata}
+                  </span>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline gap-2 min-w-0">
-                    <span className="text-sm font-semibold text-text-primary truncate">
-                      {a.city.name}
-                    </span>
-                    <span className="text-[11px] font-mono font-bold text-indigo-mid shrink-0">
-                      {a.iata}
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-text-muted truncate">{a.name}</div>
-                </div>
-              </button>
-            );
-          })}
+                <div className="text-[11px] text-text-muted truncate">{a.name}</div>
+              </div>
+            </button>
+          ))}
         </div>
       )}
     </div>
@@ -568,14 +564,8 @@ export function WhenToGoScreen() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // URL `from` and `to` accept either a 3-letter IATA or a "@<cityId>" marker
-  // for multi-airport city picks. IATAs are uppercased for consistency with
-  // the rest of the codebase; city markers stay lowercase so they round-trip
-  // identically through the backend.
-  const normalizeMarkerParam = (raw: string) =>
-    raw.startsWith('@') ? '@' + raw.slice(1).toLowerCase() : raw.toUpperCase();
-  const fromIata = normalizeMarkerParam(params.get('from') ?? '');
-  const toIata = normalizeMarkerParam(params.get('to') ?? '');
+  const fromIata = (params.get('from') ?? '').toUpperCase();
+  const toIata = (params.get('to') ?? '').toUpperCase();
   const startParam = params.get('start') ?? '';
   const endParam = params.get('end') ?? '';
 
@@ -609,27 +599,13 @@ export function WhenToGoScreen() {
   // Nearby airports — used as a single-pin fallback for the desktop empty-state
   // map so the right column never sits blank. Mirrors TripPlannerScreen.
   const [nearby, setNearby] = useState<Airport[]>([]);
-  // Raw user coordinates, separate from `nearby`. Set as soon as geolocation
-  // (cache, browser geo, or IP geo) resolves — used to center the empty-state
-  // map immediately, without waiting for the /airports/nearby-coords roundtrip.
-  // Replaces the previous POPULAR_AIRPORTS[0] hardcoded fallback which caused
-  // the map to flash Istanbul before snapping to the user's region.
-  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
-  // True once both browser geolocation AND IP fallback have failed. Used to
-  // render an explicit "Allow location" CTA in the suggestions block — the
-  // common case (IP geo resolves) leaves this false and never shows the CTA.
-  const [locDenied, setLocDenied] = useState(false);
-  const [geoTick, setGeoTick] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
 
-  /* Geolocation — resolve coords first (cheap, instant when cached) so the
-     empty-state map can pan to the user's region immediately, then resolve
-     the nearest commercial airport for the suggestions / pin label. */
+  /* Geolocation — resolve nearby airports for the empty-state map fallback. */
   useEffect(() => {
     let cancelled = false;
     const cachedCoords = readCachedCoords();
     if (cachedCoords) {
-      setUserCoords(cachedCoords);
       const cached = readCachedNearby<Airport>(cachedCoords.lat, cachedCoords.lng);
       if (cached) {
         setNearby(cached.slice(0, 3));
@@ -640,65 +616,18 @@ export function WhenToGoScreen() {
       try {
         const coords = await resolveUserCoords();
         if (cancelled) return;
-        setUserCoords(coords);
         const airports = await nearbyAirportsByCoords(coords.lat, coords.lng);
         if (cancelled) return;
         cacheNearby(coords.lat, coords.lng, airports);
         setNearby(airports.slice(0, 3));
       } catch {
-        // Both browser geo + IP geo failed. Leave userCoords null so the map
-        // renders the full world view, and surface the Allow-location CTA in
-        // the suggestions panel.
-        if (!cancelled) setLocDenied(true);
+        // geolocation unavailable — POPULAR_AIRPORTS shown as fallback
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [geoTick]);
-
-  /* Suggested routes — fetched once we know an origin (URL "from" wins,
-     otherwise the nearest airport derived from geolocation). The backend
-     returns top destinations from analytics, backfilling from a curated
-     regional list when PostHog is sparse. */
-  const suggestionOriginIata = fromIata || nearby[0]?.iata || '';
-  const [suggestions, setSuggestions] = useState<SuggestedRoute[]>([]);
-  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
-  const [suggestionOriginCity, setSuggestionOriginCity] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!suggestionOriginIata) {
-      setSuggestions([]);
-      setSuggestionOriginCity(null);
-      return;
-    }
-    const controller = new AbortController();
-    setSuggestionsLoading(true);
-    fetchSuggestedRoutes(suggestionOriginIata, 3, controller.signal)
-      .then((res) => {
-        setSuggestions(res.routes);
-        setSuggestionOriginCity(res.origin.city.name);
-      })
-      .catch(() => {
-        // Endpoint failure leaves the section empty — the curated fallback
-        // already runs server-side, so a true zero here means the origin IATA
-        // wasn't recognised. We swallow rather than surfacing an error in an
-        // inspiration panel.
-        setSuggestions([]);
-      })
-      .finally(() => setSuggestionsLoading(false));
-    return () => controller.abort();
-  }, [suggestionOriginIata]);
-
-  function requestLocation() {
-    // Re-trigger the geolocation effect. getBrowserCoords prompts the OS
-    // dialog directly so a previously-denied user can grant it explicitly.
-    getBrowserCoords().catch(() => {
-      // Still denied — leave the CTA visible.
-    });
-    setLocDenied(false);
-    setGeoTick((t) => t + 1);
-  }
+  }, []);
 
   /* URL sync — write whenever inputs change, no auto-fetch. */
   useEffect(() => {
@@ -721,51 +650,22 @@ export function WhenToGoScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromIata, toIata, start, end]);
 
-  /* Drop cached Airport metadata if the URL marker no longer matches — keeps
+  /* Drop cached Airport metadata if the URL IATA no longer matches — keeps
      the map preview honest when the user pastes a fresh share link or clears
-     a side via the URL. For city markers the projected airport's IATA won't
-     equal the marker, so compare against the city's projected primary IATA
-     OR fall through when the marker has no recoverable Airport context. */
+     a side via the URL. */
   useEffect(() => {
-    if (!fromAirport) return;
-    const markerIsAirport = !fromIata.startsWith('@');
-    if (markerIsAirport && fromAirport.iata !== fromIata) setFromAirport(null);
-    // City marker: leave fromAirport alone — it was projected at pick time.
-    // On URL paste with `@cityid` and no fromAirport yet, the chip falls back
-    // to the marker string until the user re-picks.
+    if (fromAirport && fromAirport.iata !== fromIata) setFromAirport(null);
   }, [fromIata, fromAirport]);
   useEffect(() => {
-    if (!toAirport) return;
-    const markerIsAirport = !toIata.startsWith('@');
-    if (markerIsAirport && toAirport.iata !== toIata) setToAirport(null);
+    if (toAirport && toAirport.iata !== toIata) setToAirport(null);
   }, [toIata, toAirport]);
 
   const canSearch = !!fromIata && !!toIata && !!start && !!end && fromIata !== toIata && !loading;
 
-  /** Project a city selection onto an Airport shape (using city centroid +
-   *  primary IATA) so the map can render before the user runs a search. */
-  function selectionToAirport(sel: LocationSelection): Airport {
-    if (sel.kind === 'airport') return sel.airport;
-    const primary = sel.city.airports[0];
-    return {
-      iata: primary,
-      name: `${sel.city.name} Airport`,
-      city: {
-        id: primary,
-        name: sel.city.name,
-        countryCode: sel.city.countryCode,
-        countryName: sel.city.countryName,
-        lat: sel.city.lat,
-        lng: sel.city.lng,
-      },
-      timezone: '',
-    };
-  }
-
-  function setFrom(selection: LocationSelection) {
-    setFromAirport(selectionToAirport(selection));
+  function setFrom(airport: Airport) {
+    setFromAirport(airport);
     const next = new URLSearchParams(params);
-    next.set('from', selectionToMarker(selection));
+    next.set('from', airport.iata);
     setParams(next, { replace: true });
   }
   function clearFrom() {
@@ -776,10 +676,10 @@ export function WhenToGoScreen() {
     setResult(null);
     setError(null);
   }
-  function setTo(selection: LocationSelection) {
-    setToAirport(selectionToAirport(selection));
+  function setTo(airport: Airport) {
+    setToAirport(airport);
     const next = new URLSearchParams(params);
-    next.set('to', selectionToMarker(selection));
+    next.set('to', airport.iata);
     setParams(next, { replace: true });
   }
   function clearTo() {
@@ -916,15 +816,8 @@ export function WhenToGoScreen() {
      anchor we have: a partial pick, then nearby (geolocated), then a popular
      airport. Always returns an Airport so the desktop column never renders
      bare. */
-  /* Anchor airport for the empty-state map. Resolves in this priority:
-       1. The picked From (user typed it).
-       2. The picked To (we'd rather show something the user has chosen).
-       3. The nearest commercial airport derived from geolocation.
-       4. null — and we fall through to `userCoords` for the map center, or
-          to the full world map if even that's missing. No more hardcoded
-          Istanbul fallback. */
-  const fallbackAnchor: Airport | null =
-    fromAirport ?? toAirport ?? nearby[0] ?? null;
+  const fallbackAnchor: Airport =
+    fromAirport ?? toAirport ?? nearby[0] ?? POPULAR_AIRPORTS[0];
 
   /* Apply a suggested route from the desktop empty-state inspiration list. */
   function applySuggestedRoute(from: Airport, to: Airport) {
@@ -1114,7 +1007,7 @@ export function WhenToGoScreen() {
                   </div>
                 }
               >
-                <TripMap origin={fallbackAnchor} legs={[]} centerCoords={userCoords} />
+                <TripMap origin={fallbackAnchor} legs={[]} />
               </Suspense>
             </div>
           )}
@@ -1129,73 +1022,41 @@ export function WhenToGoScreen() {
           />
 
           {/* Desktop-only inspiration shown until the user has a real result.
-              Origin is the URL "from" if present, else the user's nearest
-              airport from geolocation. Routes come from PostHog (top searched
-              from that origin) with curated regional backfill server-side. */}
+              Fills the right column with content so the screen feels like a
+              landing page rather than a half-empty form. */}
           {!result && !loading && !error && (
             <div className="mt-6">
               <div className="flex items-center gap-2 mb-3 px-1">
                 <Sparkles size={13} className="text-indigo" />
                 <span className="text-[11px] uppercase tracking-wide font-bold text-text-muted">
-                  {suggestionOriginCity
-                    ? `Popular from ${suggestionOriginCity}`
-                    : 'Trending routes'}
+                  Try one of these
                 </span>
               </div>
-              {suggestionsLoading && suggestions.length === 0 ? (
-                <div className="space-y-2">
-                  {[0, 1, 2].map((i) => (
-                    <div
-                      key={i}
-                      className="w-full h-[64px] bg-surface border border-border rounded-2xl animate-pulse"
-                    />
-                  ))}
-                </div>
-              ) : suggestions.length > 0 ? (
-                <div className="space-y-2">
-                  {suggestions.map((r) => (
-                    <button
-                      key={`${r.from.iata}-${r.to.iata}`}
-                      type="button"
-                      onClick={() => applySuggestedRoute(r.from, r.to)}
-                      className="w-full flex items-center gap-3 bg-surface border border-border rounded-2xl px-4 py-3 hover:border-indigo-border hover:bg-indigo-soft/40 transition-all text-left"
-                    >
-                      <div className="w-10 h-10 rounded-xl bg-indigo-soft border border-indigo-border flex items-center justify-center shrink-0">
-                        <PlaneTakeoff size={15} className="text-indigo" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 text-sm font-semibold text-text-primary">
-                          <span className="truncate">{r.from.city.name}</span>
-                          <ArrowRight size={12} className="text-text-muted shrink-0" />
-                          <span className="truncate">{r.to.city.name}</span>
-                        </div>
-                        <div className="text-[11px] text-text-muted mt-0.5">{r.tagline}</div>
-                      </div>
-                      <span className="text-[10px] font-mono font-bold text-indigo-mid shrink-0">
-                        {r.from.iata} · {r.to.iata}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              ) : locDenied && !suggestionOriginIata ? (
-                <button
-                  type="button"
-                  onClick={requestLocation}
-                  className="w-full flex items-center gap-3 bg-surface border border-dashed border-border rounded-2xl px-4 py-3 hover:border-indigo-border hover:bg-indigo-soft/40 transition-all text-left"
-                >
-                  <div className="w-10 h-10 rounded-xl bg-indigo-soft border border-indigo-border flex items-center justify-center shrink-0">
-                    <MapPin size={15} className="text-indigo" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold text-text-primary">
-                      Allow location for personalized suggestions
+              <div className="space-y-2">
+                {SUGGESTED_ROUTES.map((r) => (
+                  <button
+                    key={`${r.from.iata}-${r.to.iata}`}
+                    type="button"
+                    onClick={() => applySuggestedRoute(r.from, r.to)}
+                    className="w-full flex items-center gap-3 bg-surface border border-border rounded-2xl px-4 py-3 hover:border-indigo-border hover:bg-indigo-soft/40 transition-all text-left"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-indigo-soft border border-indigo-border flex items-center justify-center shrink-0">
+                      <PlaneTakeoff size={15} className="text-indigo" />
                     </div>
-                    <div className="text-[11px] text-text-muted mt-0.5">
-                      We&apos;ll surface popular routes from your nearest airport.
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 text-sm font-semibold text-text-primary">
+                        <span className="truncate">{r.from.city.name}</span>
+                        <ArrowRight size={12} className="text-text-muted shrink-0" />
+                        <span className="truncate">{r.to.city.name}</span>
+                      </div>
+                      <div className="text-[11px] text-text-muted mt-0.5">{r.tagline}</div>
                     </div>
-                  </div>
-                </button>
-              ) : null}
+                    <span className="text-[10px] font-mono font-bold text-indigo-mid shrink-0">
+                      {r.from.iata} · {r.to.iata}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>

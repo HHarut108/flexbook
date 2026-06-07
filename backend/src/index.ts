@@ -26,7 +26,6 @@ import { countryInfoRoutes } from './routes/countryInfo';
 import { userAuthRoutes } from './routes/userAuth';
 import { adminUsersRoutes } from './routes/adminUsers';
 import { visaRoutes } from './routes/visa';
-import { suggestedRoutesRoutes } from './routes/suggestedRoutes';
 
 const app = Fastify({
   logger: {
@@ -181,7 +180,6 @@ async function start() {
   await app.register(userAuthRoutes);
   await app.register(adminUsersRoutes);
   await app.register(visaRoutes);
-  await app.register(suggestedRoutesRoutes);
 
   // C5 INTERNAL_ERROR — app-wide handler with request-id for support reference.
   // Always returns our standard { success, error: { code, message, retryable } } envelope

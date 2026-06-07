@@ -7,14 +7,12 @@ export async function searchAirports(q: string, signal?: AbortSignal): Promise<A
 
   if (mode === 'mock') {
     await new Promise((resolve) => setTimeout(resolve, 200));
-    const results = mockAirports
-      .filter(
-        (airport) =>
-          airport.name.toLowerCase().includes(q.toLowerCase()) ||
-          airport.city.name.toLowerCase().includes(q.toLowerCase()) ||
-          airport.iata.toLowerCase().includes(q.toLowerCase()),
-      )
-      .map((airport) => ({ kind: 'airport' as const, airport }));
+    const results = mockAirports.filter(
+      (airport) =>
+        airport.name.toLowerCase().includes(q.toLowerCase()) ||
+        airport.city.name.toLowerCase().includes(q.toLowerCase()) ||
+        airport.iata.toLowerCase().includes(q.toLowerCase()),
+    );
     return { results };
   }
 

@@ -1,40 +1,51 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { MarketingShell } from '../components/MarketingShell';
-import { ToolCard, type Tool } from '../components/ToolCard';
 import { useAuthStore } from '../store/auth.store';
 import {
   Wallet,
   Lock,
+  ArrowRight,
   Sparkles,
   Check,
   X,
   LogIn,
   CalendarSearch,
-  Waypoints,
-  Search,
+  type LucideIcon,
 } from 'lucide-react';
 
 interface Props {
   onMenuOpen?: () => void;
 }
 
-export const TOOLS: Tool[] = [
+interface Tool {
+  id: string;
+  name: string;
+  tagline: string;
+  description: string;
+  features: string[];
+  path: string;
+  requiresAuth: boolean;
+  icon: LucideIcon;
+  gradient: string;
+}
+
+const TOOLS: Tool[] = [
   {
-    id: 'hop-planner',
-    name: 'Hop Planner',
-    tagline: 'Chain the cheapest one-way fares into a 15-stop adventure',
+    id: 'budget-planner',
+    name: 'Budget Planner',
+    tagline: 'Find a multi-stop adventure within your budget',
     description:
-      "Pick a starting airport — we'll surface tonight's cheapest one-way fares out of it. Hop on the one you like, land in a new city, and we'll instantly show you the cheapest next hop from there. Up to 15 stops, no return required, no account needed.",
+      'Tell us your starting point, travel dates, and a budget per person. We search live fares and build the cheapest multi-stop trip that fits — including return flights — so you can explore more for less.',
     features: [
-      'Start from any airport — we detect your nearest one',
-      'Always the cheapest available next-leg fare',
-      'Build up to a 15-stop trip on the fly — no fixed itinerary',
+      'Set a total budget per person',
+      'Choose your trip style — best value, surprise me, or off the beaten path',
+      'See every leg on an interactive map',
     ],
-    path: '/hop-planner',
-    requiresAuth: false,
-    icon: Waypoints,
-    gradient: 'linear-gradient(135deg, rgba(249,115,22,0.97) 0%, rgba(234,108,10,0.97) 100%)',
+    path: '/trip-planner',
+    requiresAuth: true,
+    icon: Wallet,
+    gradient: 'linear-gradient(135deg, rgba(55,48,163,0.97) 0%, rgba(79,70,229,0.97) 100%)',
   },
   {
     id: 'when-to-go',
@@ -51,94 +62,6 @@ export const TOOLS: Tool[] = [
     requiresAuth: false,
     icon: CalendarSearch,
     gradient: 'linear-gradient(135deg, rgba(13,148,136,0.97) 0%, rgba(16,185,129,0.97) 100%)',
-  },
-  {
-    id: 'budget-planner',
-    name: 'Budget Planner',
-    tagline: 'Find a multi-stop adventure within your budget',
-    description:
-      'Tell us your starting point, travel dates, and a budget per person. We search live fares and build the cheapest multi-stop trip that fits — including return flights — so you can explore more for less.',
-    features: [
-      'Set a total budget per person',
-      'Choose your trip style — best value, surprise me, or off the beaten path',
-      'See every leg on an interactive map',
-    ],
-    path: '/trip-planner',
-    requiresAuth: false,
-    icon: Wallet,
-    gradient: 'linear-gradient(135deg, rgba(55,48,163,0.97) 0%, rgba(79,70,229,0.97) 100%)',
-  },
-];
-
-/**
- * V2 tool catalog — promotes Normal Search ("Quick Search") to a first-class
- * tool and renames Hop Planner → Trip Builder. V1 TOOLS array above stays
- * intact for the legacy ToolsScreen page; do not change it.
- */
-export const TOOLS_V2: Tool[] = [
-  {
-    id: 'quick-search',
-    name: 'Quick Search',
-    tagline: 'Cheapest one-way, return, or multi-city in seconds',
-    description:
-      "The classic search you already know — pick origin, destination, dates, and we'll show you the cheapest live fares. One-way, return, or full multi-city — no account needed.",
-    features: [
-      'One-way, return, or multi-city in one form',
-      'Live fares pulled fresh on every search',
-      'Jump straight to booking the moment you find the price you want',
-    ],
-    path: '/quick-search',
-    requiresAuth: false,
-    icon: Search,
-    gradient: 'linear-gradient(135deg, rgba(14,165,233,0.97) 0%, rgba(2,132,199,0.97) 100%)',
-  },
-  {
-    id: 'trip-builder',
-    name: 'Trip Builder',
-    tagline: 'Chain the cheapest one-way fares into a 15-stop adventure',
-    description:
-      "Pick a starting airport — we'll surface tonight's cheapest one-way fares out of it. Hop on the one you like, land in a new city, and we'll instantly show you the cheapest next hop from there. Up to 15 stops, no return required, no account needed.",
-    features: [
-      'Start from any airport — we detect your nearest one',
-      'Always the cheapest available next-leg fare',
-      'Build up to a 15-stop trip on the fly — no fixed itinerary',
-    ],
-    path: '/hop-planner',
-    requiresAuth: false,
-    icon: Waypoints,
-    gradient: 'linear-gradient(135deg, rgba(249,115,22,0.97) 0%, rgba(234,108,10,0.97) 100%)',
-  },
-  {
-    id: 'when-to-go',
-    name: 'When to Go',
-    tagline: "Find the cheapest day to fly between any two cities",
-    description:
-      "Pick a departure city, an arrival city, and a flexible window — we'll show you the single cheapest day to fly. Change anything and the answer updates live.",
-    features: [
-      'Search any city pair, no account needed',
-      'Use a preset (this month, next 90 days) or a custom date range',
-      'Tap "Book this flight" to jump straight into the cheapest itinerary',
-    ],
-    path: '/when-to-go',
-    requiresAuth: false,
-    icon: CalendarSearch,
-    gradient: 'linear-gradient(135deg, rgba(13,148,136,0.97) 0%, rgba(16,185,129,0.97) 100%)',
-  },
-  {
-    id: 'budget-planner',
-    name: 'Budget Planner',
-    tagline: 'Find a multi-stop adventure within your budget',
-    description:
-      'Tell us your starting point, travel dates, and a budget per person. We search live fares and build the cheapest multi-stop trip that fits — including return flights — so you can explore more for less.',
-    features: [
-      'Set a total budget per person',
-      'Choose your trip style — best value, surprise me, or off the beaten path',
-      'See every leg on an interactive map',
-    ],
-    path: '/trip-planner',
-    requiresAuth: false,
-    icon: Wallet,
-    gradient: 'linear-gradient(135deg, rgba(55,48,163,0.97) 0%, rgba(79,70,229,0.97) 100%)',
   },
 ];
 
@@ -194,6 +117,59 @@ function AuthPrompt({ tool, onClose }: { tool: Tool; onClose: () => void }) {
   );
 }
 
+function ToolLauncher({ tool, onOpen }: { tool: Tool; onOpen: (tool: Tool) => void }) {
+  const Icon = tool.icon;
+  return (
+    <div className="section-shell p-6 transition-colors hover:border-indigo-border">
+      {/* Header — compact icon + title row, no oversized banner */}
+      <div className="flex items-start gap-4 mb-3">
+        <div
+          className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
+          style={{ background: tool.gradient, boxShadow: '0 8px 24px rgba(15,23,42,0.10)' }}
+        >
+          <Icon size={22} className="text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <h2 className="text-lg font-bold text-text-primary leading-tight">{tool.name}</h2>
+            {tool.requiresAuth && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-soft border border-indigo-border text-[11px] font-bold text-indigo">
+                <Lock size={10} /> Sign in
+              </span>
+            )}
+          </div>
+          <p className="text-xs font-semibold text-indigo-mid">{tool.tagline}</p>
+        </div>
+      </div>
+
+      {/* Full description — the heavy lifter explaining what the tool does */}
+      <p className="text-sm text-text-secondary leading-relaxed mb-4">{tool.description}</p>
+
+      {/* Per-tool feature checklist — moved here from the left rail so each
+          card carries its own value props instead of a mixed pool. */}
+      <ul className="space-y-2 mb-5">
+        {tool.features.map((f) => (
+          <li key={f} className="flex items-start gap-2.5 text-xs text-text-secondary">
+            <span className="mt-0.5 w-4 h-4 rounded-full bg-emerald/10 flex items-center justify-center shrink-0">
+              <Check size={10} className="text-emerald" strokeWidth={3} />
+            </span>
+            <span className="leading-relaxed">{f}</span>
+          </li>
+        ))}
+      </ul>
+
+      <button
+        onClick={() => onOpen(tool)}
+        className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl bg-indigo text-white text-sm font-bold hover:bg-indigo/90 transition-all active:scale-[0.98]"
+        style={{ boxShadow: '0 10px 28px rgba(55,48,163,0.28)' }}
+      >
+        Open {tool.name}
+        <ArrowRight size={15} />
+      </button>
+    </div>
+  );
+}
+
 export function ToolsScreen({ onMenuOpen }: Props) {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
@@ -245,7 +221,7 @@ export function ToolsScreen({ onMenuOpen }: Props) {
   const right = (
     <div className="flex flex-col gap-4">
       {TOOLS.map((tool) => (
-        <ToolCard key={tool.id} tool={tool} onOpen={openTool} />
+        <ToolLauncher key={tool.id} tool={tool} onOpen={openTool} />
       ))}
       <p className="text-center text-xs text-text-muted/70 pt-1">
         More tools coming soon.
@@ -258,7 +234,7 @@ export function ToolsScreen({ onMenuOpen }: Props) {
       <MarketingShell
         active="tools"
         title="Tools"
-        description="FlexBook Tools — smart planning utilities for multi-stop travellers, including Hop Planner (cheapest next-leg chain), When To Go (cheapest day to fly), and Budget Planner (multi-stop trip within your budget)."
+        description="FlexBook Tools — smart planning utilities for multi-stop travellers, including When To Go (cheapest day to fly) and the Budget Planner."
         onMenuOpen={onMenuOpen}
         left={left}
         right={right}
