@@ -24,6 +24,10 @@ interface Props {
   passengers: number;
   /** Called when the user accepts the cheapest flight; receives the FlightOption. */
   onSelect: (flight: FlightOption) => void;
+  /** Optional escape hatch — when present, modal shows a "See more options"
+   *  button that lets the user open the full return-flights picker instead of
+   *  one-tap booking the cheapest. */
+  onSeeMoreOptions?: () => void;
 }
 
 function buildDateWindow(arrivalDatetime: string, nextDepartureDate: string): string[] {
@@ -51,6 +55,7 @@ export function WhenToFlyHomeModal({
   nextDepartureDate,
   passengers,
   onSelect,
+  onSeeMoreOptions,
 }: Props) {
   const [loading, setLoading] = useState(false);
   const [cheapest, setCheapest] = useState<FlightOption | null>(null);
@@ -274,6 +279,16 @@ export function WhenToFlyHomeModal({
               </>
             );
           })()}
+
+          {onSeeMoreOptions && (
+            <button
+              type="button"
+              onClick={onSeeMoreOptions}
+              className="w-full mt-3 inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-surface border border-border text-sm font-semibold text-indigo hover:bg-indigo-soft hover:border-indigo-border transition-all"
+            >
+              See more flight options
+            </button>
+          )}
 
           <button
             type="button"
