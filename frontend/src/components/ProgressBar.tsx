@@ -33,7 +33,7 @@ export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
   // Hide the trip progress bar on the home + auth/account screens. The crumb row
   // would otherwise render with a placeholder "?" because no trip origin is set yet,
   // which looks like a broken badge next to the brand mark.
-  const HIDDEN_PATHS = new Set(['/', '/hop-planner', '/search', '/trip-planner', '/when-to-go', '/book', '/book/partial', '/login', '/signup', '/verify-email', '/account', '/trips', '/deals', '/tools', '/about']);
+  const HIDDEN_PATHS = new Set(['/', '/hop-planner', '/search', '/quick-search', '/trip-planner', '/when-to-go', '/book', '/book/partial', '/login', '/signup', '/verify-email', '/account', '/trips', '/deals', '/tools', '/about']);
   if (HIDDEN_PATHS.has(pathname)) return null;
 
   const nonReturnLegs = legs.filter((l) => !l.isReturn);

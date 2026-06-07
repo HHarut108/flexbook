@@ -12,6 +12,7 @@ import {
   LogIn,
   CalendarSearch,
   Waypoints,
+  Search,
 } from 'lucide-react';
 
 interface Props {
@@ -63,7 +64,79 @@ export const TOOLS: Tool[] = [
       'See every leg on an interactive map',
     ],
     path: '/trip-planner',
-    requiresAuth: true,
+    requiresAuth: false,
+    icon: Wallet,
+    gradient: 'linear-gradient(135deg, rgba(55,48,163,0.97) 0%, rgba(79,70,229,0.97) 100%)',
+  },
+];
+
+/**
+ * V2 tool catalog — promotes Normal Search ("Quick Search") to a first-class
+ * tool and renames Hop Planner → Trip Builder. V1 TOOLS array above stays
+ * intact for the legacy ToolsScreen page; do not change it.
+ */
+export const TOOLS_V2: Tool[] = [
+  {
+    id: 'quick-search',
+    name: 'Quick Search',
+    tagline: 'Cheapest one-way, return, or multi-city in seconds',
+    description:
+      "The classic search you already know — pick origin, destination, dates, and we'll show you the cheapest live fares. One-way, return, or full multi-city — no account needed.",
+    features: [
+      'One-way, return, or multi-city in one form',
+      'Live fares pulled fresh on every search',
+      'Jump straight to booking the moment you find the price you want',
+    ],
+    path: '/quick-search',
+    requiresAuth: false,
+    icon: Search,
+    gradient: 'linear-gradient(135deg, rgba(14,165,233,0.97) 0%, rgba(2,132,199,0.97) 100%)',
+  },
+  {
+    id: 'trip-builder',
+    name: 'Trip Builder',
+    tagline: 'Chain the cheapest one-way fares into a 15-stop adventure',
+    description:
+      "Pick a starting airport — we'll surface tonight's cheapest one-way fares out of it. Hop on the one you like, land in a new city, and we'll instantly show you the cheapest next hop from there. Up to 15 stops, no return required, no account needed.",
+    features: [
+      'Start from any airport — we detect your nearest one',
+      'Always the cheapest available next-leg fare',
+      'Build up to a 15-stop trip on the fly — no fixed itinerary',
+    ],
+    path: '/hop-planner',
+    requiresAuth: false,
+    icon: Waypoints,
+    gradient: 'linear-gradient(135deg, rgba(249,115,22,0.97) 0%, rgba(234,108,10,0.97) 100%)',
+  },
+  {
+    id: 'when-to-go',
+    name: 'When to Go',
+    tagline: "Find the cheapest day to fly between any two cities",
+    description:
+      "Pick a departure city, an arrival city, and a flexible window — we'll show you the single cheapest day to fly. Change anything and the answer updates live.",
+    features: [
+      'Search any city pair, no account needed',
+      'Use a preset (this month, next 90 days) or a custom date range',
+      'Tap "Book this flight" to jump straight into the cheapest itinerary',
+    ],
+    path: '/when-to-go',
+    requiresAuth: false,
+    icon: CalendarSearch,
+    gradient: 'linear-gradient(135deg, rgba(13,148,136,0.97) 0%, rgba(16,185,129,0.97) 100%)',
+  },
+  {
+    id: 'budget-planner',
+    name: 'Budget Planner',
+    tagline: 'Find a multi-stop adventure within your budget',
+    description:
+      'Tell us your starting point, travel dates, and a budget per person. We search live fares and build the cheapest multi-stop trip that fits — including return flights — so you can explore more for less.',
+    features: [
+      'Set a total budget per person',
+      'Choose your trip style — best value, surprise me, or off the beaten path',
+      'See every leg on an interactive map',
+    ],
+    path: '/trip-planner',
+    requiresAuth: false,
     icon: Wallet,
     gradient: 'linear-gradient(135deg, rgba(55,48,163,0.97) 0%, rgba(79,70,229,0.97) 100%)',
   },
