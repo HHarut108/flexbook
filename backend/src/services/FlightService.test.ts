@@ -74,25 +74,6 @@ describe('FlightService.search — deduplication', () => {
     const { flights } = await svc.search('LHR', 'London', '2030-06-02', undefined, false);
     expect(flights.filter((f) => f.destinationIata === 'CDG')).toHaveLength(2);
   });
-
-  // Regression: until 2026-06-04 the route-search results screen always
-  // collapsed to a single result for any specific (origin, destination)
-  // search because dedup was applied even when destinationIata was set —
-  // every itinerary shares the same destinationIata so the map kept only
-  // the cheapest. With a destination specified the user wants variety
-  // across airlines, times, and stops, so dedup must auto-disable.
-  it('returns every itinerary when destinationIata is specified, regardless of deduplicate flag', async () => {
-    const svc = new FlightService();
-    mockFetch.mockResolvedValue([
-      makeFlight({ flightId: 'f1', destinationIata: 'BCN', priceUsd: 103, airlineName: 'Wizz Air', stops: 1 }),
-      makeFlight({ flightId: 'f2', destinationIata: 'BCN', priceUsd: 145, airlineName: 'Vueling', stops: 0 }),
-      makeFlight({ flightId: 'f3', destinationIata: 'BCN', priceUsd: 180, airlineName: 'KLM', stops: 1 }),
-    ]);
-
-    const { flights } = await svc.search('EVN', 'Yerevan', '2030-06-11', 'BCN', true);
-    expect(flights).toHaveLength(3);
-    expect(flights.map((f) => f.flightId).sort()).toEqual(['f1', 'f2', 'f3']);
-  });
 });
 
 describe('FlightService.search — sorting', () => {
@@ -248,66 +229,6 @@ describe('FlightService.search — priceInfo', () => {
     // Background refresh should have been triggered to repopulate the missing price.
     await new Promise<void>((resolve) => setTimeout(resolve, 50));
     expect(mockFetch).toHaveBeenCalledTimes(2);
-  });
-
-  it('searchOneWayFanOut merges results from each origin × destination pair', async () => {
-    const svc = new FlightService();
-    // Simulate two Rome airports → two London airports. Each (origin,dest)
-    // pair returns one cheap flight with a unique id so the merge keeps all.
-    mockFetch.mockImplementation(async (origin: string, _city: string, _date: string, dest?: string) => {
-      return [makeFlight({
-        flightId: `${origin}-${dest}-X`,
-        originIata: origin,
-        destinationIata: dest ?? 'XXX',
-        priceUsd: origin === 'FCO' ? 150 : 200,
-      })];
-    });
-
-    const result = await svc.searchOneWayFanOut(
-      ['FCO', 'CIA'],
-      '2030-11-01',
-      ['LHR', 'LGW'],
-    );
-
-    // 2 origins × 2 destinations = 4 underlying provider calls.
-    expect(mockFetch).toHaveBeenCalledTimes(4);
-    // All 4 flightIds are distinct → merge keeps them all.
-    expect(result.flights).toHaveLength(4);
-    // Price-ascending sort.
-    for (let i = 1; i < result.flights.length; i++) {
-      expect(result.flights[i].priceUsd).toBeGreaterThanOrEqual(result.flights[i - 1].priceUsd);
-    }
-  });
-
-  it('searchOneWayFanOut: same flightId across pairs keeps the cheapest price', async () => {
-    const svc = new FlightService();
-    // Both origin airports surface the same flight id (rare — would require
-    // the provider to dedupe by itinerary). The merge keeps the cheapest.
-    mockFetch.mockImplementation(async (origin: string) => {
-      return [makeFlight({
-        flightId: 'DUPLICATE-ID',
-        originIata: origin,
-        destinationIata: 'CDG',
-        priceUsd: origin === 'JFK' ? 500 : 450,
-      })];
-    });
-
-    const result = await svc.searchOneWayFanOut(['JFK', 'LGA'], '2030-11-02', ['CDG']);
-    expect(result.flights).toHaveLength(1);
-    expect(result.flights[0].priceUsd).toBe(450);
-  });
-
-  it('searchOneWayFanOut with single origin and single destination = single call', async () => {
-    const svc = new FlightService();
-    mockFetch.mockResolvedValue([makeFlight({ destinationIata: 'CDG', priceUsd: 100 })]);
-
-    await svc.searchOneWayFanOut(['LHR'], '2030-11-03', ['CDG']);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
-
-  it('searchOneWayFanOut throws when no origin airports provided', async () => {
-    const svc = new FlightService();
-    await expect(svc.searchOneWayFanOut([], '2030-11-04', ['CDG'])).rejects.toThrow();
   });
 
   it('triggers background refresh when a price is missing and repopulates for the next request', async () => {

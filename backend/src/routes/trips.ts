@@ -84,12 +84,6 @@ const tripLegSchema = z.object({
   isReturn: z.boolean(),
 });
 
-const pickSchema = z.object({
-  city: z.string().max(120),
-  kind: z.enum(['stay', 'do', 'eat']),
-  name: z.string().max(200),
-});
-
 const itinerarySchema = z.object({
   origin: airportSchema,
   legs: z.array(tripLegSchema).max(20),
@@ -97,7 +91,6 @@ const itinerarySchema = z.object({
   createdAt: z.string().max(40),
   completedAt: z.string().max(40).optional(),
   passengers: z.number().int().min(1).max(9),
-  picks: z.array(pickSchema).max(60).optional(),
 });
 
 // 32KB is generous for an itinerary (typically 1–4 legs ~1–2KB each) while

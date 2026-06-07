@@ -26,13 +26,10 @@ export interface ScheduleEntry {
   departureDatetime: string;
   arrivalDatetime: string;
   durationMinutes: number;
-  flightTimeMinutes?: number;
   airlineName: string;
   airlineCode?: string;
-  carriers?: string[];
   stops: number;
   viaIatas?: string[];
-  layovers?: Array<{ iata: string; durationMinutes: number; selfTransfer: boolean }>;
 }
 
 interface PriceCacheEntry {
@@ -56,10 +53,6 @@ export const CACHE_TTL = {
 
 // ---------- Key builders ----------
 
-// v2 prefix bumped 2026-06-04 to invalidate entries written under the
-// destination-search dedup bug — those stored a single result per
-// (origin, date, destination) and would otherwise mask the fix for up to 8h
-// (SCHEDULE_FUTURE TTL).
 export function scheduleKey(
   originIata: string,
   date: string,
@@ -70,7 +63,7 @@ export function scheduleKey(
   if (destinationIata) dest = destinationIata.toUpperCase();
   else if (country) dest = `country:${country.toUpperCase()}`;
   else dest = 'any';
-  return `flights:schedule:v2:${originIata.toUpperCase()}:${date}:${dest}`;
+  return `flights:schedule:${originIata.toUpperCase()}:${date}:${dest}`;
 }
 
 export function priceKey(flightId: string): string {

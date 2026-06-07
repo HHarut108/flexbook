@@ -1,7 +1,6 @@
 import { lazy, Suspense, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useNavigate } from 'react-router-dom';
-import { FlightOption } from '@fast-travel/shared';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
 import { formatPrice, totalPrice } from '../utils/price.utils';
@@ -11,7 +10,6 @@ import { TripTimeline } from '../components/TripTimeline';
 import { PlanStayNudge } from '../components/PlanStayNudge';
 import { DestinationGuideCard } from '../components/DestinationGuideCard';
 import { MapErrorBoundary } from '../components/MapErrorBoundary';
-import { WhenToFlyHomeModal } from '../components/WhenToFlyHomeModal';
 import { ArrowLeft, Ticket } from 'lucide-react';
 import { getDecisionHeadline } from '../utils/copy.utils';
 
@@ -24,12 +22,9 @@ export function DecisionScreen() {
   const origin = useTripStore((s) => s.origin);
   const legs = useTripStore((s) => s.legs);
   const passengers = useTripStore((s) => s.passengers);
-  const addLeg = useTripStore((s) => s.addLeg);
-  const finalize = useTripStore((s) => s.finalize);
   const canContinue = useTripStore((s) => s.canContinue());
   const { setSelectedDate } = useSessionStore();
   const [planVisited, setPlanVisited] = useState(false);
-  const [whenToFlyOpen, setWhenToFlyOpen] = useState(false);
 
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
   const lastLeg = nonReturnLegs.at(-1)!;
@@ -45,29 +40,8 @@ export function DecisionScreen() {
     navigate('/flights');
   }
 
-  function handleWrapUp() {
-    // Open the cheapest-day modal first as decision-support. The user can either
-    // accept the suggested cheapest flight, or click "See more options" to open
-    // the full /return picker.
-    setWhenToFlyOpen(true);
-  }
-
-  function handleSeeMoreReturnOptions() {
-    setWhenToFlyOpen(false);
+  function handleGoHome() {
     navigate('/return');
-  }
-
-  function handleAcceptHomeFlight(flight: FlightOption) {
-    addLeg({
-      ...flight,
-      stopIndex: nonReturnLegs.length + 1,
-      stayDurationDays: 0,
-      nextDepartureDate: '',
-      isReturn: true,
-    });
-    finalize();
-    setWhenToFlyOpen(false);
-    navigate('/itinerary');
   }
 
   return (
@@ -179,39 +153,17 @@ export function DecisionScreen() {
               This trip has reached the current stop limit.
             </p>
           )}
-          <button className="btn-secondary" onClick={handleWrapUp}>
+          <button className="btn-secondary" onClick={handleGoHome}>
             Wrap up and fly home
           </button>
-        </div>
-
-        {/* Secondary, lower-stakes link — visually de-emphasized so it doesn't
-            compete with the two primary commitments above. */}
-        <div className="mt-4 text-center">
           <button
-            type="button"
+            className="btn-outline flex items-center justify-center gap-2"
             onClick={() => navigate('/book/partial')}
-            className="inline-flex items-center gap-1.5 text-xs text-text-muted hover:text-indigo underline-offset-2 hover:underline transition-colors"
           >
-            <Ticket size={12} /> Get tickets for flights so far
+            <Ticket size={16} /> Get tickets for flights so far
           </button>
         </div>
       </div>
-
-      {origin && (
-        <WhenToFlyHomeModal
-          isOpen={whenToFlyOpen}
-          onClose={() => setWhenToFlyOpen(false)}
-          fromIata={lastLeg.destinationIata}
-          fromCity={lastLeg.destinationCity}
-          toIata={origin.iata}
-          toCity={origin.city.name}
-          arrivalDatetime={lastLeg.arrivalDatetime}
-          nextDepartureDate={lastLeg.nextDepartureDate}
-          passengers={passengers}
-          onSelect={handleAcceptHomeFlight}
-          onSeeMoreOptions={handleSeeMoreReturnOptions}
-        />
-      )}
     </div>
   );
 }

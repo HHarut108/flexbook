@@ -5,32 +5,12 @@ import cors from '@fastify/cors';
 // Mock the service surface used by the route. We don't exercise Kiwi or the
 // DB here — that's covered separately. This file just locks the HTTP contract
 // (params validation, response envelope, error mapping).
-//
-// The route now goes through priceCalendarFanOut to support multi-airport
-// city markers. For single-IATA queries it just produces one underlying
-// priceCalendar call — so we mock both, and route both through the same
-// stub so existing single-IATA call assertions keep working.
 const priceCalendarMock = vi.fn();
 vi.mock('../services/FlightService', () => ({
   flightService: {
     priceCalendar: (...args: unknown[]) => priceCalendarMock(...args),
-    priceCalendarFanOut: async (
-      origins: string[],
-      destinations: string[],
-      start: string,
-      end: string,
-    ) => {
-      // Single-airport call: defer directly to the priceCalendar mock so the
-      // test assertions on argument shape stay unchanged.
-      const result = await priceCalendarMock(origins[0], destinations[0], start, end);
-      return result;
-    },
   },
 }));
-
-// Surface the rejection from priceCalendarMock through the fan-out wrapper
-// so error-mapping tests still see them. (priceCalendarFanOut above just
-// awaits the underlying mock; rejections propagate naturally.)
 
 import { cheapestDayRoutes } from './cheapestDay';
 import {

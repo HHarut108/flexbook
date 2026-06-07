@@ -22,11 +22,6 @@ const envSchema = z.object({
   // URL of the standalone visa-requirements microservice (services/visa-service).
   // Empty string disables the /visa proxy — the frontend then hides visa chips.
   VISA_SERVICE_URL: z.string().default(''),
-  // PostHog server-side query access for /suggested-routes. Empty disables the
-  // HogQL call — the endpoint then falls back to the curated regional list.
-  POSTHOG_API_KEY: z.string().default(''),
-  POSTHOG_PROJECT_ID: z.string().default(''),
-  POSTHOG_HOST: z.string().default('https://us.posthog.com'),
 });
 
 const parsed = envSchema.safeParse(process.env);

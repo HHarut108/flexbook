@@ -43,9 +43,7 @@ function disabledReply() {
 async function callVisaService<T>(path: string): Promise<{ ok: true; data: T } | { ok: false; status: number; message: string }> {
   const base = config.VISA_SERVICE_URL.replace(/\/$/, '');
   try {
-    // 30s tolerates a cold Render free-tier visa-service wake-up. Anything
-    // shorter races the cold start and the proxy returns 502 on first paint.
-    const res = await fetchWithTimeout(`${base}${path}`, {}, 30000);
+    const res = await fetchWithTimeout(`${base}${path}`, {}, 8000);
     if (!res.ok) {
       const body = await res.text().catch(() => '');
       let message = `Upstream returned HTTP ${res.status}`;

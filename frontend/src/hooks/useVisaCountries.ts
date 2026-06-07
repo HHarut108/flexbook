@@ -20,11 +20,7 @@ function broadcast() {
 }
 
 function load(): Promise<void> {
-  // Only short-circuit on a *successful* load. After an error (cold visa-
-  // service, transient network), `cached` reflects the error but we want the
-  // next hook mount to be able to retry — otherwise one bad request poisons
-  // the page until full reload.
-  if (cached?.loaded && cached.error === null) return Promise.resolve();
+  if (cached?.loaded) return Promise.resolve();
   if (inflight) return inflight;
   inflight = fetchVisaCountries()
     .then((list) => {
@@ -47,10 +43,7 @@ export function useVisaCountries(): State {
   const [state, setState] = useState<State>(cached ?? EMPTY);
   useEffect(() => {
     listeners.add(setState);
-    // Retry on mount if we don't have a clean cached success yet — covers both
-    // "never loaded" and "previously failed" (e.g. cold visa-service on first
-    // visit, now warm).
-    if (!cached?.loaded || cached.error) void load();
+    if (!cached?.loaded) void load();
     else setState(cached);
     return () => {
       listeners.delete(setState);
