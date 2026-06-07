@@ -116,7 +116,6 @@ export function HopPlannerScreenV2({ onMenuOpen }: Props) {
       title="Trip Builder"
       description="Chain the cheapest one-way fares into a multi-stop trip."
       onMenuOpen={onMenuOpen}
-      showShare={!!origin}
     >
       <section className="max-w-6xl xl:max-w-7xl mx-auto px-5 md:px-8 lg:px-10 pt-6 md:pt-14 pb-10">
         {/* Two-column on lg+: [hero + map] left, form right (aligned with the
@@ -243,24 +242,19 @@ export function HopPlannerScreenV2({ onMenuOpen }: Props) {
 
             <hr className="border-border/60 my-5" />
 
-            {/* CTA — stacks vertically on mobile for a full-width tap target,
-                horizontal on sm+ where there's room for the price + button row. */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-              <div>
-                <p className="text-[11px] text-text-muted">Estimated flights total</p>
-                <p className="text-2xl font-black text-text-primary">$0</p>
-              </div>
-              <button
-                type="button"
-                onClick={handleProceed}
-                disabled={!canProceed}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-4 sm:py-3 rounded-full bg-orange text-white text-sm font-bold disabled:opacity-40 hover:bg-orange-dark transition-all"
-                style={{ boxShadow: '0 12px 24px -8px rgba(249,115,22,0.45)' }}
-              >
-                Find cheapest hops
-                <ArrowRight size={14} />
-              </button>
-            </div>
+            {/* CTA — full-width on every breakpoint. Pre-search we have no
+                fare data, so showing a $0 "estimated flights total" was
+                misleading; the price summary lives on /flights instead. */}
+            <button
+              type="button"
+              onClick={handleProceed}
+              disabled={!canProceed}
+              className="w-full inline-flex items-center justify-center gap-2 px-5 py-4 rounded-full bg-orange text-white text-sm font-bold disabled:opacity-40 hover:bg-orange-dark transition-all"
+              style={{ boxShadow: '0 12px 24px -8px rgba(249,115,22,0.45)' }}
+            >
+              Find cheapest hops
+              <ArrowRight size={14} />
+            </button>
           </div>
 
         </div>
