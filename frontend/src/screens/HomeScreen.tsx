@@ -1,42 +1,52 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Airport } from '@fast-travel/shared';
-import { useAirportSearch } from '../hooks/useAirportSearch';
-import { nearbyAirportsByCoords } from '../api/airports.api';
-import { resolveUserCoords, readCachedCoords, readCachedNearby, cacheNearby } from '../utils/geolocation.utils';
+import { useState, useCallback } from 'react';
+import { LocationSelection, selectionLabel, selectionToMarker } from '@fast-travel/shared';
 import { Helmet } from 'react-helmet-async';
-import { useNavigate } from 'react-router-dom';
-import { useTripStore } from '../store/trip.store';
-import { useSessionStore } from '../store/session.store';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth.store';
 import { formatYMD } from '../utils/date.utils';
-import { track, AnalyticsEvent } from '../lib/analytics';
 import { addDays, format } from 'date-fns';
 import { GoHomeLogo } from '../components/GoHomeLogo';
-import { HomeFlightFan } from '../components/HomeFlightFan';
-import { Link } from 'react-router-dom';
+import { AirportSearchInput } from '../components/AirportSearchInput';
+import { SegmentedControl } from '../components/SegmentedControl';
+import { ToolCard } from '../components/ToolCard';
+import { TOOLS } from './ToolsScreen';
 import {
-  MapPin,
-  Search,
-  Loader2,
-  User,
   ArrowRight,
-  PlaneTakeoff,
   CalendarDays,
-  Star,
-  TrendingUp,
-  Shield,
+  Plus,
   X,
+  Search,
+  User,
+  Sparkles,
 } from 'lucide-react';
 
-/* ── Popular airports fallback (when geolocation unavailable) ── */
+type TripType = 'oneway' | 'return' | 'multi';
 
-const POPULAR_AIRPORTS: Pick<Airport, 'iata' | 'name' | 'city'>[] = [
-  { iata: 'IST', name: 'Istanbul Airport', city: { id: 'ist', name: 'Istanbul', countryCode: 'TR', countryName: 'Turkey', lat: 41.01, lng: 28.98 } },
-  { iata: 'LHR', name: 'Heathrow Airport', city: { id: 'lon', name: 'London', countryCode: 'GB', countryName: 'United Kingdom', lat: 51.47, lng: -0.46 } },
-  { iata: 'CDG', name: 'Charles de Gaulle', city: { id: 'par', name: 'Paris', countryCode: 'FR', countryName: 'France', lat: 49.01, lng: 2.55 } },
+interface Leg {
+  fromQuery: string;
+  fromAirport: LocationSelection | null;
+  toQuery: string;
+  toAirport: LocationSelection | null;
+  date: string;
+}
+
+const TRIP_TYPE_OPTIONS: { value: TripType; label: string }[] = [
+  { value: 'oneway', label: 'One-way' },
+  { value: 'return', label: 'Return' },
+  { value: 'multi', label: 'Multi-city' },
 ];
 
-/* ── Passenger Stepper ── */
+const MAX_LEGS = 6;
+
+function emptyLeg(date: string, fromAirport: LocationSelection | null = null): Leg {
+  return {
+    fromQuery: fromAirport ? selectionLabel(fromAirport) : '',
+    fromAirport,
+    toQuery: '',
+    toAirport: null,
+    date,
+  };
+}
 
 function PassengerStepper({
   value,
@@ -75,16 +85,16 @@ function PassengerStepper({
   );
 }
 
-/* ── Date Field ── */
-
 function DateField({
   value,
   onChange,
   min,
+  label,
 }: {
   value: string;
   onChange: (v: string) => void;
   min: string;
+  label?: string;
 }) {
   const displayDate = value ? format(new Date(value + 'T12:00:00'), 'EEE, MMM d') : 'Pick a date';
 
@@ -109,370 +119,138 @@ function DateField({
         onChange={(e) => {
           if (e.target.value) onChange(e.target.value);
         }}
-        aria-label={`Departure date: ${displayDate}`}
+        aria-label={label ?? `Date: ${displayDate}`}
       />
     </label>
   );
 }
 
-/* ── Airport Result Row ── */
-
-function AirportRow({
-  airport,
-  onSelect,
-  delay,
-}: {
-  airport: Airport;
-  onSelect: () => void;
-  delay: number;
-}) {
+function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <button
-      className="w-full flex items-center gap-3.5 px-4 py-3.5 hover:bg-indigo-soft/50 transition-colors border-b border-border/40 last:border-0 text-left"
-      style={{ animationDelay: `${delay}ms` }}
-      onClick={onSelect}
-      aria-label={`Select ${airport.city.name} (${airport.iata})`}
-    >
-      <div className="w-9 h-9 rounded-xl bg-indigo-soft border border-indigo-border flex items-center justify-center shrink-0">
-        <PlaneTakeoff size={14} className="text-indigo" />
-      </div>
-      <div className="min-w-0 flex-1">
-        {/* Line 1: City name + IATA chip — the recognisable identifiers.
-            The marketing-alias overlay (see backend MARKETING_CITY_ALIAS)
-            ensures Malpensa/Bergamo/Linate all read "Milan" here. */}
-        <div className="flex items-baseline gap-2 min-w-0">
-          <p className="text-[15px] font-semibold text-text-primary truncate">
-            {airport.city.name}
-          </p>
-          <span className="text-xs font-mono font-bold text-indigo-mid shrink-0">
-            {airport.iata}
-          </span>
-        </div>
-        {/* Line 2: Full airport name (and distance, when this is a "did you
-            mean" fallback hit). */}
-        <p className="text-xs text-text-muted mt-0.5 truncate">
-          {airport.name}
-          {airport.distanceKm !== undefined && ` · ${airport.distanceKm} km`}
-        </p>
-      </div>
-      <div className="w-8 h-8 rounded-full bg-indigo-soft/60 text-indigo flex items-center justify-center shrink-0">
-        <ArrowRight size={14} />
-      </div>
-    </button>
-  );
-}
-
-/* ── Nearby / Popular Airport Card ── */
-
-function AirportCard({
-  airport,
-  onSelect,
-}: {
-  airport: Pick<Airport, 'iata' | 'name' | 'city'> & { distanceKm?: number };
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      className="list-row group active:scale-[0.98] transition-all duration-150"
-      onClick={onSelect}
-      aria-label={`Depart from ${airport.city.name} (${airport.iata})`}
-    >
-      <div className="flex items-center gap-3.5">
-        <div className="w-11 h-11 rounded-2xl bg-indigo-soft border border-indigo-border text-indigo flex items-center justify-center shrink-0 group-hover:bg-indigo group-hover:text-white group-hover:border-indigo transition-colors duration-200">
-          <MapPin size={17} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-semibold text-text-primary truncate">{airport.name}</p>
-          <p className="text-xs text-text-muted mt-0.5">
-            <span className="font-mono font-semibold text-indigo-mid">{airport.iata}</span>
-            {airport.distanceKm
-              ? ` · ${airport.distanceKm} km away`
-              : ` · ${airport.city.name}, ${airport.city.countryName}`}
-          </p>
-        </div>
-      </div>
-    </button>
-  );
-}
-
-/* ── Stats Bar ── */
-
-function TrustBar() {
-  return (
-    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-6">
-      <div className="flex items-center gap-2">
-        <TrendingUp size={13} className="text-emerald shrink-0" />
-        <span className="text-xs text-text-muted">
-          <strong className="text-text-secondary">Flexible multi-stop</strong> trip planning
-        </span>
-      </div>
-      <div className="hidden lg:block w-px h-3 bg-border" />
-      <div className="flex items-center gap-2">
-        <Star size={13} className="text-gold shrink-0" />
-        <span className="text-xs text-text-muted">
-          Always the <strong className="text-text-secondary">cheapest next hop</strong>
-        </span>
-      </div>
-      <div className="hidden lg:block w-px h-3 bg-border" />
-      <div className="flex items-center gap-2">
-        <Shield size={13} className="text-indigo-mid shrink-0" />
-        <span className="text-xs text-text-muted">
-          <strong className="text-text-secondary">No account</strong> needed
-        </span>
-      </div>
-    </div>
+    <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold mb-1.5 ml-1">
+      {children}
+    </p>
   );
 }
 
 /* ═══════════════════════════════════════════
-   Main HomeScreen
+   HomeScreen — generic flight search.
+   This is the public landing page. It looks like a familiar
+   flight-search product (one-way / return / multi-city tabs)
+   and surfaces FlexBook tools below the hero as an acquisition
+   funnel. The flagship multi-stop "hop chain" experience lives
+   under /hop-planner.
    ═══════════════════════════════════════════ */
 
 export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const user = useAuthStore((s) => s.user);
   const initials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : null;
-  const [query, setQuery] = useState('');
-  const [nearby, setNearby] = useState<Airport[]>([]);
-  const [geoLoading, setGeoLoading] = useState(false);
-  const [passengers, setPassengers] = useState(1);
-  const [departureDate, setDepartureDate] = useState(formatYMD(addDays(new Date(), 1)));
-  const { results, fallback, loading, error: searchError } = useAirportSearch(query);
   const navigate = useNavigate();
-  const setOrigin = useTripStore((s) => s.setOrigin);
-  const setStorePassengers = useTripStore((s) => s.setPassengers);
-  const { setSelectedDate } = useSessionStore();
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const minDate = formatYMD(new Date());
+  const defaultDepart = formatYMD(addDays(new Date(), 7));
+  const defaultReturn = formatYMD(addDays(new Date(), 14));
 
-  /* Geolocation: serve cached nearby airports instantly, then refresh in background */
-  useEffect(() => {
-    let cancelled = false;
+  const [tripType, setTripType] = useState<TripType>('oneway');
+  const [passengers, setPassengers] = useState(1);
 
-    // If we have both cached coords and cached nearby airports, show them immediately
-    // with no loading state — the list appears before any network call.
-    const cachedCoords = readCachedCoords();
-    if (cachedCoords) {
-      const cachedAirports = readCachedNearby<Airport>(cachedCoords.lat, cachedCoords.lng);
-      if (cachedAirports) {
-        setNearby(cachedAirports.slice(0, 3));
-        return; // skip network entirely until cache expires
-      }
-    }
+  // Shared single-trip state (one-way & return).
+  const [fromQuery, setFromQuery] = useState('');
+  const [fromAirport, setFromAirport] = useState<LocationSelection | null>(null);
+  const [toQuery, setToQuery] = useState('');
+  const [toAirport, setToAirport] = useState<LocationSelection | null>(null);
+  const [departDate, setDepartDate] = useState(defaultDepart);
+  const [returnDate, setReturnDate] = useState(defaultReturn);
 
-    setGeoLoading(true);
-    (async () => {
-      try {
-        const coords = await resolveUserCoords();
-        if (cancelled) return;
-        const airports = await nearbyAirportsByCoords(coords.lat, coords.lng);
-        if (cancelled) return;
-        cacheNearby(coords.lat, coords.lng, airports);
-        setNearby(airports.slice(0, 3));
-      } catch {
-        /* both browser and IP geolocation failed — fall back to POPULAR_AIRPORTS */
-      } finally {
-        if (!cancelled) setGeoLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  // Multi-city state — its own array of legs.
+  const [legs, setLegs] = useState<Leg[]>(() => [
+    emptyLeg(defaultDepart),
+    emptyLeg(formatYMD(addDays(new Date(), 10))),
+  ]);
+
+  const selectFromForLeg = useCallback((index: number, selection: LocationSelection) => {
+    setLegs((prev) =>
+      prev.map((leg, i) =>
+        i === index
+          ? { ...leg, fromAirport: selection, fromQuery: selectionLabel(selection) }
+          : leg,
+      ),
+    );
   }, []);
 
-  const selectAirport = useCallback(
-    (airport: Airport) => {
-      setOrigin(airport);
-      setStorePassengers(passengers);
-      setSelectedDate(departureDate);
-      setQuery('');
-      track(AnalyticsEvent.TripSearchStarted, {
-        origin: airport.iata,
-        originCity: airport.city?.name,
-        originCountry: airport.city?.countryCode,
-        passengers,
-        departureDate,
-      });
-      navigate('/flights');
-    },
-    [departureDate, passengers, setOrigin, setStorePassengers, setSelectedDate, navigate],
-  );
+  const selectToForLeg = useCallback((index: number, selection: LocationSelection) => {
+    setLegs((prev) => {
+      const next = prev.map((leg, i) =>
+        i === index
+          ? { ...leg, toAirport: selection, toQuery: selectionLabel(selection) }
+          : leg,
+      );
+      // If a downstream leg has no origin yet, pre-fill it with this leg's destination
+      // so the user doesn't retype it (default behavior on most flight sites).
+      if (index + 1 < next.length && !next[index + 1].fromAirport) {
+        next[index + 1] = {
+          ...next[index + 1],
+          fromAirport: selection,
+          fromQuery: selectionLabel(selection),
+        };
+      }
+      return next;
+    });
+  }, []);
 
-  const showResults = query.trim().length > 0;
+  const addLeg = useCallback(() => {
+    setLegs((prev) => {
+      if (prev.length >= MAX_LEGS) return prev;
+      const last = prev[prev.length - 1];
+      const carryFrom = last.toAirport;
+      const nextDate = formatYMD(addDays(new Date(last.date + 'T12:00:00'), 3));
+      return [...prev, emptyLeg(nextDate, carryFrom)];
+    });
+  }, []);
 
-  /* ── Shared sub-components rendered in the right panel ── */
-  const searchForm = (
-    <div className="section-shell p-4 mb-4">
-      <div className="mb-3">
-        <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold mb-1.5 ml-1">
-          Flying from
-        </p>
-        <div className="relative">
-          <PlaneTakeoff
-            size={16}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-text-xmuted pointer-events-none"
-          />
-          {query && (
-            <button
-              className="absolute right-14 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg bg-surface-2 flex items-center justify-center text-text-muted hover:text-text-primary transition-colors"
-              onClick={() => {
-                setQuery('');
-                inputRef.current?.focus();
-              }}
-              aria-label="Clear search"
-            >
-              <X size={13} />
-            </button>
-          )}
-          <button
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-11 h-11 rounded-xl text-white flex items-center justify-center transition-all active:scale-95"
-            style={{
-              background: 'linear-gradient(135deg, #F97316 0%, #EA6C0A 100%)',
-              boxShadow: '0 8px 24px rgba(249,115,22,0.28)',
-              minHeight: '44px',
-              minWidth: '44px',
-            }}
-            tabIndex={-1}
-            aria-hidden
-          >
-            {loading ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <Search size={16} />
-            )}
-          </button>
-          <input
-            ref={inputRef}
-            type="text"
-            className="input-field pl-11 pr-28 rounded-2xl text-base"
-            style={{ minHeight: '48px' }}
-            placeholder="City or airport code..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            autoFocus
-            aria-label="Search origin airport"
-          />
+  const removeLeg = useCallback((index: number) => {
+    setLegs((prev) => (prev.length <= 2 ? prev : prev.filter((_, i) => i !== index)));
+  }, []);
 
-          {/* Search results as a floating dropdown — no layout shift */}
-          {showResults && (
-            <div className="absolute top-full left-0 right-0 mt-2 z-20 section-shell overflow-hidden animate-fade-in max-h-[320px] overflow-y-auto">
-              {searchError && !loading && results.length === 0 && (
-                <p className="px-5 py-4 text-rose-400 text-sm" role="alert">
-                  {searchError}
-                </p>
-              )}
-              {!searchError && results.length === 0 && !loading && !fallback && (
-                <p className="px-5 py-4 text-text-muted text-sm">
-                  No airports found. Try a different city or code.
-                </p>
-              )}
-              {!searchError && results.length === 0 && !loading && fallback && (
-                <p className="px-5 py-4 text-text-muted text-sm">
-                  We found <strong className="text-text-primary">{fallback.matchedPlace}</strong>, but no
-                  commercial airport sits within {fallback.radiusKm} km.
-                </p>
-              )}
-              {loading && results.length === 0 && (
-                <div className="flex items-center gap-2.5 px-5 py-4 text-text-muted text-sm">
-                  <Loader2 size={14} className="animate-spin text-indigo-mid" />
-                  Searching airports...
-                </div>
-              )}
-              {fallback && results.length > 0 && !loading && (
-                <div className="px-5 py-3 border-b border-border bg-indigo-soft/40">
-                  <p className="text-[13px] text-text-primary">
-                    No commercial airport in <strong>{fallback.matchedPlace}</strong>.
-                  </p>
-                  <p className="text-xs text-text-muted mt-0.5">
-                    Nearest commercial airports within {fallback.radiusKm} km:
-                  </p>
-                </div>
-              )}
-              {results.map((airport, i) => (
-                <AirportRow
-                  key={airport.iata}
-                  airport={airport}
-                  onSelect={() => selectAirport(airport)}
-                  delay={i * 20}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-2.5">
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold mb-1.5 ml-1">
-            Departure
-          </p>
-          <DateField value={departureDate} onChange={setDepartureDate} min={minDate} />
-        </div>
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold mb-1.5 ml-1">
-            Travelers
-          </p>
-          <PassengerStepper value={passengers} onChange={setPassengers} />
-        </div>
-      </div>
-      <button
-        type="button"
-        onClick={() => inputRef.current?.focus()}
-        className="w-full mt-3 h-12 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-        style={{
-          background: 'linear-gradient(135deg, #3730A3 0%, #4F46E5 100%)',
-          boxShadow: '0 8px 24px rgba(55,48,163,0.28)',
-        }}
-      >
-        Find a starting flight
-        <ArrowRight size={16} />
-      </button>
-    </div>
-  );
+  function canSubmit(): boolean {
+    if (tripType === 'multi') {
+      return legs.every((leg) => leg.fromAirport && leg.toAirport && leg.date);
+    }
+    if (!fromAirport || !toAirport || !departDate) return false;
+    if (tripType === 'return' && !returnDate) return false;
+    return true;
+  }
 
-  const airportList = (
-    <>
-      <div className="flex items-center gap-2 mb-2.5 mt-2">
-        <MapPin size={13} className="text-indigo-mid" />
-        <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold">
-          Nearby airports
-        </p>
-      </div>
-      <div className="space-y-2">
-        {geoLoading && (
-          <div className="section-shell px-4 py-4 flex items-center gap-2.5 text-text-muted text-sm">
-            <Loader2 size={14} className="animate-spin text-indigo-mid" />
-            <span>Detecting nearby airports...</span>
-          </div>
-        )}
-        {!geoLoading &&
-          nearby.length > 0 &&
-          nearby.map((airport) => (
-            <AirportCard
-              key={airport.iata}
-              airport={airport}
-              onSelect={() => selectAirport(airport)}
-            />
-          ))}
-        {!geoLoading &&
-          nearby.length === 0 &&
-          POPULAR_AIRPORTS.map((airport) => (
-            <AirportCard
-              key={airport.iata}
-              airport={airport as Airport}
-              onSelect={() => selectAirport(airport as Airport)}
-            />
-          ))}
-      </div>
-    </>
-  );
+  function handleSubmit() {
+    if (!canSubmit()) return;
+    const params = new URLSearchParams();
+    params.set('type', tripType);
+    params.set('pax', String(passengers));
+
+    if (tripType === 'multi') {
+      const encoded = legs
+        .map((leg) => `${selectionToMarker(leg.fromAirport!)},${selectionToMarker(leg.toAirport!)},${leg.date}`)
+        .join('|');
+      params.set('legs', encoded);
+    } else {
+      params.set('origin', selectionToMarker(fromAirport!));
+      params.set('destination', selectionToMarker(toAirport!));
+      params.set('depart', departDate);
+      if (tripType === 'return') params.set('return', returnDate);
+    }
+    navigate(`/search?${params.toString()}`);
+  }
 
   return (
     <div className="min-h-screen relative overflow-hidden">
       <Helmet>
-        <title>FlexBook — Plan your multi-stop trip</title>
-        <meta name="description" content="Find the cheapest multi-stop flights. No sign-up required. Up to 15 stops per trip." />
+        <title>FlexBook — Find your next flight</title>
+        <meta
+          name="description"
+          content="Search flights from any airport to anywhere. Compare cheapest one-way, return, and multi-city fares — plus three FlexBook planning tools built for travellers who want more for less."
+        />
       </Helmet>
-      {/* ── Ambient background ── */}
+
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -481,11 +259,9 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
         }}
       />
 
-      {/* ── Nav — full width across all breakpoints ── */}
       <nav className="relative flex items-center justify-between px-5 pt-7 pb-4 md:px-8 md:py-5 lg:px-10 lg:border-b lg:border-border/50">
         <GoHomeLogo size="lg" variant="light" />
 
-        {/* Desktop nav links */}
         <div className="hidden lg:flex items-center gap-1">
           <span className="px-4 py-2 rounded-xl text-sm font-semibold text-indigo bg-indigo-soft border border-indigo-border">
             Plan
@@ -531,162 +307,295 @@ export function HomeScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
             style={{ boxShadow: '0 4px 12px rgba(15,23,42,0.08)' }}
             aria-label="Account"
           >
-            {initials
-              ? <span className="text-xs font-bold text-indigo leading-none">{initials}</span>
-              : <User size={16} />
-            }
+            {initials ? (
+              <span className="text-xs font-bold text-indigo leading-none">{initials}</span>
+            ) : (
+              <User size={16} />
+            )}
           </button>
         </div>
       </nav>
 
-      {/* ── Body: single column on mobile, 2-panel from md: up ── */}
-      <div
-        className="relative md:flex md:items-stretch md:max-w-6xl md:mx-auto xl:max-w-7xl"
-        style={{ minHeight: 'calc(100dvh - 72px)' }}
-      >
-
-        {/* ── Left panel: hero + trust (always visible on md+, stacked on mobile) ── */}
+      {/* ── Hero: copy on left, search card on right (md+) ── */}
+      <div className="relative md:flex md:items-stretch md:max-w-6xl md:mx-auto xl:max-w-7xl">
+        {/* Left panel: hero copy */}
         <div className="px-5 pt-6 pb-2 md:flex-1 md:flex md:flex-col md:justify-center md:px-8 md:py-10 lg:px-12 lg:py-12">
-          {/* Hero */}
-          <div className="mb-6 lg:mb-8">
-            {/* PLAN A TRIP label */}
-            <div className="flex items-center gap-2 mb-3">
-              <div className="h-0.5 w-5 bg-orange rounded-full" />
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-orange">Plan a trip</p>
-            </div>
-
-            {user && (
-              <p
-                className="text-text-secondary font-semibold mb-2"
-                style={{ fontSize: 'clamp(1.1rem, 1.6vw, 1.5rem)', letterSpacing: '-0.01em' }}
-              >
-                Hi {user.firstName} 👋
-              </p>
-            )}
-            <h1
-              className="leading-[0.92] font-black text-text-primary"
-              style={{ fontSize: 'clamp(2.8rem, 5.2vw, 5.5rem)', letterSpacing: '-0.06em' }}
-            >
-              Plan your
-              <br />
-              <span className="relative inline-block">
-                <span className="text-indigo">trip</span>
-                <span
-                  className="absolute -right-[0.4em] -top-[0.15em] font-black text-orange select-none"
-                  style={{ fontSize: '1.6em', lineHeight: 1 }}
-                  aria-hidden
-                >
-                  .
-                </span>
-              </span>
-            </h1>
-            <p className="mt-4 text-base md:text-lg leading-7 text-text-muted max-w-[36ch]">
-              Cheapest fares. Biggest adventures. Hop between cities
-              on the lowest available next-leg fare — no return required.
+          <div className="flex items-center gap-2 mb-3">
+            <div className="h-0.5 w-5 bg-orange rounded-full" />
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-orange">
+              Search flights
             </p>
-
-            {/* Stats bar */}
-            <div className="flex items-center gap-5 mt-5">
-              <div>
-                <p className="font-black leading-none text-xl">
-                  <span className="text-orange">15</span>
-                  <span className="text-[0.5em] font-bold text-indigo-mid ml-1.5 uppercase tracking-wider">stops</span>
-                </p>
-                <p className="text-[11px] text-text-muted mt-1">Max per trip</p>
-              </div>
-              <div className="w-px h-7 bg-border/60 shrink-0" />
-              <div>
-                <p className="font-black leading-none text-xl">
-                  <span className="text-orange">$29</span>
-                  <span className="text-[0.5em] font-bold text-orange/70 ml-1.5">from</span>
-                </p>
-                <p className="text-[11px] text-text-muted mt-1">Cheapest hop today</p>
-              </div>
-              <div className="w-px h-7 bg-border/60 shrink-0" />
-              <div>
-                <p className="font-black leading-none text-xl">
-                  <span className="text-teal-500">0</span>
-                  <span className="text-[0.5em] font-bold text-teal-400 ml-1.5 uppercase tracking-wider">acct</span>
-                </p>
-                <p className="text-[11px] text-text-muted mt-1">No sign-up needed</p>
-              </div>
-            </div>
           </div>
 
-          {/* Flight fan — desktop only, wrapped in live-fares card */}
-          <div
-            className="hidden md:block mb-8 lg:mb-10 rounded-[20px] border border-border/60 overflow-hidden bg-surface/60"
-            style={{ boxShadow: '0 8px 28px -10px rgba(15,23,42,0.12)' }}
+          {user && (
+            <p
+              className="text-text-secondary font-semibold mb-2"
+              style={{ fontSize: 'clamp(1.1rem, 1.6vw, 1.5rem)', letterSpacing: '-0.01em' }}
+            >
+              Hi {user.firstName} 👋
+            </p>
+          )}
+
+          <h1
+            className="leading-[0.92] font-black text-text-primary"
+            style={{ fontSize: 'clamp(2.6rem, 5vw, 5rem)', letterSpacing: '-0.06em' }}
           >
-            {/* Header */}
-            <div className="px-4 py-2.5 flex items-center justify-between border-b border-border/40">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-text-muted">
-                Live fares · Departing {nearby[0]?.iata ?? 'EVN'} tonight
-              </p>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-semibold text-text-secondary px-2.5 py-0.5 rounded-full bg-surface-2 border border-border">
-                  9 routes
-                </span>
-                <span className="text-[11px] font-semibold text-orange px-2.5 py-0.5 rounded-full bg-orange/10 border border-orange/20 flex items-center gap-1">
-                  ⚡ cheapest $29
-                </span>
-              </div>
-            </div>
-            {/* Map */}
-            <HomeFlightFan bare />
-            {/* Footer trust bar */}
-            <div className="px-4 py-2.5 flex items-center gap-4 border-t border-border/40 flex-wrap">
-              <div className="flex items-center gap-1.5">
-                <TrendingUp size={12} className="text-emerald shrink-0" />
-                <span className="text-xs text-text-muted"><strong className="text-text-secondary">Multi-stop</strong> trip planning</span>
-              </div>
-              <div className="w-px h-3 bg-border" />
-              <div className="flex items-center gap-1.5">
-                <Star size={12} className="text-gold shrink-0" />
-                <span className="text-xs text-text-muted">Always the <strong className="text-text-secondary">cheapest next hop</strong></span>
-              </div>
-              <div className="w-px h-3 bg-border" />
-              <div className="flex items-center gap-1.5">
-                <Shield size={12} className="text-indigo-mid shrink-0" />
-                <span className="text-xs text-text-muted"><strong className="text-text-secondary">No account</strong> needed</span>
-              </div>
-            </div>
+            Find your next
+            <br />
+            <span className="relative inline-block">
+              <span className="text-indigo">flight</span>
+              <span
+                className="absolute -right-[0.4em] -top-[0.15em] font-black text-orange select-none"
+                style={{ fontSize: '1.6em', lineHeight: 1 }}
+                aria-hidden
+              >
+                .
+              </span>
+            </span>
+          </h1>
+
+          <p className="mt-4 text-base md:text-lg leading-7 text-text-muted max-w-[42ch]">
+            Compare cheapest fares across millions of routes. One-way, return,
+            or multi-city — search any combination and pick the option that fits.
+          </p>
+
+          <div className="hidden md:flex items-center gap-2 mt-6">
+            <Sparkles size={13} className="text-indigo" />
+            <p className="text-xs text-text-muted">
+              Scroll down for FlexBook's <strong className="text-text-secondary">planning tools</strong> — built for travellers who want more.
+            </p>
           </div>
         </div>
 
-        {/* ── Right panel: search form + airports ── */}
-        {/* md+: floating "card" treatment rather than a full-height wall — the
-            panel is inset with margin, rounded, softly shadowed, and bordered
-            on all sides so it reads as a dedicated search widget instead of
-            a hard rectangle running edge to edge. Content stays vertically
-            centered (justify-center) to mirror the hero on the left. Mobile
-            keeps the natural top-down flow (no card chrome). */}
-        <div className="px-5 pb-10 md:w-[400px] md:flex-shrink-0 md:bg-surface/80 md:backdrop-blur-sm md:px-6 md:py-8 md:flex md:flex-col md:justify-center md:my-8 md:mr-6 md:rounded-[28px] md:border md:border-border/60 md:shadow-[0_18px_50px_-20px_rgba(15,23,42,0.18)] lg:w-[440px] lg:px-8 lg:my-10 lg:mr-8 xl:w-[480px]">
-          {/* "Where to first?" panel header — desktop only */}
-          <div className="hidden md:flex items-center justify-between mb-3 px-1">
-            <h2 className="text-base font-bold text-text-primary">Where to first?</h2>
-            <span className="text-xs text-text-muted">
-              One-way · <span className="font-semibold text-indigo-mid">cheapest hop</span>
-            </span>
+        {/* Right panel: search card */}
+        <div className="px-5 pb-8 md:w-[440px] md:flex-shrink-0 md:bg-surface/80 md:backdrop-blur-sm md:px-6 md:py-8 md:flex md:flex-col md:justify-center md:my-8 md:mr-6 md:rounded-[28px] md:border md:border-border/60 md:shadow-[0_18px_50px_-20px_rgba(15,23,42,0.18)] lg:w-[480px] lg:px-8 lg:my-10 lg:mr-8 xl:w-[520px]">
+          <div className="flex items-center justify-between mb-3 px-1">
+            <h2 className="text-base font-bold text-text-primary">Where to?</h2>
+            <SegmentedControl
+              value={tripType}
+              onChange={setTripType}
+              options={TRIP_TYPE_OPTIONS}
+              ariaLabel="Trip type"
+            />
           </div>
-          {searchForm}
-          {airportList}
 
-          {/* Trust signals — mobile only (md+ shows them in the left panel) */}
-          {!showResults && (
-            <div className="mt-8 md:hidden">
-              <TrustBar />
-            </div>
-          )}
-          {!showResults && (
-            <p className="mt-8 text-center text-xs text-text-muted/60 leading-5 md:hidden">
-              Up to 15 stops per trip. Always the cheapest next hop.
-              <br />
-              No sign-up required.
-            </p>
-          )}
+          <div className="section-shell p-4 mb-4">
+            {tripType !== 'multi' ? (
+              <>
+                <div className="mb-3">
+                  <FieldLabel>From</FieldLabel>
+                  <AirportSearchInput
+                    value={fromQuery}
+                    onChange={(v) => {
+                      setFromQuery(v);
+                      if (fromAirport) setFromAirport(null);
+                    }}
+                    onSelect={(selection) => {
+                      setFromAirport(selection);
+                      setFromQuery(selectionLabel(selection));
+                    }}
+                    placeholder="Origin city or airport code"
+                    ariaLabel="Origin airport"
+                  />
+                </div>
+                <div className="mb-3">
+                  <FieldLabel>To</FieldLabel>
+                  <AirportSearchInput
+                    value={toQuery}
+                    onChange={(v) => {
+                      setToQuery(v);
+                      if (toAirport) setToAirport(null);
+                    }}
+                    onSelect={(selection) => {
+                      setToAirport(selection);
+                      setToQuery(selectionLabel(selection));
+                    }}
+                    placeholder="Destination city or airport code"
+                    ariaLabel="Destination airport"
+                  />
+                </div>
+                <div className={`grid gap-2.5 ${tripType === 'return' ? 'grid-cols-2' : 'grid-cols-2'}`}>
+                  <div>
+                    <FieldLabel>Depart</FieldLabel>
+                    <DateField
+                      value={departDate}
+                      onChange={setDepartDate}
+                      min={minDate}
+                      label="Departure date"
+                    />
+                  </div>
+                  {tripType === 'return' ? (
+                    <div>
+                      <FieldLabel>Return</FieldLabel>
+                      <DateField
+                        value={returnDate}
+                        onChange={setReturnDate}
+                        min={departDate}
+                        label="Return date"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <FieldLabel>Travelers</FieldLabel>
+                      <PassengerStepper value={passengers} onChange={setPassengers} />
+                    </div>
+                  )}
+                </div>
+                {tripType === 'return' && (
+                  <div className="mt-3">
+                    <FieldLabel>Travelers</FieldLabel>
+                    <PassengerStepper value={passengers} onChange={setPassengers} />
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="space-y-4">
+                {legs.map((leg, index) => (
+                  <div key={index} className="relative">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-mid">
+                        Leg {index + 1}
+                      </p>
+                      {legs.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => removeLeg(index)}
+                          className="w-6 h-6 rounded-lg bg-surface-2 border border-border flex items-center justify-center text-text-muted hover:text-rose-500 transition-colors"
+                          aria-label={`Remove leg ${index + 1}`}
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+                    <div className="space-y-2.5">
+                      <div>
+                        <FieldLabel>From</FieldLabel>
+                        <AirportSearchInput
+                          value={leg.fromQuery}
+                          onChange={(v) =>
+                            setLegs((prev) =>
+                              prev.map((l, i) =>
+                                i === index ? { ...l, fromQuery: v, fromAirport: null } : l,
+                              ),
+                            )
+                          }
+                          onSelect={(airport) => selectFromForLeg(index, airport)}
+                          placeholder="Origin"
+                          ariaLabel={`Leg ${index + 1} origin`}
+                        />
+                      </div>
+                      <div>
+                        <FieldLabel>To</FieldLabel>
+                        <AirportSearchInput
+                          value={leg.toQuery}
+                          onChange={(v) =>
+                            setLegs((prev) =>
+                              prev.map((l, i) =>
+                                i === index ? { ...l, toQuery: v, toAirport: null } : l,
+                              ),
+                            )
+                          }
+                          onSelect={(airport) => selectToForLeg(index, airport)}
+                          placeholder="Destination"
+                          ariaLabel={`Leg ${index + 1} destination`}
+                        />
+                      </div>
+                      <div>
+                        <FieldLabel>Date</FieldLabel>
+                        <DateField
+                          value={leg.date}
+                          onChange={(v) =>
+                            setLegs((prev) =>
+                              prev.map((l, i) => (i === index ? { ...l, date: v } : l)),
+                            )
+                          }
+                          min={index === 0 ? minDate : legs[index - 1].date}
+                          label={`Leg ${index + 1} date`}
+                        />
+                      </div>
+                    </div>
+                    {index < legs.length - 1 && (
+                      <div className="h-px bg-border/60 mt-4" />
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addLeg}
+                  disabled={legs.length >= MAX_LEGS}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-indigo-border text-xs font-bold text-indigo bg-indigo-soft/40 hover:bg-indigo-soft transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Plus size={13} /> Add another flight
+                  {legs.length >= MAX_LEGS && <span className="text-text-muted font-normal">(max {MAX_LEGS})</span>}
+                </button>
+
+                <div>
+                  <FieldLabel>Travelers</FieldLabel>
+                  <PassengerStepper value={passengers} onChange={setPassengers} />
+                </div>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={!canSubmit()}
+              className="w-full mt-4 h-12 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{
+                background: 'linear-gradient(135deg, #3730A3 0%, #4F46E5 100%)',
+                boxShadow: '0 8px 24px rgba(55,48,163,0.28)',
+              }}
+            >
+              <Search size={16} />
+              Search flights
+            </button>
+          </div>
+
+          <p className="text-center text-[11px] text-text-muted/70 px-2">
+            Looking for something different? Try a{' '}
+            <Link to="/tools" className="font-semibold text-indigo-mid hover:underline">
+              FlexBook tool
+            </Link>{' '}
+            below.
+          </p>
         </div>
       </div>
+
+      {/* ── Tools showcase row ── */}
+      <section className="relative px-5 pb-16 pt-4 md:max-w-6xl md:mx-auto md:px-8 md:pt-10 md:pb-20 lg:px-12 xl:max-w-7xl">
+        <div className="flex items-end justify-between mb-6 flex-wrap gap-3">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-soft border border-indigo-border mb-3">
+              <Sparkles size={12} className="text-indigo" />
+              <span className="text-[11px] font-bold text-indigo tracking-wide uppercase">
+                Plan smarter
+              </span>
+            </div>
+            <h2
+              className="font-black text-text-primary leading-tight"
+              style={{ fontSize: 'clamp(1.6rem, 3vw, 2.4rem)', letterSpacing: '-0.03em' }}
+            >
+              FlexBook <span className="text-indigo">tools</span>.
+            </h2>
+            <p className="text-sm text-text-muted mt-1 max-w-[48ch]">
+              Three free planning tools built for travellers who want more for less.
+              Pick one and let FlexBook do the heavy lifting.
+            </p>
+          </div>
+          <Link
+            to="/tools"
+            className="inline-flex items-center gap-1 text-xs font-bold text-indigo hover:gap-2 transition-all"
+          >
+            View all <ArrowRight size={13} />
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+          {TOOLS.map((tool) => (
+            <ToolCard key={tool.id} tool={tool} variant="compact" />
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

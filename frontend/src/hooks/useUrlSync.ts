@@ -8,6 +8,12 @@ const TRIP_KEY = 't';
 const SESSION_KEY = 's';
 const DEBOUNCE_MS = 150;
 
+// Routes that own their own URL state and should never carry the trip-store
+// `?t=` / session `?s=` params. `/` is the generic flight-search home;
+// `/hop-planner` is the Hop Planner entry point (origin not yet picked);
+// `/search` carries its own search-form params (origin/destination/depart/...).
+const HOME_LIKE_PATHS = new Set(['/', '/hop-planner', '/search']);
+
 export function useUrlSync() {
   const location = useLocation();
   const origin     = useTripStore((s) => s.origin);
@@ -15,6 +21,7 @@ export function useUrlSync() {
   const status     = useTripStore((s) => s.status);
   const createdAt  = useTripStore((s) => s.createdAt);
   const passengers = useTripStore((s) => s.passengers);
+  const picks      = useTripStore((s) => s.picks);
   const selectedFlight = useSessionStore((s) => s.selectedFlight);
   const selectedDate   = useSessionStore((s) => s.selectedDate);
 
@@ -27,7 +34,7 @@ export function useUrlSync() {
     const writeUrl = () => {
       const url = new URL(window.location.href);
 
-      if (!origin || location.pathname === '/') {
+      if (!origin || HOME_LIKE_PATHS.has(location.pathname)) {
         let changed = false;
         if (url.searchParams.has(TRIP_KEY)) {
           url.searchParams.delete(TRIP_KEY);
@@ -45,7 +52,14 @@ export function useUrlSync() {
 
       let changed = false;
 
-      const encodedTrip = encodeItinerary({ origin, legs, status, createdAt, passengers });
+      const encodedTrip = encodeItinerary({
+        origin,
+        legs,
+        status,
+        createdAt,
+        passengers,
+        ...(picks.length > 0 ? { picks } : {}),
+      });
       if (encodedTrip !== lastTripRef.current) {
         url.searchParams.set(TRIP_KEY, encodedTrip);
         lastTripRef.current = encodedTrip;
@@ -98,7 +112,7 @@ export function useUrlSync() {
     timerRef.current = setTimeout(writeUrl, DEBOUNCE_MS);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [
-    origin, legs, status, createdAt, passengers,
+    origin, legs, status, createdAt, passengers, picks,
     selectedFlight, selectedDate,
     location.pathname,
   ]);

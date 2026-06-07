@@ -450,6 +450,11 @@ export function TripPlannerScreen() {
   // Form state
   const [originQuery, setOriginQuery] = useState('');
   const [originAirport, setOriginAirport] = useState<Airport | null>(null);
+  // Non-null when the user picked a multi-airport city (e.g. "Rome (city)").
+  // `originAirport` then holds the city's primary airport (for the map);
+  // `originCityId` is sent to the backend as "@<id>" so the budget plan
+  // expands to all member airports.
+  const [originCityId, setOriginCityId] = useState<string | null>(null);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [budget, setBudget] = useState('');
@@ -596,8 +601,10 @@ export function TripPlannerScreen() {
       const apiMaxStops = destCount === 'max'
         ? Math.max(1, maxModeNumHops)
         : (typeof destCount === 'number' ? destCount : 1);
+      // "@<cityId>" when the user picked a multi-airport city, else plain IATA.
+      const originMarker = originCityId ? `@${originCityId}` : originAirport.iata;
       const data = await planBudgetTrip({
-        originIata: originAirport.iata,
+        originIata: originMarker,
         departureDateFrom: dateFrom,
         departureDateTo: dateTo,
         budgetPerPerson: Math.round(Number(budget)),
@@ -633,8 +640,11 @@ export function TripPlannerScreen() {
     resetTrip();
     resetSession();
 
-    // Re-hydrate stores with the Budget Planner's computed plan.
-    setOrigin(originAirport);
+    // Re-hydrate stores with the Budget Planner's computed plan. For city
+    // origin picks we'd need a synthetic City object — but the Budget plan
+    // result is anchored to specific airports per leg, so storing the
+    // primary airport here is correct for downstream Hop-Planner flows.
+    setOrigin({ kind: 'airport', airport: originAirport });
     setPassengers(passengers);
 
     const outbound = result.legs.filter((l) => !l.isReturn);
@@ -717,8 +727,9 @@ export function TripPlannerScreen() {
       const apiMaxStops = destCount === 'max'
         ? Math.max(1, maxModeNumHops)
         : (typeof destCount === 'number' ? destCount : 1);
+      const originMarker = originCityId ? `@${originCityId}` : originAirport.iata;
       const data = await planBudgetTrip({
-        originIata: originAirport.iata,
+        originIata: originMarker,
         departureDateFrom: dateFrom,
         departureDateTo: dateTo,
         budgetPerPerson: Math.round(Number(budget)),
@@ -915,10 +926,17 @@ export function TripPlannerScreen() {
                   ref={originRef}
                   type="text"
                   placeholder="City or airport"
-                  value={originAirport ? `${originAirport.city.name} (${originAirport.iata})` : originQuery}
+                  value={
+                    originAirport
+                      ? originCityId
+                        ? `${originAirport.city.name} (all airports)`
+                        : `${originAirport.city.name} (${originAirport.iata})`
+                      : originQuery
+                  }
                   onChange={(e) => {
                     setOriginQuery(e.target.value);
                     setOriginAirport(null);
+                    setOriginCityId(null);
                     setDropdownOpen(true);
                   }}
                   onFocus={() => setDropdownOpen(true)}
@@ -934,6 +952,7 @@ export function TripPlannerScreen() {
                     onMouseDown={(e) => {
                       e.preventDefault();
                       setOriginAirport(null);
+                      setOriginCityId(null);
                       setOriginQuery('');
                       originRef.current?.focus();
                     }}
@@ -947,30 +966,79 @@ export function TripPlannerScreen() {
 
               {dropdownOpen && airportResults.length > 0 && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-surface border border-border rounded-2xl shadow-lg overflow-hidden z-20">
-                  {airportResults.slice(0, 5).map((airport) => (
-                    <button
-                      key={airport.iata}
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        setOriginAirport(airport);
-                        setOriginQuery('');
-                        setDropdownOpen(false);
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-indigo-soft/50 transition-colors border-b border-border/40 last:border-0 text-left"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-indigo-soft border border-indigo-border flex items-center justify-center shrink-0">
-                        <PlaneTakeoff size={13} className="text-indigo" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-text-primary truncate">
-                          {airport.city.name}
-                          <span className="ml-2 text-xs font-mono font-bold text-indigo-mid">{airport.iata}</span>
-                        </p>
-                        <p className="text-xs text-text-muted truncate">{airport.name}</p>
-                      </div>
-                    </button>
-                  ))}
+                  {airportResults.slice(0, 5).map((entry) => {
+                    if (entry.kind === 'city') {
+                      const city = entry.city;
+                      return (
+                        <button
+                          key={`city:${city.id}`}
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            // Project city → primary airport for `originAirport`
+                            // (drives the map), keep city id for the API marker.
+                            const primary = city.airports[0];
+                            setOriginAirport({
+                              iata: primary,
+                              name: `${city.name} Airport`,
+                              city: {
+                                id: primary,
+                                name: city.name,
+                                countryCode: city.countryCode,
+                                countryName: city.countryName,
+                                lat: city.lat,
+                                lng: city.lng,
+                              },
+                              timezone: '',
+                            });
+                            setOriginCityId(city.id);
+                            setOriginQuery('');
+                            setDropdownOpen(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-amber-50/60 transition-colors border-b border-border/40 last:border-0 text-left"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0">
+                            <PlaneTakeoff size={13} className="text-amber-700" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-text-primary truncate">
+                              {city.name}
+                              <span className="ml-2 text-[10px] font-bold uppercase text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">
+                                City · {city.airports.length}
+                              </span>
+                            </p>
+                            <p className="text-xs text-text-muted truncate">All {city.airports.length} airports: {city.airports.join(', ')}</p>
+                          </div>
+                        </button>
+                      );
+                    }
+                    const airport = entry.airport;
+                    return (
+                      <button
+                        key={`airport:${airport.iata}`}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setOriginAirport(airport);
+                          setOriginCityId(null);
+                          setOriginQuery('');
+                          setDropdownOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-indigo-soft/50 transition-colors border-b border-border/40 last:border-0 text-left"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-indigo-soft border border-indigo-border flex items-center justify-center shrink-0">
+                          <PlaneTakeoff size={13} className="text-indigo" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-text-primary truncate">
+                            {airport.city.name}
+                            <span className="ml-2 text-xs font-mono font-bold text-indigo-mid">{airport.iata}</span>
+                          </p>
+                          <p className="text-xs text-text-muted truncate">{airport.name}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -993,6 +1061,7 @@ export function TripPlannerScreen() {
                   onMouseDown={(e) => {
                     e.preventDefault();
                     setOriginAirport(airport as Airport);
+                    setOriginCityId(null);
                     setOriginQuery('');
                     setDropdownOpen(false);
                   }}

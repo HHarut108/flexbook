@@ -1,4 +1,4 @@
-import { Airport } from '@fast-travel/shared';
+import { Airport, AirportSearchEntry, City } from '@fast-travel/shared';
 
 interface RawAirport {
   iata: string;
@@ -20,6 +20,18 @@ interface IndexedEntry {
   nameUpper: string;
   nameNorm: string;
   kwNorm: string | null;
+}
+
+/** A derived multi-airport city (≥2 commercial airports sharing the same
+ *  normalized city + country). Generated client-side from airports.json so
+ *  the dropdown can surface a "Rome (city)" row without a backend round-trip.
+ *  Mirrors the backend's AirportService.buildCityIndex() — the two MUST stay
+ *  in sync on id format so URL state survives a server-rendered share link. */
+interface DerivedCityEntry {
+  id: string;
+  city: City & { airports: string[] };
+  nameUpper: string;
+  nameHeadNorm: string;
 }
 
 function normalize(s: string): string {
@@ -55,14 +67,19 @@ function buildEntry(raw: RawAirport): IndexedEntry {
   };
 }
 
-let indexPromise: Promise<IndexedEntry[]> | null = null;
-let cachedIndex: IndexedEntry[] | null = null;
+interface FullIndex {
+  airports: IndexedEntry[];
+  cities: DerivedCityEntry[];
+}
+
+let indexPromise: Promise<FullIndex> | null = null;
+let cachedIndex: FullIndex | null = null;
 
 export function prefetchAirportIndex(): void {
   if (!indexPromise) getAirportIndex();
 }
 
-export function getAirportIndex(): Promise<IndexedEntry[]> {
+export function getAirportIndex(): Promise<FullIndex> {
   if (cachedIndex) return Promise.resolve(cachedIndex);
   if (indexPromise) return indexPromise;
 
@@ -72,23 +89,69 @@ export function getAirportIndex(): Promise<IndexedEntry[]> {
       return r.json() as Promise<RawAirport[]>;
     })
     .then((raw) => {
-      const index = raw.map(buildEntry);
-      cachedIndex = index;
-      return index;
+      const airports = raw.map(buildEntry);
+      const cities = buildCityIndex(raw);
+      const full: FullIndex = { airports, cities };
+      cachedIndex = full;
+      return full;
     });
 
   return indexPromise;
 }
 
-export function searchIndex(index: IndexedEntry[], query: string): Airport[] {
+/** Derive City entries client-side. MUST match the backend's
+ *  AirportService.buildCityIndex() id format (`${cityNorm}_${cc.lower}`)
+ *  and member ordering, so URL state survives both encoding sides. */
+function buildCityIndex(raw: RawAirport[]): DerivedCityEntry[] {
+  const groups = new Map<string, RawAirport[]>();
+  for (const a of raw) {
+    const cityHead = a.city.split(',')[0].trim();
+    const cityNorm = normalize(cityHead);
+    if (!cityNorm) continue;
+    const key = `${cityNorm.replace(/[^a-z0-9]+/g, '_')}_${a.countryCode.toLowerCase()}`;
+    const bucket = groups.get(key) ?? [];
+    bucket.push(a);
+    groups.set(key, bucket);
+  }
+  const out: DerivedCityEntry[] = [];
+  for (const [id, members] of groups) {
+    if (members.length < 2) continue;
+    // Client doesn't have direct-route popularity data — order by IATA so the
+    // ordering is at least stable and deterministic. The backend will use its
+    // popularity-ordered list when actually fanning out the search.
+    const sorted = [...members].sort((a, b) => a.iata.localeCompare(b.iata));
+    const cityHead = sorted[0].city.split(',')[0].trim();
+    const lat = sorted.reduce((s, a) => s + a.lat, 0) / sorted.length;
+    const lng = sorted.reduce((s, a) => s + a.lng, 0) / sorted.length;
+    out.push({
+      id,
+      city: {
+        id,
+        name: cityHead,
+        countryCode: sorted[0].countryCode,
+        countryName: sorted[0].country,
+        lat,
+        lng,
+        airports: sorted.map((a) => a.iata.toUpperCase()),
+      },
+      nameUpper: cityHead.toUpperCase(),
+      nameHeadNorm: normalize(cityHead),
+    });
+  }
+  return out;
+}
+
+export function searchIndex(index: FullIndex, query: string): AirportSearchEntry[] {
   if (!query || query.trim().length < 1) return [];
   const raw = query.trim();
   const upper = raw.toUpperCase();
   const qNorm = normalize(raw);
 
-  const scored: Array<{ entry: IndexedEntry; score: number }> = [];
+  type ScoredAirport = { kind: 'airport'; entry: IndexedEntry; score: number };
+  type ScoredCity = { kind: 'city'; entry: DerivedCityEntry; score: number };
+  const scored: Array<ScoredAirport | ScoredCity> = [];
 
-  for (const entry of index) {
+  for (const entry of index.airports) {
     let score = 0;
     if (entry.iataUpper === upper) score = 100;
     else if (entry.cityHead === upper || entry.cityHeadNorm === qNorm) score = 95;
@@ -98,11 +161,31 @@ export function searchIndex(index: IndexedEntry[], query: string): Airport[] {
     else if (entry.nameUpper.includes(upper) || entry.nameNorm.includes(qNorm)) score = 55;
     else if (entry.kwNorm && entry.kwNorm.includes(qNorm)) score = 45;
 
-    if (score > 0) scored.push({ entry, score });
+    if (score > 0) scored.push({ kind: 'airport', entry, score });
+  }
+
+  for (const entry of index.cities) {
+    let score = 0;
+    if (entry.nameUpper === upper || entry.nameHeadNorm === qNorm) score = 95;
+    else if (entry.nameUpper.startsWith(upper) || entry.nameHeadNorm.startsWith(qNorm)) score = 85;
+    else if (entry.nameUpper.includes(upper) || entry.nameHeadNorm.includes(qNorm)) score = 65;
+    // +5 bias on exact match so "Rome (city)" surfaces above individual FCO/CIA rows.
+    if (score === 95) score = 100;
+    if (score > 0) scored.push({ kind: 'city', entry, score });
   }
 
   return scored
-    .sort((a, b) => b.score - a.score || a.entry.airport.city.name.localeCompare(b.entry.airport.city.name))
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      const nameA = a.kind === 'airport' ? a.entry.airport.city.name : a.entry.city.name;
+      const nameB = b.kind === 'airport' ? b.entry.airport.city.name : b.entry.city.name;
+      // Same-name group: city above airports.
+      return nameA.localeCompare(nameB) || (a.kind === 'city' ? -1 : 1);
+    })
     .slice(0, 12)
-    .map(({ entry }) => entry.airport);
+    .map((s): AirportSearchEntry =>
+      s.kind === 'airport'
+        ? { kind: 'airport', airport: s.entry.airport }
+        : { kind: 'city', city: s.entry.city },
+    );
 }

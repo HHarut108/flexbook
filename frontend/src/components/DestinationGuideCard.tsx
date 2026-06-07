@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
+import { useTripStore } from '../store/trip.store';
+import type { PickKind } from '@fast-travel/shared';
 import {
   BedDouble,
+  Bookmark,
   Building2,
   Compass,
   ExternalLink,
@@ -10,7 +13,6 @@ import {
   Music,
   Navigation,
   UtensilsCrossed,
-  Sparkles,
 } from 'lucide-react';
 
 interface Hotel {
@@ -102,6 +104,34 @@ export function DestinationGuideCard({
   const [activeTab, setActiveTab] = useState<0 | 1 | 2>(0);
   const [liveRestaurants, setLiveRestaurants] = useState<Restaurant[] | null>(null);
   const [restaurantsLoading, setRestaurantsLoading] = useState(false);
+  const picks = useTripStore((s) => s.picks);
+  const togglePick = useTripStore((s) => s.togglePick);
+  const isPicked = (kind: PickKind, name: string) =>
+    picks.some((p) => p.city === city && p.kind === kind && p.name === name);
+
+  const PickButton = ({ kind, name, size = 'sm' }: { kind: PickKind; name: string; size?: 'sm' | 'md' }) => {
+    const picked = isPicked(kind, name);
+    const iconSize = size === 'md' ? 14 : 12;
+    const pad = size === 'md' ? 'p-1.5' : 'p-1';
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          togglePick({ city, kind, name });
+        }}
+        className={`shrink-0 rounded-lg border ${pad} transition-all active:scale-90 ${
+          picked
+            ? 'bg-indigo text-white border-indigo'
+            : 'bg-surface text-text-muted border-border hover:border-indigo-border hover:text-indigo'
+        }`}
+        aria-label={picked ? `Remove ${name} from your picks` : `Add ${name} to your picks`}
+        aria-pressed={picked}
+      >
+        <Bookmark size={iconSize} fill={picked ? 'currentColor' : 'none'} />
+      </button>
+    );
+  };
 
   useEffect(() => {
     if (!city) return;
@@ -167,9 +197,9 @@ export function DestinationGuideCard({
         {onOpenFullGuide && (
           <button
             onClick={onOpenFullGuide}
-            className="hidden lg:inline-flex items-center gap-1.5 rounded-xl bg-indigo-soft border border-indigo-border px-3 py-1.5 text-xs font-semibold text-indigo hover:bg-indigo hover:text-white hover:border-indigo transition-all active:scale-[0.97]"
+            className="hidden lg:inline-flex items-center rounded-xl bg-indigo-soft border border-indigo-border px-3 py-1.5 text-xs font-semibold text-indigo hover:bg-indigo hover:text-white hover:border-indigo transition-all active:scale-[0.97]"
           >
-            <Sparkles size={12} /> Open full guide
+            Open full guide
           </button>
         )}
       </div>
@@ -211,6 +241,7 @@ export function DestinationGuideCard({
               {hotel.priceLevel && (
                 <span className="text-sm font-semibold text-indigo shrink-0">{hotel.priceLevel}</span>
               )}
+              <PickButton kind="stay" name={hotel.name} />
             </div>
             <div className="flex items-center gap-2 mb-2">
               <span className="pill-default text-[10px]">{hotel.neighborhood}</span>
@@ -281,6 +312,7 @@ export function DestinationGuideCard({
                                 <Navigation size={10} /> Go
                               </a>
                             )}
+                            <PickButton kind="do" name={place.name} />
                           </div>
                         </div>
                         {place.rating != null && (
@@ -318,12 +350,15 @@ export function DestinationGuideCard({
                   </span>
                   <h5 className="text-sm font-semibold text-text-primary truncate">{r.name}</h5>
                 </div>
-                {(r.rating || r.priceLevel) && (
-                  <div className="flex items-center gap-1.5 shrink-0 text-[11px] text-text-muted">
-                    {r.rating && <span>⭐ {r.rating.toFixed(1)}</span>}
-                    {r.priceLevel && <span className="text-text-xmuted">{r.priceLevel}</span>}
-                  </div>
-                )}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {(r.rating || r.priceLevel) && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-text-muted">
+                      {r.rating && <span>⭐ {r.rating.toFixed(1)}</span>}
+                      {r.priceLevel && <span className="text-text-xmuted">{r.priceLevel}</span>}
+                    </div>
+                  )}
+                  <PickButton kind="eat" name={r.name} />
+                </div>
               </div>
               {r.description && !r.description.startsWith('Rated') && r.description !== 'Local favourite' && (
                 <p className="text-[11px] text-text-muted leading-relaxed">{r.description}</p>
