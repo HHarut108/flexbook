@@ -5,6 +5,7 @@ import { HomeHubCard } from '../components/HomeHubCard';
 import { HomeTestimonialBlock } from '../components/HomeTestimonialBlock';
 import { ToolCard } from '../components/ToolCard';
 import { TOOLS_V2 } from './ToolsScreen';
+import { useAuthStore } from '../store/auth.store';
 
 interface Props {
   onMenuOpen?: () => void;
@@ -16,6 +17,7 @@ interface Props {
  * No search form on this page — visitors pick a tool first.
  */
 export function HomeScreenV2({ onMenuOpen }: Props) {
+  const user = useAuthStore((s) => s.user);
   return (
     <MarketingShellV2
       active="home"
@@ -37,6 +39,15 @@ export function HomeScreenV2({ onMenuOpen }: Props) {
                 Flexbook · Your travel toolkit
               </p>
             </div>
+
+            {user && (
+              <p
+                className="text-text-secondary font-semibold mb-1.5 md:mb-2"
+                style={{ fontSize: 'clamp(1rem, 1.6vw, 1.5rem)', letterSpacing: '-0.01em' }}
+              >
+                Hi {user.firstName} 👋
+              </p>
+            )}
 
             <h1
               className="font-black text-text-primary leading-[0.95]"
