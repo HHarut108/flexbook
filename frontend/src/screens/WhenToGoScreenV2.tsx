@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import axios from 'axios';
 import { LocationSelection, selectionLabel, selectionToMarker } from '@fast-travel/shared';
 import { format, addDays, addMonths, endOfMonth, startOfMonth } from 'date-fns';
-import { ArrowRight, CalendarDays, ExternalLink, Loader2, PlaneTakeoff, TrendingDown } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ExternalLink, Loader2, PlaneTakeoff, TrendingDown } from 'lucide-react';
 import { MarketingShellV2 } from '../components/MarketingShellV2';
 import { AirportSearchInput } from '../components/AirportSearchInput';
 import { TripMapColumn } from '../components/TripMapColumn';
@@ -97,6 +97,7 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
   const [result, setResult] = useState<CheapestDayResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<'search' | 'result'>('search');
   const abortRef = useRef<AbortController | null>(null);
 
   function selectPreset(p: DateRange) {
@@ -125,6 +126,7 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
     abortRef.current = ctrl;
     setLoading(true);
     setError(null);
+    setView('result');
     track(AnalyticsEvent.WhenToGoSearch, {
       from: originMarker,
       to: destMarker,
@@ -159,6 +161,14 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
     setResult({ ...result, cheapest: day });
   }
 
+  function handleNewSearch() {
+    abortRef.current?.abort();
+    setLoading(false);
+    setResult(null);
+    setError(null);
+    setView('search');
+  }
+
   return (
     <MarketingShellV2
       active="when"
@@ -190,160 +200,210 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
             </div>
           </div>
 
-          {/* RIGHT: form card */}
+          {/* RIGHT: form card OR result card (swaps in place) */}
           <div
             className={`bg-surface rounded-[24px] border border-border/60 p-5 md:p-6 ${mobileView === 'list' ? '' : 'hidden'} md:block`}
             style={{ boxShadow: '0 20px 50px -20px rgba(15,23,42,0.18)' }}
           >
-            <FieldLabel>From</FieldLabel>
-            <div className="mb-4">
-              <AirportSearchInput
-                value={originQuery}
-                onChange={(v) => {
-                  setOriginQuery(v);
-                  if (origin) setOrigin(null);
-                }}
-                onSelect={(s) => {
-                  setOrigin(s);
-                  setOriginQuery(selectionLabel(s));
-                }}
-                placeholder="Origin city or airport"
-                ariaLabel="Origin"
-              />
-            </div>
+            {view === 'search' ? (
+              <>
+                <FieldLabel>From</FieldLabel>
+                <div className="mb-4">
+                  <AirportSearchInput
+                    value={originQuery}
+                    onChange={(v) => {
+                      setOriginQuery(v);
+                      if (origin) setOrigin(null);
+                    }}
+                    onSelect={(s) => {
+                      setOrigin(s);
+                      setOriginQuery(selectionLabel(s));
+                    }}
+                    placeholder="Origin city or airport"
+                    ariaLabel="Origin"
+                  />
+                </div>
 
-            <FieldLabel>I want to go to</FieldLabel>
-            <div className="mb-6">
-              <AirportSearchInput
-                value={destQuery}
-                onChange={(v) => {
-                  setDestQuery(v);
-                  if (destination) setDestination(null);
-                }}
-                onSelect={(s) => {
-                  setDestination(s);
-                  setDestQuery(selectionLabel(s));
-                }}
-                placeholder="Destination city or airport"
-                ariaLabel="Destination"
-              />
-            </div>
+                <FieldLabel>I want to go to</FieldLabel>
+                <div className="mb-6">
+                  <AirportSearchInput
+                    value={destQuery}
+                    onChange={(v) => {
+                      setDestQuery(v);
+                      if (destination) setDestination(null);
+                    }}
+                    onSelect={(s) => {
+                      setDestination(s);
+                      setDestQuery(selectionLabel(s));
+                    }}
+                    placeholder="Destination city or airport"
+                    ariaLabel="Destination"
+                  />
+                </div>
 
-            <FieldLabel>Date range</FieldLabel>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {PRESETS.map((p) => (
+                <FieldLabel>Date range</FieldLabel>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {PRESETS.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => selectPreset(p)}
+                      className={`px-3.5 py-2 rounded-full text-xs font-semibold transition-all border ${
+                        range.id === p.id
+                          ? 'bg-text-primary text-bg border-text-primary'
+                          : 'bg-surface text-text-secondary border-border hover:bg-surface-2 hover:text-text-primary'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={selectCustom}
+                    className={`px-3.5 py-2 rounded-full text-xs font-semibold transition-all border ${
+                      range.id === 'custom'
+                        ? 'bg-text-primary text-bg border-text-primary'
+                        : 'bg-surface text-text-secondary border-border hover:bg-surface-2 hover:text-text-primary'
+                    }`}
+                  >
+                    Custom range
+                  </button>
+                </div>
+
+                {range.id === 'custom' ? (
+                  <div className="mb-5">
+                    <DateRangePicker
+                      dateFrom={customStart}
+                      dateTo={customEnd}
+                      today={formatYMD(new Date())}
+                      label=""
+                      fromLabel="Earliest"
+                      toLabel="Latest"
+                      onChangeFrom={(v) => {
+                        setCustomStart(v);
+                        setRange((r) => ({ ...r, start: v }));
+                      }}
+                      onChangeTo={(v) => {
+                        setCustomEnd(v);
+                        setRange((r) => ({ ...r, end: v }));
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-text-muted mb-5 px-1">
+                    Searching {fmtRange(range.start, range.end)}
+                  </p>
+                )}
+
                 <button
-                  key={p.id}
                   type="button"
-                  onClick={() => selectPreset(p)}
-                  className={`px-3.5 py-2 rounded-full text-xs font-semibold transition-all border ${
-                    range.id === p.id
-                      ? 'bg-text-primary text-bg border-text-primary'
-                      : 'bg-surface text-text-secondary border-border hover:bg-surface-2 hover:text-text-primary'
-                  }`}
+                  onClick={handleSearch}
+                  disabled={!origin || !destination || loading}
+                  className="w-full flex items-center justify-center gap-2 py-4 rounded-full bg-orange text-white text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-orange-dark transition-all"
+                  style={{ boxShadow: '0 14px 32px -10px rgba(249,115,22,0.5)' }}
                 >
-                  {p.label}
+                  {loading ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      Searching…
+                    </>
+                  ) : (
+                    <>
+                      Find cheapest dates
+                      <ArrowRight size={14} />
+                    </>
+                  )}
                 </button>
-              ))}
-              <button
-                type="button"
-                onClick={selectCustom}
-                className={`px-3.5 py-2 rounded-full text-xs font-semibold transition-all border ${
-                  range.id === 'custom'
-                    ? 'bg-text-primary text-bg border-text-primary'
-                    : 'bg-surface text-text-secondary border-border hover:bg-surface-2 hover:text-text-primary'
-                }`}
-              >
-                Custom range
-              </button>
-            </div>
-
-            {range.id === 'custom' ? (
-              <div className="mb-5">
-                <DateRangePicker
-                  dateFrom={customStart}
-                  dateTo={customEnd}
-                  today={formatYMD(new Date())}
-                  label=""
-                  fromLabel="Earliest"
-                  toLabel="Latest"
-                  onChangeFrom={(v) => {
-                    setCustomStart(v);
-                    setRange((r) => ({ ...r, start: v }));
-                  }}
-                  onChangeTo={(v) => {
-                    setCustomEnd(v);
-                    setRange((r) => ({ ...r, end: v }));
-                  }}
-                />
-              </div>
+              </>
             ) : (
-              <p className="text-[11px] text-text-muted mb-5 px-1">
-                Searching {fmtRange(range.start, range.end)}
-              </p>
+              <ResultPanel
+                loading={loading}
+                error={error}
+                result={result}
+                originLabel={origin ? selectionLabel(origin) : ''}
+                destinationLabel={destination ? selectionLabel(destination) : ''}
+                rangeLabel={fmtRange(range.start, range.end)}
+                onCtaClick={handleCtaClick}
+                onPickDay={pickDay}
+                onNewSearch={handleNewSearch}
+              />
             )}
-
-            <button
-              type="button"
-              onClick={handleSearch}
-              disabled={!origin || !destination || loading}
-              className="w-full flex items-center justify-center gap-2 py-4 rounded-full bg-orange text-white text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-orange-dark transition-all"
-              style={{ boxShadow: '0 14px 32px -10px rgba(249,115,22,0.5)' }}
-            >
-              {loading ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  Searching…
-                </>
-              ) : (
-                <>
-                  Find cheapest dates
-                  <ArrowRight size={14} />
-                </>
-              )}
-            </button>
           </div>
 
-        </div>
-
-        {/* Result / empty state */}
-        <div className="mt-10">
-          <ResultBlock
-            loading={loading}
-            error={error}
-            result={result}
-            hasInputs={!!origin && !!destination}
-            onCtaClick={handleCtaClick}
-            onPickDay={pickDay}
-          />
         </div>
       </section>
     </MarketingShellV2>
   );
 }
 
-interface ResultBlockProps {
+interface ResultPanelProps {
   loading: boolean;
   error: string | null;
   result: CheapestDayResponse | null;
-  hasInputs: boolean;
+  originLabel: string;
+  destinationLabel: string;
+  rangeLabel: string;
   onCtaClick: () => void;
   onPickDay: (day: CalendarDay) => void;
+  onNewSearch: () => void;
 }
 
-function ResultBlock({ loading, error, result, hasInputs, onCtaClick, onPickDay }: ResultBlockProps) {
+function NewSearchLink({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-secondary hover:text-indigo transition-colors"
+    >
+      <ArrowLeft size={13} />
+      New search
+    </button>
+  );
+}
+
+function ResultPanel({
+  loading,
+  error,
+  result,
+  originLabel,
+  destinationLabel,
+  rangeLabel,
+  onCtaClick,
+  onPickDay,
+  onNewSearch,
+}: ResultPanelProps) {
+  const cheapest = result?.cheapest ?? null;
+
+  const header = (
+    <div className="flex items-center justify-between mb-4">
+      <NewSearchLink onClick={onNewSearch} />
+      {(originLabel || destinationLabel) && (
+        <div className="text-[11px] text-text-muted truncate ml-2 max-w-[60%] text-right">
+          {originLabel}
+          {originLabel && destinationLabel && <span className="mx-1">→</span>}
+          {destinationLabel}
+          {rangeLabel && <span className="ml-1.5">· {rangeLabel}</span>}
+        </div>
+      )}
+    </div>
+  );
+
   if (error) {
     return (
-      <div className="max-w-xl mx-auto bg-red-50 border border-red-200 rounded-2xl px-5 py-4">
-        <p className="text-sm font-semibold text-red-700">Couldn&rsquo;t fetch prices</p>
-        <p className="text-xs text-red-600/80 mt-1">{error}</p>
+      <div>
+        {header}
+        <div className="bg-red-50 border border-red-200 rounded-2xl px-5 py-4">
+          <p className="text-sm font-semibold text-red-700">Couldn&rsquo;t fetch prices</p>
+          <p className="text-xs text-red-600/80 mt-1">{error}</p>
+        </div>
       </div>
     );
   }
 
   if (loading && !result) {
     return (
-      <div className="max-w-xl mx-auto bg-surface border border-border/60 rounded-3xl p-6">
+      <div>
+        {header}
         <div className="h-5 w-32 bg-surface-2 rounded animate-pulse mb-3" />
         <div className="h-8 w-56 bg-surface-2 rounded animate-pulse mb-2" />
         <div className="h-12 w-32 bg-surface-2 rounded animate-pulse mb-4" />
@@ -352,34 +412,23 @@ function ResultBlock({ loading, error, result, hasInputs, onCtaClick, onPickDay 
     );
   }
 
-  const cheapest = result?.cheapest ?? null;
   if (result && !cheapest) {
     return (
-      <div className="max-w-xl mx-auto bg-surface border border-border/60 rounded-3xl p-6 text-center">
-        <p className="text-sm font-semibold text-text-primary mb-1">
-          No flights found in this window
-        </p>
-        <p className="text-xs text-text-muted">
-          Try widening the window or picking a different month.
-        </p>
+      <div>
+        {header}
+        <div className="text-center py-4">
+          <p className="text-sm font-semibold text-text-primary mb-1">
+            No flights found in this window
+          </p>
+          <p className="text-xs text-text-muted">
+            Try widening the window or picking a different month.
+          </p>
+        </div>
       </div>
     );
   }
 
-  if (!cheapest) {
-    return (
-      <div className="flex flex-col items-center justify-center text-center">
-        <div className="w-12 h-12 rounded-2xl bg-surface border border-border/60 flex items-center justify-center mb-3">
-          <CalendarDays size={20} className="text-text-muted" />
-        </div>
-        <p className="text-sm text-text-muted">
-          {hasInputs
-            ? 'Hit Find cheapest dates — we’ll fetch live prices.'
-            : 'Pick an origin and destination to find the cheapest day.'}
-        </p>
-      </div>
-    );
-  }
+  if (!cheapest) return <div>{header}</div>;
 
   const it = cheapest.itinerary;
   const stopsLabel =
@@ -390,15 +439,16 @@ function ResultBlock({ loading, error, result, hasInputs, onCtaClick, onPickDay 
         : `${it.stops} stop${it.stops > 1 ? 's' : ''}`;
 
   return (
-    <div className="max-w-xl mx-auto bg-surface border border-border/60 rounded-3xl p-6 relative overflow-hidden">
+    <div className="relative">
       {loading && (
-        <div className="absolute inset-0 bg-white/55 backdrop-blur-[1px] z-10 flex items-start justify-center pt-6">
+        <div className="absolute inset-0 bg-white/55 backdrop-blur-[1px] z-10 flex items-start justify-center pt-6 -m-1">
           <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-border shadow-sm text-xs text-text-secondary">
             <Loader2 size={13} className="animate-spin text-indigo" />
             Refreshing…
           </div>
         </div>
       )}
+      {header}
       <div className="flex items-center gap-2 mb-3">
         <TrendingDown size={14} className="text-emerald" />
         <span className="text-xs font-bold text-emerald uppercase tracking-wide">
