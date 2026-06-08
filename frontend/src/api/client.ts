@@ -8,8 +8,9 @@ const getBaseURL = () => {
 
 export const apiClient = axios.create({
   baseURL: getBaseURL(),
-  // 30s default to tolerate Render cold starts; individual calls can override.
-  timeout: 30000,
+  // 45s default: gives the backend room to fail over from Kiwi (30s timeout)
+  // to SerpAPI on slow indirect-route searches before the user sees a timeout.
+  timeout: 45000,
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true,
 });

@@ -6,6 +6,7 @@ import { ok, fail } from '../utils/response';
 import { resolveLocation } from '../utils/resolveLocation';
 import { SerpApiRateLimitError, SerpApiUnavailableError, SerpApiResponseError } from '../providers/SerpApiFlightProvider';
 import { RapidApiRateLimitError, RapidApiAuthError, RapidApiUnavailableError } from '../providers/RapidApiKiwiFlightProvider';
+import { FlightProviderConfigError } from '../services/FlightService';
 
 /** Collapse multiple flights with the same landing airport down to the
  *  cheapest. Used after fan-out across a city origin so the result list
@@ -109,7 +110,10 @@ export async function flightRoutes(app: FastifyInstance) {
       // Re-apply destination dedup once across the merged fan-out result.
       // Per-task dedup was disabled inside searchOneWayFanOut so we don't
       // lose cheaper options to the same airport from a different origin.
-      const flights = deduplicate ? dedupeByDestinationKeepCheapest(result.flights) : result.flights;
+      // Skip when destination is locked: every result lands at the same IATA,
+      // so dedup would collapse 30+ itineraries down to a single row.
+      const shouldDedupe = deduplicate && !destination;
+      const flights = shouldDedupe ? dedupeByDestinationKeepCheapest(result.flights) : result.flights;
       return ok({ origin: originIata, date, cacheStatus: result.cacheStatus, results: flights });
     } catch (err) {
       if (err instanceof SerpApiRateLimitError) {
@@ -137,6 +141,10 @@ export async function flightRoutes(app: FastifyInstance) {
       if (err instanceof RapidApiUnavailableError) {
         app.log.warn(err, 'RapidAPI temporarily unavailable');
         return reply.status(503).send(fail('FLIGHT_API_UNAVAILABLE', 'Flight search is temporarily unavailable. Please try again shortly.', true));
+      }
+      if (err instanceof FlightProviderConfigError) {
+        app.log.error(err, 'No flight provider configured');
+        return reply.status(503).send(fail('FLIGHT_API_NOT_CONFIGURED', 'Flight search is not configured. Please contact support.', false));
       }
       app.log.error(err, 'Flight search failed');
       return reply.status(502).send(fail('FLIGHT_API_UNAVAILABLE', 'Could not fetch flights. Please try again.', true));
