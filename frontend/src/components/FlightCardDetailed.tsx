@@ -1,7 +1,7 @@
 import { FlightOption } from '@fast-travel/shared';
 import { formatTime, durationLabel } from '../utils/date.utils';
 import { formatPrice } from '../utils/price.utils';
-import { ArrowRight, Sparkles, ShieldCheck, AlertTriangle, Ticket } from 'lucide-react';
+import { ArrowRight, Sparkles, ShieldCheck, AlertTriangle, Ticket, Users } from 'lucide-react';
 
 /* ── Single one-way card ─────────────────────────────────────────────────── */
 
@@ -10,6 +10,9 @@ interface FlightCardDetailedProps {
   passengers: number;
   isBestValue?: boolean;
   logoUrl?: string;
+  /** All known carrier logos (LH, W6, …) so multi-operator flights can show
+   *  a stack instead of just the primary mark. */
+  carrierLogos?: Record<string, string>;
   onSelect: (flight: FlightOption) => void;
 }
 
@@ -18,6 +21,7 @@ export function FlightCardDetailed({
   passengers,
   isBestValue,
   logoUrl,
+  carrierLogos,
   onSelect,
 }: FlightCardDetailedProps) {
   const hasSelfTransfer = flight.layovers?.some((l) => l.selfTransfer) ?? false;
@@ -34,7 +38,12 @@ export function FlightCardDetailed({
         />
       }
     >
-      <LegRow leg={flight} logoUrl={logoUrl} isBestValue={isBestValue} />
+      <LegRow
+        leg={flight}
+        logoUrl={logoUrl}
+        isBestValue={isBestValue}
+        carrierLogos={carrierLogos}
+      />
     </DetailedTripCard>
   );
 }
@@ -98,6 +107,11 @@ export interface LegRowProps {
   /** "Outbound" / "Return" / "Leg 1" — small label above the airline name. */
   legLabel?: string;
   isBestValue?: boolean;
+  /** Logo URLs for every carrier on this itinerary, keyed by airline code.
+   *  When the itinerary spans 2+ operators, LegRow renders stacked
+   *  airline marks instead of a single logo so the user can see at a
+   *  glance that the ticket mixes carriers. */
+  carrierLogos?: Record<string, string>;
 }
 
 /**
@@ -115,13 +129,155 @@ export interface LegRowProps {
  * Desktop (lg+):
  *   [logo+airline]  |  timeline (centred)
  */
-export function LegRow({ leg, logoUrl, legLabel, isBestValue }: LegRowProps) {
-  const carrierName = leg.airlineName || leg.carriers?.[0] || 'Airline';
-  const code = leg.airlineCode?.toUpperCase() || carrierName.slice(0, 1).toUpperCase();
+/** Stop dots — one indigo node per stopover, evenly spaced along the line.
+ *  Tooltips on each give the airport code so a user can see WHERE the
+ *  layovers happen without expanding the card. */
+function StopDots({ viaIatas }: { viaIatas: string[] }) {
+  if (viaIatas.length === 0) return null;
+  // Evenly distribute N stops over the segment between the start and end
+  // pins. `(i + 1) / (N + 1)` keeps the dots strictly between 0% and 100%.
+  return (
+    <>
+      {viaIatas.map((iata, i) => {
+        const pct = ((i + 1) / (viaIatas.length + 1)) * 100;
+        return (
+          <span
+            key={`${iata}-${i}`}
+            className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full border-2 border-indigo-mid bg-surface"
+            style={{ left: `${pct}%` }}
+            title={iata}
+            aria-label={`Stopover at ${iata}`}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+/** Stacked carrier marks. Up to 2 logos overlap with a slight x-offset; if
+ *  the itinerary has 3+ carriers, the second slot becomes a "+N" badge. The
+ *  whole stack stays the same footprint as a single mark so the leg row's
+ *  airline column doesn't get wider just because the ticket mixes carriers. */
+function CarrierStack({
+  codes,
+  carrierLogos,
+  primaryCode,
+  primaryLogoUrl,
+  carrierName,
+}: {
+  codes: string[];
+  carrierLogos?: Record<string, string>;
+  primaryCode: string;
+  primaryLogoUrl?: string;
+  carrierName: string;
+}) {
+  const distinct = Array.from(new Set(codes.filter(Boolean)));
+  const hasMixed = distinct.length > 1;
+  const second = hasMixed ? distinct.find((c) => c !== primaryCode) : null;
+  const overflow = Math.max(0, distinct.length - 2);
+
+  return (
+    <div className="flex shrink-0 -space-x-2">
+      <BadgeMark
+        code={primaryCode}
+        logoUrl={primaryLogoUrl}
+        alt={`${carrierName} logo`}
+      />
+      {hasMixed && (
+        overflow > 0 ? (
+          <span
+            className="relative z-10 w-9 h-9 lg:w-11 lg:h-11 rounded-xl lg:rounded-2xl bg-indigo-soft border border-indigo-border shadow-[0_1px_2px_rgba(15,23,42,0.04)] flex items-center justify-center"
+            title={`Mixed: ${distinct.join(' + ')}`}
+          >
+            <span className="font-mono font-bold text-[11px] lg:text-[12px] text-indigo">
+              +{overflow + 1}
+            </span>
+          </span>
+        ) : second ? (
+          <BadgeMark
+            code={second}
+            logoUrl={carrierLogos?.[second.toUpperCase()]}
+            alt={`${second} logo`}
+            stacked
+          />
+        ) : null
+      )}
+    </div>
+  );
+}
+
+function BadgeMark({
+  code,
+  logoUrl,
+  alt,
+  stacked,
+}: {
+  code: string;
+  logoUrl?: string;
+  alt: string;
+  stacked?: boolean;
+}) {
+  return (
+    <span
+      className={
+        'relative w-9 h-9 lg:w-11 lg:h-11 rounded-xl lg:rounded-2xl flex items-center justify-center shrink-0 overflow-hidden bg-surface border border-border/70 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ' +
+        (stacked ? 'z-10' : '')
+      }
+      title={code}
+    >
+      {logoUrl ? (
+        <img
+          src={logoUrl}
+          alt={alt}
+          className="h-5 w-7 lg:h-6 lg:w-8 object-contain"
+          loading="lazy"
+        />
+      ) : (
+        <span className="font-mono font-bold text-[11px] lg:text-[13px] text-text-primary tracking-tight">
+          {code.slice(0, 2).toUpperCase()}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Format the carrier name for the leg row. Solo: "Wizz Air Malta". Two:
+ *  "Wizz Air Malta + Ryanair". 3+: "Wizz Air Malta + 2 others". Keeps the
+ *  text honest about how many operators the user is buying from. */
+function formatCarrierLine(leg: FlightOption): string {
+  const list = leg.carriers && leg.carriers.length > 0 ? leg.carriers : [leg.airlineName];
+  const filtered = list.filter(Boolean);
+  if (filtered.length <= 1) return filtered[0] ?? 'Airline';
+  if (filtered.length === 2) return `${filtered[0]} + ${filtered[1]}`;
+  return `${filtered[0]} + ${filtered.length - 1} others`;
+}
+
+export function LegRow({
+  leg,
+  logoUrl,
+  legLabel,
+  isBestValue,
+  carrierLogos,
+}: LegRowProps) {
+  const carrierName = formatCarrierLine(leg);
+  const primaryCode = (leg.airlineCode || leg.carriers?.[0] || carrierName.slice(0, 1)).toUpperCase();
   const isDirect = leg.stops === 0;
-  const stopLabel = isDirect ? 'Direct' : `${leg.stops} stop${leg.stops > 1 ? 's' : ''}`;
-  const firstLayover = leg.layovers?.find((l) => l.durationMinutes > 0);
-  const viaIata = firstLayover?.iata ?? leg.viaIatas?.[0] ?? null;
+  const viaIatas = (leg.viaIatas ?? leg.layovers?.map((l) => l.iata) ?? []).filter(Boolean);
+  const layovers = (leg.layovers ?? []).filter((l) => l.durationMinutes > 0);
+  const layoverCarrierCodes = leg.carriers && leg.carriers.length > 0
+    ? leg.carriers.map((c) => {
+        // Carriers come as airline names; the LegRow only has the primary
+        // airlineCode. For the secondary stack mark we fall back to a
+        // 2-letter code derived from the name when the user hasn't passed
+        // explicit codes. (Backend Filights API gives us names, not codes,
+        // for the multi-carrier case.)
+        return c.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase();
+      })
+    : [primaryCode];
+  // The stable code for the second slot in the stack — prefers a real
+  // distinct code over the derived 2-letter monogram.
+  const stackCodes = [primaryCode, ...layoverCarrierCodes.filter((c) => c !== primaryCode)];
+  const isMixed = (leg.carriers?.length ?? 1) > 1;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr] xl:grid-cols-[200px_1fr] gap-2 lg:gap-4 items-center">
@@ -130,28 +286,19 @@ export function LegRow({ leg, logoUrl, legLabel, isBestValue }: LegRowProps) {
           never push the arrival time off-screen. Desktop puts it on the
           left in its own grid column. */}
       <div className="flex items-center gap-2.5 min-w-0">
-        <div className="w-9 h-9 lg:w-11 lg:h-11 rounded-xl lg:rounded-2xl flex items-center justify-center shrink-0 overflow-hidden bg-surface border border-border/70 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-          {logoUrl ? (
-            <img
-              src={logoUrl}
-              alt={`${carrierName} logo`}
-              className="h-5 w-7 lg:h-6 lg:w-8 object-contain"
-              loading="lazy"
-            />
-          ) : (
-            <span className="font-mono font-bold text-[11px] lg:text-[13px] text-text-primary tracking-tight">
-              {code.slice(0, 2)}
-            </span>
-          )}
-        </div>
+        <CarrierStack
+          codes={stackCodes}
+          carrierLogos={carrierLogos}
+          primaryCode={primaryCode}
+          primaryLogoUrl={logoUrl}
+          carrierName={carrierName}
+        />
         <div className="min-w-0 flex-1">
           {legLabel && (
             <p className="text-[9px] uppercase tracking-[0.14em] font-bold text-text-muted leading-none mb-0.5">
               {legLabel}
             </p>
           )}
-          {/* Mobile: name + dot-stop inline. Desktop: name on its own line, stop
-              on the line below — gives long carrier names room to breathe. */}
           <div className="flex items-baseline gap-2 min-w-0 lg:block">
             <p
               className="text-[13px] lg:text-[14px] font-bold text-text-primary truncate leading-tight"
@@ -166,9 +313,14 @@ export function LegRow({ leg, logoUrl, legLabel, isBestValue }: LegRowProps) {
                   (isDirect ? 'bg-emerald-500' : 'bg-sky-500')
                 }
               />
-              {stopLabel}
+              {isDirect ? 'Direct' : `${leg.stops} stop${leg.stops > 1 ? 's' : ''}`}
             </p>
           </div>
+          {isMixed && (
+            <span className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 text-[10px] font-semibold leading-none">
+              <Users size={10} /> Mixed carriers
+            </span>
+          )}
           {isBestValue && (
             <span className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-indigo text-white text-[10px] font-semibold leading-none">
               <Sparkles size={9} /> Best value
@@ -177,7 +329,8 @@ export function LegRow({ leg, logoUrl, legLabel, isBestValue }: LegRowProps) {
         </div>
       </div>
 
-      {/* Timeline. Tighter on mobile (smaller times, only one info line below). */}
+      {/* Timeline. Now plots one dot per stopover so the user can see all the
+          intermediate airports at a glance, with the iatas labelled below. */}
       <div className="min-w-0">
         <div className="flex items-center gap-2 lg:gap-3">
           <div className="flex flex-col items-start shrink-0">
@@ -194,11 +347,27 @@ export function LegRow({ leg, logoUrl, legLabel, isBestValue }: LegRowProps) {
             </p>
             <div className="relative h-px bg-border">
               <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-indigo-mid" />
-              {leg.stops > 0 && (
-                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full border-2 border-indigo-mid bg-surface" />
-              )}
+              <StopDots viaIatas={viaIatas} />
               <span className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-indigo-mid" />
             </div>
+            {/* Label each stop dot below the line with its IATA. Hidden when
+                there are no stops to label. */}
+            {viaIatas.length > 0 && (
+              <div className="relative mt-1 h-3">
+                {viaIatas.map((iata, i) => {
+                  const pct = ((i + 1) / (viaIatas.length + 1)) * 100;
+                  return (
+                    <span
+                      key={`label-${iata}-${i}`}
+                      className="absolute text-[9px] lg:text-[10px] font-mono text-text-muted -translate-x-1/2"
+                      style={{ left: `${pct}%` }}
+                    >
+                      {iata}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <div className="flex flex-col items-end shrink-0">
             <span className="font-mono text-base lg:text-lg font-bold text-text-primary leading-none">
@@ -209,26 +378,39 @@ export function LegRow({ leg, logoUrl, legLabel, isBestValue }: LegRowProps) {
             </span>
           </div>
         </div>
-        {/* Combine "1 stop · VIE · 1h 40m · easy" into a single line so it
-            doesn't take two rows on mobile. */}
-        {firstLayover ? (
-          <p className="text-center text-[10px] lg:text-[11px] mt-1 leading-tight">
-            <span className="inline-flex flex-wrap justify-center items-center gap-x-1 text-emerald-600 dark:text-emerald-400 font-medium">
-              <span className="w-1 h-1 rounded-full bg-emerald-500" />
-              {durationLabel(firstLayover.durationMinutes)} in {firstLayover.iata}
-              <span className="text-text-xmuted">·</span>
-              <span className="text-text-muted">{layoverQuality(firstLayover.durationMinutes)}</span>
-            </span>
-          </p>
-        ) : (
-          leg.stops > 0 &&
-          viaIata && (
-            <p className="text-center text-[10px] lg:text-[11px] text-text-muted mt-1 leading-tight">
-              <span className="font-semibold text-text-secondary">{stopLabel}</span>
-              <span className="mx-1 text-text-xmuted">·</span>
-              <span className="font-mono">{viaIata}</span>
-            </p>
-          )
+
+        {/* Per-layover breakdown — one chip per stopover. Already-labelled
+            dots show *where*; this row shows *how long* and *self-transfer
+            risk*. Suppressed when the timeline dots alone tell the whole
+            story (no layovers in the response). */}
+        {layovers.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-[10px] lg:text-[11px] leading-tight">
+            {layovers.map((lo, i) => (
+              <span
+                key={`${lo.iata}-${i}`}
+                className={
+                  'inline-flex items-center gap-1 font-medium ' +
+                  (lo.selfTransfer
+                    ? 'text-amber-700 dark:text-amber-400'
+                    : 'text-emerald-600 dark:text-emerald-400')
+                }
+              >
+                <span
+                  className={
+                    'w-1 h-1 rounded-full ' +
+                    (lo.selfTransfer ? 'bg-amber-500' : 'bg-emerald-500')
+                  }
+                />
+                {durationLabel(lo.durationMinutes)} in {lo.iata}
+                <span className="text-text-xmuted">·</span>
+                <span className="text-text-muted">{layoverQuality(lo.durationMinutes)}</span>
+                {lo.selfTransfer && (
+                  <span className="text-text-xmuted">· self-transfer</span>
+                )}
+                {i < layovers.length - 1 && <span className="text-text-xmuted">·</span>}
+              </span>
+            ))}
+          </div>
         )}
       </div>
     </div>

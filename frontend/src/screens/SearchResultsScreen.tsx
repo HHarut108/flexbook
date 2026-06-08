@@ -22,9 +22,10 @@ import { RoundTripCardDetailed } from '../components/RoundTripCardDetailed';
 import { MultiCityCardSkeleton } from '../components/MultiCityCard';
 import { MultiCityCardDetailed } from '../components/MultiCityCardDetailed';
 import { MarketingShellV2 } from '../components/MarketingShellV2';
-import { FilterSidebar } from '../components/FilterSidebar';
+import { FilterSidebar, SaverTipPill } from '../components/FilterSidebar';
 import { EditSearchPanel, type EditSearchLeg, type TripType as EditTripType } from '../components/EditSearchPanel';
 import { getAirportIndex, resolveMarkerInIndex } from '../lib/airportIndex';
+import { persistSelectedTrip } from '../lib/selectedTrip';
 import {
   ArrowRight,
   CalendarSearch,
@@ -310,10 +311,21 @@ function RoundTripSection({
   const fromCity = sample?.originCity || outboundLeg?.origin || '';
   const toCity = sample?.destinationCity || outboundLeg?.destination || '';
 
+  const navigate = useNavigate();
   function handleSelect(trip: RoundTripOption) {
-    if (trip.bookingUrl) {
-      window.open(trip.bookingUrl, '_blank', 'noopener,noreferrer');
-    }
+    const saved = persistSelectedTrip({
+      type: 'return',
+      passengers,
+      flights: [trip.outbound, trip.inbound],
+      bookings: [
+        {
+          label: 'Book round trip',
+          url: trip.bookingUrl || trip.outbound.bookingUrl || '',
+        },
+      ],
+      totalPriceUsd: trip.priceUsd,
+    });
+    navigate(`/trip/${saved.id}`, { state: { trip: saved } });
   }
 
   if (result.loading) {
@@ -365,6 +377,17 @@ function RoundTripSection({
         centerDate={outboundLeg?.date ?? ''}
       />
       <div>
+        {/* Mobile-only Saver tip pinned above results. Desktop sidebar shows
+            the full card. */}
+        <div className="lg:hidden mb-3">
+          <SaverTipPill
+            fromMarker={outboundLeg?.origin ?? ''}
+            toMarker={outboundLeg?.destination ?? ''}
+            fromCity={fromCity}
+            toCity={toCity}
+            centerDate={outboundLeg?.date ?? ''}
+          />
+        </div>
         <div className="flex items-end justify-between gap-3 mb-4 flex-wrap">
           <div>
             <h2 className="text-2xl font-black tracking-tight text-text-primary">
@@ -439,15 +462,19 @@ function MultiCitySection({
   const fromCity = sampleLeg?.originCity || firstLeg?.origin || '';
   const toCity = sampleLeg?.destinationCity || firstLeg?.destination || '';
 
+  const navigate = useNavigate();
   function handleSelect(trip: MultiCityOption) {
-    // No bundled deep link — open each leg in its own tab. Browsers may block
-    // multi-tab opens without user gesture; the onClick is the gesture so this
-    // is allowed. If a popup is blocked we still surface the first leg.
-    for (const leg of trip.legs) {
-      if (leg.bookingUrl) {
-        window.open(leg.bookingUrl, '_blank', 'noopener,noreferrer');
-      }
-    }
+    const saved = persistSelectedTrip({
+      type: 'multi',
+      passengers,
+      flights: trip.legs,
+      bookings: trip.legs.map((leg, i) => ({
+        label: `Book Leg ${i + 1}: ${leg.originIata} → ${leg.destinationIata}`,
+        url: leg.bookingUrl ?? '',
+      })),
+      totalPriceUsd: trip.priceUsd,
+    });
+    navigate(`/trip/${saved.id}`, { state: { trip: saved } });
   }
 
   if (result.loading) {
@@ -499,6 +526,15 @@ function MultiCitySection({
         centerDate={firstLeg?.date ?? ''}
       />
       <div>
+        <div className="lg:hidden mb-3">
+          <SaverTipPill
+            fromMarker={firstLeg?.origin ?? ''}
+            toMarker={firstLeg?.destination ?? ''}
+            fromCity={fromCity}
+            toCity={toCity}
+            centerDate={firstLeg?.date ?? ''}
+          />
+        </div>
         <div className="flex items-end justify-between gap-3 mb-4 flex-wrap">
           <div>
             <h2 className="text-2xl font-black tracking-tight text-text-primary">
@@ -560,10 +596,18 @@ function ResultsSection({
 
   const airlineLogos = useAirlineLogos(sorted);
 
+  const navigate = useNavigate();
   function handleSelect(flight: FlightOption) {
-    if (flight.bookingUrl) {
-      window.open(flight.bookingUrl, '_blank', 'noopener,noreferrer');
-    }
+    const saved = persistSelectedTrip({
+      type: 'oneway',
+      passengers,
+      flights: [flight],
+      bookings: [
+        { label: 'Book this flight', url: flight.bookingUrl ?? '' },
+      ],
+      totalPriceUsd: flight.priceUsd,
+    });
+    navigate(`/trip/${saved.id}`, { state: { trip: saved } });
   }
 
   if (result.loading) {
@@ -619,6 +663,15 @@ function ResultsSection({
         centerDate={result.leg.date}
       />
       <div>
+        <div className="lg:hidden mb-3">
+          <SaverTipPill
+            fromMarker={result.leg.origin}
+            toMarker={result.leg.destination}
+            fromCity={fromCity}
+            toCity={toCity}
+            centerDate={result.leg.date}
+          />
+        </div>
         <div className="flex items-end justify-between gap-3 mb-4 flex-wrap">
           <h2 className="text-2xl font-black tracking-tight text-text-primary">{heading}</h2>
           <p className="text-xs text-text-muted">
@@ -646,6 +699,7 @@ function ResultsSection({
                       ? airlineLogos[flight.airlineCode.toUpperCase()]
                       : undefined
                   }
+                  carrierLogos={airlineLogos}
                   onSelect={handleSelect}
                 />
               </div>

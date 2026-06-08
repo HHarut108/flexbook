@@ -34,7 +34,10 @@ export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
   // would otherwise render with a placeholder "?" because no trip origin is set yet,
   // which looks like a broken badge next to the brand mark.
   const HIDDEN_PATHS = new Set(['/', '/hop-planner', '/search', '/quick-search', '/trip-planner', '/when-to-go', '/book', '/book/partial', '/login', '/signup', '/verify-email', '/account', '/trips', '/deals', '/tools', '/about']);
-  if (HIDDEN_PATHS.has(pathname)) return null;
+  // /trip/:id (new in-app booking-review screen) also shouldn't show the
+  // multi-stop progress strip — it belongs to the Quick Search flow, not
+  // the trip-builder.
+  if (HIDDEN_PATHS.has(pathname) || pathname.startsWith('/trip/')) return null;
 
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
   const stopCount = nonReturnLegs.length;

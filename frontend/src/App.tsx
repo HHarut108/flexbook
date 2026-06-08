@@ -24,6 +24,7 @@ import { DecisionScreen } from './screens/DecisionScreen';
 import { ReturnFlightsScreen } from './screens/ReturnFlightsScreen';
 import { ItineraryScreen } from './screens/ItineraryScreen';
 import { BookingReviewScreen } from './screens/BookingReviewScreen';
+import { TripDetailsScreen } from './screens/TripDetailsScreen';
 import { PlanStayScreen } from './screens/PlanStayScreen';
 import { DatePickerScreen } from './screens/DatePickerScreen';
 import { SignUpScreen } from './screens/SignUpScreen';
@@ -113,6 +114,7 @@ export default function App() {
           }
         />
         <Route path="/search" element={<SearchResultsScreen onMenuOpen={() => setDrawerOpen(true)} />} />
+        <Route path="/trip/:id" element={<TripDetailsScreen onMenuOpen={() => setDrawerOpen(true)} />} />
         {v2 && <Route path="/quick-search" element={<QuickSearchScreenV2 onMenuOpen={openDrawer} />} />}
         <Route path="/share/:slug" element={<ShareRedirect />} />
         <Route path="/signup" element={<SignUpScreen />} />

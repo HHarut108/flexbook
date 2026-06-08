@@ -130,24 +130,44 @@ export function QuickSearchScreenV2({ onMenuOpen }: Props) {
               subhead="Compare cheapest fares across millions of routes. One-way, return, or multi-city — pick the option that fits."
             />
 
-            <div className="md:hidden mb-5">
-              <MobileViewToggle value={mobileView} onChange={setMobileView} />
-            </div>
-
-            <div className={`${mobileView === 'map' ? '' : 'hidden'} md:block`}>
-              {tripType === 'multi' ? (
-                <TripMapColumn
-                  legs={legs
-                    .filter((l) => l.fromAirport && l.toAirport)
-                    .map((l) => ({ from: l.fromAirport!, to: l.toAirport! }))}
-                />
-              ) : (
-                <TripMapColumn
-                  origin={fromAirport}
-                  destination={toAirport}
-                />
-              )}
-            </div>
+            {/* The mobile List/Map toggle is only meaningful once the user has
+                picked at least one airport. Before that, the map renders an
+                empty placeholder and the toggle just confuses things — so we
+                hide both the toggle and the map until a pin can land. Desktop
+                always shows the map column (md:block below). */}
+            {(() => {
+              const hasMobileMapTarget =
+                tripType === 'multi'
+                  ? legs.some((l) => l.fromAirport || l.toAirport)
+                  : Boolean(fromAirport || toAirport);
+              return (
+                <>
+                  {hasMobileMapTarget && (
+                    <div className="md:hidden mb-5">
+                      <MobileViewToggle value={mobileView} onChange={setMobileView} />
+                    </div>
+                  )}
+                  <div
+                    className={
+                      // On mobile, show the map column only when the toggle is
+                      // visible AND set to "map". On md+, always show.
+                      (hasMobileMapTarget && mobileView === 'map' ? '' : 'hidden') +
+                      ' md:block'
+                    }
+                  >
+                    {tripType === 'multi' ? (
+                      <TripMapColumn
+                        legs={legs
+                          .filter((l) => l.fromAirport && l.toAirport)
+                          .map((l) => ({ from: l.fromAirport!, to: l.toAirport! }))}
+                      />
+                    ) : (
+                      <TripMapColumn origin={fromAirport} destination={toAirport} />
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </div>
 
           {/* RIGHT: form card */}

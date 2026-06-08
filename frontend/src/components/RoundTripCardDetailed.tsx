@@ -59,6 +59,7 @@ export function RoundTripCardDetailed({
         leg={trip.outbound}
         legLabel="Outbound"
         logoUrl={logoFor(logos, trip.outbound.airlineCode)}
+        carrierLogos={logos}
         isBestValue={isBestValue}
       />
       <StayDivider nights={nights} city={stayCity} />
@@ -66,6 +67,7 @@ export function RoundTripCardDetailed({
         leg={trip.inbound}
         legLabel="Return"
         logoUrl={logoFor(logos, trip.inbound.airlineCode)}
+        carrierLogos={logos}
       />
     </DetailedTripCard>
   );
