@@ -56,6 +56,9 @@ vi.mock('../providers/MockFlightProvider', () => ({
 import { flightRoutes } from './flights';
 import { airportRoutes } from './airports';
 import { healthRoutes } from './health';
+import { fetchMockFlights } from '../providers/MockFlightProvider';
+
+const mockFetchMockFlights = fetchMockFlights as unknown as ReturnType<typeof vi.fn>;
 
 async function buildApp() {
   const app = Fastify({ logger: false });
@@ -203,6 +206,51 @@ describe('GET /flights/search', () => {
       expect(priceInfo).toHaveProperty('priceUpdatedAt');
       expect(['cached', 'live', 'stale']).toContain(priceInfo.priceStatus);
     }
+  });
+
+  // Regression: when the URL pins a destination, dedup-by-destination would
+  // collapse all itineraries to a single row (EVN→MAD shipped only 1 result
+  // even though Kiwi returned 30+). Dedup must be skipped when destination
+  // is locked — every result already lands at the same IATA.
+  it('returns all itineraries when destination is locked (does not collapse to 1)', async () => {
+    const sameDestThreeOptions = [
+      {
+        flightId: 'EVN-MAD-via-FCO', originIata: 'EVN', originCity: 'Yerevan',
+        destinationIata: 'MAD', destinationCity: 'Madrid', destinationCountry: 'Spain',
+        destinationLat: 40.47, destinationLng: -3.56,
+        departureDatetime: '2030-06-15T12:45:00', arrivalDatetime: '2030-06-15T19:50:00',
+        durationMinutes: 545, airlineName: 'Wizz Air', stops: 1, viaIatas: ['FCO'],
+        priceUsd: 141, bookingUrl: 'https://example.com/1',
+      },
+      {
+        flightId: 'EVN-MAD-via-SAW', originIata: 'EVN', originCity: 'Yerevan',
+        destinationIata: 'MAD', destinationCity: 'Madrid', destinationCountry: 'Spain',
+        destinationLat: 40.47, destinationLng: -3.56,
+        departureDatetime: '2030-06-15T06:30:00', arrivalDatetime: '2030-06-15T13:30:00',
+        durationMinutes: 540, airlineName: 'Pegasus', stops: 1, viaIatas: ['SAW'],
+        priceUsd: 227, bookingUrl: 'https://example.com/2',
+      },
+      {
+        flightId: 'EVN-MAD-via-ATH', originIata: 'EVN', originCity: 'Yerevan',
+        destinationIata: 'MAD', destinationCity: 'Madrid', destinationCountry: 'Spain',
+        destinationLat: 40.47, destinationLng: -3.56,
+        departureDatetime: '2030-06-15T04:25:00', arrivalDatetime: '2030-06-15T12:00:00',
+        durationMinutes: 575, airlineName: 'Aegean', stops: 1, viaIatas: ['ATH'],
+        priceUsd: 276, bookingUrl: 'https://example.com/3',
+      },
+    ];
+    mockFetchMockFlights.mockResolvedValueOnce(sameDestThreeOptions);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/flights/search?originIata=EVN&date=2030-06-15&destination=MAD&fresh=true',
+    });
+    expect(res.statusCode).toBe(200);
+    const results: Array<{ flightId: string }> = res.json().data.results;
+    expect(results).toHaveLength(3);
+    expect(results.map((r) => r.flightId).sort()).toEqual([
+      'EVN-MAD-via-ATH', 'EVN-MAD-via-FCO', 'EVN-MAD-via-SAW',
+    ]);
   });
 });
 

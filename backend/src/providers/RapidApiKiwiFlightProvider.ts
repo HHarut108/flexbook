@@ -283,7 +283,9 @@ export async function fetchRapidApiKiwiFlights(
           'x-rapidapi-key': config.RAPIDAPI_KEY,
           'x-rapidapi-host': RAPIDAPI_HOST,
         },
-        timeout: 20000,
+        // 30s: indirect routes with no direct option (e.g. EVN→MAD via FCO/SAW)
+        // force Kiwi to expand the connection graph and routinely exceed 20s.
+        timeout: 30000,
       },
     );
     response = data;

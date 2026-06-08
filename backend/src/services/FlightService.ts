@@ -26,6 +26,13 @@ export interface FlightSearchResult {
   cacheStatus: 'live' | 'schedule_cached';
 }
 
+export class FlightProviderConfigError extends Error {
+  constructor() {
+    super('No flight provider configured (set RAPIDAPI_KEY or SERPAPI_API_KEY)');
+    this.name = 'FlightProviderConfigError';
+  }
+}
+
 type Provider = 'rapidapi-kiwi' | 'serpapi' | 'mock';
 
 function deduplicateByDestination(flights: FlightOption[]): FlightOption[] {
@@ -688,7 +695,13 @@ export class FlightService {
     const chain: Provider[] = [];
     if (config.RAPIDAPI_KEY) chain.push('rapidapi-kiwi');
     if (config.SERPAPI_API_KEY) chain.push('serpapi');
-    if (chain.length === 0) chain.push('mock');
+    if (chain.length === 0) {
+      // Never silently fall back to mock in real environments — the user must
+      // see a real error rather than fake flights. Tests keep the mock path
+      // since they intentionally run with empty keys.
+      if (config.NODE_ENV === 'test') return ['mock'];
+      throw new FlightProviderConfigError();
+    }
     return chain;
   }
 
