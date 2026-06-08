@@ -64,6 +64,7 @@ export function MultiCityCardDetailed({
               leg={leg}
               legLabel={`Leg ${i + 1}`}
               logoUrl={logoFor(logos, leg.airlineCode)}
+              carrierLogos={logos}
               isBestValue={isBestValue && i === 0}
             />
             {nextLeg && <StayDivider nights={nights} city={leg.destinationCity} />}
