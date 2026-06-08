@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { CalendarSearch, ChevronDown, SlidersHorizontal } from 'lucide-react';
+import { ChevronDown, ExternalLink, Sparkles, SlidersHorizontal } from 'lucide-react';
 import { addDays, parseISO } from 'date-fns';
 import { FlightFilters, type FilterBounds, type FlightFilterState } from './FlightFilters';
 import { formatYMD } from '../utils/date.utils';
@@ -90,27 +89,48 @@ export function FilterSidebar({
         <FlightFilters bounds={bounds} value={value} onChange={onChange} />
 
         {fromMarker && toMarker && (
-          <Link
-            to={whenToGoHref}
-            className="block group rounded-2xl border border-indigo-border bg-gradient-to-br from-indigo-soft to-surface p-4 transition-shadow hover:shadow-[0_12px_28px_-12px_rgba(79,70,229,0.35)]"
+          <a
+            href={whenToGoHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block group rounded-2xl border border-orange/30 p-4 transition-all hover:border-orange/60 hover:shadow-[0_14px_30px_-14px_rgba(249,115,22,0.45)] hover:-translate-y-0.5"
+            style={{
+              background:
+                'linear-gradient(135deg, #FFF7ED 0%, #FFFBF5 55%, #FFFFFF 100%)',
+            }}
           >
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-mid text-white flex items-center justify-center shrink-0">
-                <CalendarSearch size={18} />
+              <div
+                className="w-11 h-11 rounded-2xl text-white flex items-center justify-center shrink-0 text-lg leading-none"
+                style={{
+                  background: 'linear-gradient(135deg, #F97316 0%, #EA6C0A 100%)',
+                  boxShadow: '0 8px 18px -8px rgba(249,115,22,0.55)',
+                }}
+                aria-hidden
+              >
+                ✨
               </div>
-              <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-wider font-bold text-indigo-mid">
-                  Flexible on dates?
+              <div className="min-w-0 flex-1">
+                <p className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold text-orange-dark">
+                  <Sparkles size={10} /> Saver tip
                 </p>
-                <p className="text-sm font-bold text-text-primary leading-tight mt-0.5">
-                  Find the cheapest day to fly
+                <p className="text-sm font-bold text-text-primary leading-snug mt-0.5">
+                  Could you save by flying a different day?
                 </p>
-                <p className="text-[11px] text-text-muted mt-1 truncate">
-                  {fromCity} → {toCity} · ±{WHEN_TO_FLY_WINDOW_DAYS} days
+                <p className="text-[11px] text-text-muted mt-1 leading-snug">
+                  Peek the cheapest day{' '}
+                  <span className="font-semibold text-text-secondary">{fromCity}</span>
+                  {' → '}
+                  <span className="font-semibold text-text-secondary">{toCity}</span>
+                  {' '}within ±{WHEN_TO_FLY_WINDOW_DAYS} days
+                </p>
+                <p className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-orange-dark">
+                  Open When-to-Go
+                  <ExternalLink size={11} />
                 </p>
               </div>
             </div>
-          </Link>
+          </a>
         )}
       </div>
     </aside>
