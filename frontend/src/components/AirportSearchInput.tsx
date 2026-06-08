@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Airport, AirportSearchEntry, City, LocationSelection, selectionLabel } from '@fast-travel/shared';
 import { PlaneTakeoff, Search, Loader2, X, ArrowRight, Building2 } from 'lucide-react';
 import { useAirportSearch } from '../hooks/useAirportSearch';
@@ -15,6 +15,10 @@ interface Props {
   /** Show the prominent orange search affordance inside the input. Used on the
    *  Hop Planner where the airport input is the primary call to action. */
   accentButton?: boolean;
+  /** Pre-seed the "already selected" label so a hydrated input (e.g. when an
+   *  Edit Search panel opens with values restored from URL state) doesn't
+   *  immediately open the dropdown to re-query its own selection label. */
+  initialSelectedLabel?: string | null;
 }
 
 function AirportRow({
@@ -105,8 +109,18 @@ export function AirportSearchInput({
   autoFocus = false,
   ariaLabel = 'Search airport',
   accentButton = false,
+  initialSelectedLabel = null,
 }: Props) {
-  const [lastSelected, setLastSelected] = useState<string | null>(null);
+  const [lastSelected, setLastSelected] = useState<string | null>(initialSelectedLabel);
+  // Re-seed when the parent hydrates a fresh selection label asynchronously
+  // (e.g. EditSearchPanel resolves URL markers and pushes the label down).
+  // We only ever widen — once the user starts typing the value won't match
+  // any earlier seeded label so the dropdown re-opens normally.
+  useEffect(() => {
+    if (initialSelectedLabel && initialSelectedLabel !== lastSelected) {
+      setLastSelected(initialSelectedLabel);
+    }
+  }, [initialSelectedLabel, lastSelected]);
   const inputRef = useRef<HTMLInputElement>(null);
   // Once a result is picked, the input shows "City (IATA)". Keep the dropdown
   // suppressed for that exact string — otherwise it stays open and re-queries

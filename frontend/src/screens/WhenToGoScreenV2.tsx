@@ -1,4 +1,6 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { getAirportIndex, resolveMarkerInIndex } from '../lib/airportIndex';
 import axios from 'axios';
 import { LocationSelection, selectionLabel, selectionToMarker } from '@fast-travel/shared';
 import { format, addDays, addMonths, endOfMonth, startOfMonth } from 'date-fns';
@@ -99,6 +101,61 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<'search' | 'result'>('search');
   const abortRef = useRef<AbortController | null>(null);
+
+  // URL pre-fill: ?from=EVN&to=MAD&start=2026-06-11&end=2026-06-19 (typically
+  // arrived here from the search-results "When to fly" CTA). Resolves the
+  // markers against the indexed airports/cities and auto-runs the search.
+  const [searchParams] = useSearchParams();
+  const didPrefillRef = useRef(false);
+  useEffect(() => {
+    if (didPrefillRef.current) return;
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
+    const start = searchParams.get('start');
+    const end = searchParams.get('end');
+    if (!from || !to) return;
+    didPrefillRef.current = true;
+    let cancelled = false;
+    getAirportIndex().then((index) => {
+      if (cancelled) return;
+      const o = resolveMarkerInIndex(index, from);
+      const d = resolveMarkerInIndex(index, to);
+      if (o) {
+        const sel = o as LocationSelection;
+        setOrigin(sel);
+        setOriginQuery(selectionLabel(sel));
+      }
+      if (d) {
+        const sel = d as LocationSelection;
+        setDestination(sel);
+        setDestQuery(selectionLabel(sel));
+      }
+      if (start && end) {
+        setRange({ id: 'custom', label: 'Custom range', start, end });
+        setCustomStart(start);
+        setCustomEnd(end);
+      }
+      // Defer the actual search until origin + destination have been committed
+      // to state — handleSearch reads them through closure, so we trigger from
+      // the effect below once both are set.
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams]);
+
+  // Auto-search once both endpoints are pre-filled from URL params.
+  const didAutoSearchRef = useRef(false);
+  useEffect(() => {
+    if (didAutoSearchRef.current) return;
+    if (!didPrefillRef.current) return;
+    if (!origin || !destination) return;
+    didAutoSearchRef.current = true;
+    void handleSearch();
+    // handleSearch is stable enough for one-shot use; React's exhaustive-deps
+    // would force us to wrap it in useCallback for no real benefit here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [origin, destination]);
 
   function selectPreset(p: DateRange) {
     setRange(p);

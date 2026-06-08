@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { FlightOption, RoundTripOption, MultiCityOption } from '@fast-travel/shared';
 import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { format } from 'date-fns';
 import { searchFlights, searchRoundTrip, searchMultiCity } from '../api/flights.api';
 import { fetchAirlineLogos } from '../api/airlines.api';
 import { FlightCardSkeleton } from '../components/FlightCard';
 import { FlightCardDetailed } from '../components/FlightCardDetailed';
 import {
-  FlightFilters,
   applyFilters,
   applyMultiCityFilters,
   applyRoundTripFilters,
@@ -21,19 +21,17 @@ import { RoundTripCardSkeleton } from '../components/RoundTripCard';
 import { RoundTripCardDetailed } from '../components/RoundTripCardDetailed';
 import { MultiCityCardSkeleton } from '../components/MultiCityCard';
 import { MultiCityCardDetailed } from '../components/MultiCityCardDetailed';
-import { GoHomeLogo } from '../components/GoHomeLogo';
-import { useAuthStore } from '../store/auth.store';
-import { format } from 'date-fns';
+import { MarketingShellV2 } from '../components/MarketingShellV2';
+import { FilterSidebar } from '../components/FilterSidebar';
+import { EditSearchPanel, type EditSearchLeg, type TripType as EditTripType } from '../components/EditSearchPanel';
 import {
-  ArrowLeft,
   ArrowRight,
+  CalendarSearch,
   Edit3,
   Plane,
   SearchX,
-  User,
   Sparkles,
   Waypoints,
-  CalendarSearch,
 } from 'lucide-react';
 
 type TripType = 'oneway' | 'return' | 'multi';
@@ -197,9 +195,11 @@ interface RoundTripResult {
 function RoundTripSection({
   result,
   passengers,
+  legs,
 }: {
   result: RoundTripResult;
   passengers: number;
+  legs: Leg[];
 }) {
   const pairs = result.pairs;
   const bounds = useMemo(() => computeRoundTripBounds(pairs), [pairs]);
@@ -208,6 +208,13 @@ function RoundTripSection({
 
   const allLegs = useMemo(() => pairs.flatMap((p) => [p.outbound, p.inbound]), [pairs]);
   const airlineLogos = useAirlineLogos(allLegs);
+
+  // Outbound leg drives the "When to fly" anchor: same origin/dest as the
+  // user's search and the depart date the round-trip flexes around.
+  const outboundLeg = legs[0];
+  const sample = pairs[0]?.outbound;
+  const fromCity = sample?.originCity || outboundLeg?.origin || '';
+  const toCity = sample?.destinationCity || outboundLeg?.destination || '';
 
   function handleSelect(trip: RoundTripOption) {
     if (trip.bookingUrl) {
@@ -253,9 +260,16 @@ function RoundTripSection({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-5 lg:gap-6">
-      <aside>
-        <FlightFilters bounds={bounds} value={filters} onChange={setFilters} />
-      </aside>
+      <FilterSidebar
+        bounds={bounds}
+        value={filters}
+        onChange={setFilters}
+        fromMarker={outboundLeg?.origin ?? ''}
+        toMarker={outboundLeg?.destination ?? ''}
+        fromCity={fromCity}
+        toCity={toCity}
+        centerDate={outboundLeg?.date ?? ''}
+      />
       <div>
         <div className="flex items-end justify-between gap-3 mb-4 flex-wrap">
           <div>
@@ -308,10 +322,12 @@ function MultiCitySection({
   result,
   legCount,
   passengers,
+  legs,
 }: {
   result: MultiCityResult;
   legCount: number;
   passengers: number;
+  legs: Leg[];
 }) {
   const trips = result.trips;
   const bounds = useMemo(() => computeMultiCityBounds(trips), [trips]);
@@ -320,6 +336,14 @@ function MultiCitySection({
 
   const allLegs = useMemo(() => trips.flatMap((t) => t.legs), [trips]);
   const airlineLogos = useAirlineLogos(allLegs);
+
+  // Anchor the "When to fly" CTA to leg 1 — the only leg with a stable
+  // origin/destination across the whole multi-city trip. The When-to-go
+  // tool only supports one O/D pair, so showing it per-leg would be noisy.
+  const firstLeg = legs[0];
+  const sampleLeg = trips[0]?.legs[0];
+  const fromCity = sampleLeg?.originCity || firstLeg?.origin || '';
+  const toCity = sampleLeg?.destinationCity || firstLeg?.destination || '';
 
   function handleSelect(trip: MultiCityOption) {
     // No bundled deep link — open each leg in its own tab. Browsers may block
@@ -370,9 +394,16 @@ function MultiCitySection({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-5 lg:gap-6">
-      <aside>
-        <FlightFilters bounds={bounds} value={filters} onChange={setFilters} />
-      </aside>
+      <FilterSidebar
+        bounds={bounds}
+        value={filters}
+        onChange={setFilters}
+        fromMarker={firstLeg?.origin ?? ''}
+        toMarker={firstLeg?.destination ?? ''}
+        fromCity={fromCity}
+        toCity={toCity}
+        centerDate={firstLeg?.date ?? ''}
+      />
       <div>
         <div className="flex items-end justify-between gap-3 mb-4 flex-wrap">
           <div>
@@ -475,11 +506,24 @@ function ResultsSection({
     );
   }
 
+  // The "When to fly" CTA shows the destination's city name when we can
+  // glean it from the first result; otherwise we fall back to the IATA.
+  const sample = sorted[0];
+  const fromCity = sample?.originCity || result.leg.origin;
+  const toCity = sample?.destinationCity || result.leg.destination;
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-5 lg:gap-6">
-      <aside>
-        <FlightFilters bounds={bounds} value={filters} onChange={setFilters} />
-      </aside>
+      <FilterSidebar
+        bounds={bounds}
+        value={filters}
+        onChange={setFilters}
+        fromMarker={result.leg.origin}
+        toMarker={result.leg.destination}
+        fromCity={fromCity}
+        toCity={toCity}
+        centerDate={result.leg.date}
+      />
       <div>
         <div className="flex items-end justify-between gap-3 mb-4 flex-wrap">
           <h2 className="text-2xl font-black tracking-tight text-text-primary">{heading}</h2>
@@ -522,8 +566,7 @@ function ResultsSection({
 export function SearchResultsScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const user = useAuthStore((s) => s.user);
-  const initials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : null;
+  const [editOpen, setEditOpen] = useState(false);
 
   const type = (searchParams.get('type') ?? 'oneway') as TripType;
   const passengers = Math.max(1, Math.min(9, parseInt(searchParams.get('pax') ?? '1', 10) || 1));
@@ -682,92 +725,28 @@ export function SearchResultsScreen({ onMenuOpen }: { onMenuOpen?: () => void })
   const noResults =
     allDone && totalFlights === 0 && !roundTrip.error && !multiCity.error;
 
+  function handleEditSubmit(nextParams: URLSearchParams) {
+    setEditOpen(false);
+    navigate(`/search?${nextParams.toString()}`);
+  }
+
   return (
-    <div className="min-h-screen relative overflow-hidden">
+    <MarketingShellV2
+      active="search"
+      title="Flight results"
+      description="Live one-way, round-trip, and multi-city fares for your search."
+      onMenuOpen={onMenuOpen}
+    >
       <Helmet>
-        <title>Flight results — FlexBook</title>
+        <title>Flight results — Flexbook</title>
       </Helmet>
 
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            'radial-gradient(ellipse 60% 50% at 20% 10%, rgba(79,70,229,0.10) 0%, transparent 60%), radial-gradient(ellipse 50% 40% at 80% 5%, rgba(14,165,233,0.08) 0%, transparent 55%)',
-        }}
-      />
-
-      <nav className="relative flex items-center justify-between px-5 pt-7 pb-4 md:px-8 md:py-5 lg:px-10 lg:border-b lg:border-border/50">
-        <GoHomeLogo size="lg" variant="light" />
-
-        <div className="hidden lg:flex items-center gap-1">
-          <Link
-            to="/"
-            className="px-4 py-2 rounded-xl text-sm font-semibold text-indigo bg-indigo-soft border border-indigo-border"
-          >
-            Plan
-          </Link>
-          <Link
-            to="/trips"
-            className="px-4 py-2 rounded-xl text-sm font-semibold text-text-muted hover:text-text-primary hover:bg-surface-2 transition-all"
-          >
-            Trips
-          </Link>
-          <Link
-            to="/deals"
-            className="px-4 py-2 rounded-xl text-sm font-semibold text-text-muted hover:text-text-primary hover:bg-surface-2 transition-all"
-          >
-            Deals
-          </Link>
-          <Link
-            to="/tools"
-            className="px-4 py-2 rounded-xl text-sm font-semibold text-text-muted hover:text-text-primary hover:bg-surface-2 transition-all"
-          >
-            Tools
-          </Link>
-          <Link
-            to="/about"
-            className="px-4 py-2 rounded-xl text-sm font-semibold text-text-muted hover:text-text-primary hover:bg-surface-2 transition-all"
-          >
-            About Us
-          </Link>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {!user && (
-            <Link
-              to="/login"
-              className="hidden lg:block text-sm font-semibold text-text-secondary hover:text-text-primary transition-colors"
-            >
-              Sign in
-            </Link>
-          )}
-          <button
-            onClick={onMenuOpen}
-            className="w-10 h-10 rounded-2xl bg-surface border border-border flex items-center justify-center text-indigo-mid transition-all hover:bg-indigo-soft hover:border-indigo-border"
-            style={{ boxShadow: '0 4px 12px rgba(15,23,42,0.08)' }}
-            aria-label="Account"
-          >
-            {initials ? (
-              <span className="text-xs font-bold text-indigo leading-none">{initials}</span>
-            ) : (
-              <User size={16} />
-            )}
-          </button>
-        </div>
-      </nav>
-
-      <div className="relative px-5 pb-16 md:mx-auto md:px-8 md:pt-6 lg:px-12 md:max-w-4xl lg:max-w-6xl">
-        {/* Header: trip summary + edit */}
-        <div className="flex items-start justify-between gap-3 mb-6 flex-wrap">
-          <div className="flex items-start gap-3 flex-1 min-w-0">
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              className="w-9 h-9 rounded-xl bg-surface border border-border flex items-center justify-center text-text-muted hover:text-text-primary hover:border-indigo-border transition-colors shrink-0 mt-0.5"
-              aria-label="Back to search"
-            >
-              <ArrowLeft size={15} />
-            </button>
+      <div className="relative px-5 pb-16 md:mx-auto md:px-8 md:pt-6 lg:px-10 md:max-w-4xl lg:max-w-6xl xl:max-w-7xl">
+        {/* Trip summary + Edit search toggle. The toggle expands an inline
+            EditSearchPanel below this row — it does NOT navigate home, so
+            the user keeps their place in the results list. */}
+        <div className="mb-5 mt-2">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="min-w-0 flex-1">
               <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-mid mb-1">
                 Flight results
@@ -776,14 +755,33 @@ export function SearchResultsScreen({ onMenuOpen }: { onMenuOpen?: () => void })
                 <TripSummary type={type} legs={legs} passengers={passengers} />
               )}
             </div>
+            <button
+              type="button"
+              onClick={() => setEditOpen((v) => !v)}
+              className={
+                'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-semibold transition-colors shrink-0 ' +
+                (editOpen
+                  ? 'bg-indigo text-white border-indigo'
+                  : 'bg-surface border-border text-text-secondary hover:border-indigo-border hover:text-text-primary')
+              }
+              aria-expanded={editOpen}
+              aria-controls="edit-search-panel"
+            >
+              <Edit3 size={12} /> {editOpen ? 'Close' : 'Edit search'}
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border text-xs font-semibold text-text-secondary hover:border-indigo-border hover:text-text-primary transition-colors shrink-0"
-          >
-            <Edit3 size={12} /> Edit search
-          </button>
+
+          {editOpen && !hasInvalidParams && (
+            <div id="edit-search-panel" className="mt-3">
+              <EditSearchPanel
+                type={type as EditTripType}
+                legs={legs as EditSearchLeg[]}
+                passengers={passengers}
+                onSubmit={handleEditSubmit}
+                onClose={() => setEditOpen(false)}
+              />
+            </div>
+          )}
         </div>
 
         {hasInvalidParams ? (
@@ -803,9 +801,14 @@ export function SearchResultsScreen({ onMenuOpen }: { onMenuOpen?: () => void })
         ) : (
           <div className="space-y-8">
             {type === 'return' ? (
-              <RoundTripSection result={roundTrip} passengers={passengers} />
+              <RoundTripSection result={roundTrip} passengers={passengers} legs={legs} />
             ) : type === 'multi' ? (
-              <MultiCitySection result={multiCity} legCount={legs.length} passengers={passengers} />
+              <MultiCitySection
+                result={multiCity}
+                legCount={legs.length}
+                passengers={passengers}
+                legs={legs}
+              />
             ) : (
               results.map((result) => (
                 <ResultsSection
@@ -821,6 +824,6 @@ export function SearchResultsScreen({ onMenuOpen }: { onMenuOpen?: () => void })
           </div>
         )}
       </div>
-    </div>
+    </MarketingShellV2>
   );
 }

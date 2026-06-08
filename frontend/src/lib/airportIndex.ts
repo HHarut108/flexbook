@@ -141,6 +141,26 @@ function buildCityIndex(raw: RawAirport[]): DerivedCityEntry[] {
   return out;
 }
 
+/** Resolve a URL-state marker ("EVN" or "@rome_it") back to the indexed
+ *  LocationSelection. Returns null when the marker isn't present in the
+ *  loaded index — callers should treat as "couldn't resolve, leave the
+ *  field empty so the user can re-pick". */
+export function resolveMarkerInIndex(
+  index: FullIndex,
+  marker: string,
+): AirportSearchEntry | null {
+  const trimmed = marker.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith('@')) {
+    const id = trimmed.slice(1);
+    const city = index.cities.find((c) => c.id === id);
+    return city ? { kind: 'city', city: city.city } : null;
+  }
+  const upper = trimmed.toUpperCase();
+  const airport = index.airports.find((a) => a.iataUpper === upper);
+  return airport ? { kind: 'airport', airport: airport.airport } : null;
+}
+
 export function searchIndex(index: FullIndex, query: string): AirportSearchEntry[] {
   if (!query || query.trim().length < 1) return [];
   const raw = query.trim();
