@@ -751,3 +751,35 @@ html[data-theme="dark"] .leaflet-control-zoom a:first-child {
     animation: none;
   }
 }
+
+/* Range-slider thumb used by FlightFilters. The track gradient is set
+   inline; here we shape the thumb across WebKit and Firefox. */
+.flexbook-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: rgb(var(--c-orange));
+  border: 2px solid rgb(var(--c-surface));
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
+  cursor: pointer;
+}
+.flexbook-range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: rgb(var(--c-orange));
+  border: 2px solid rgb(var(--c-surface));
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
+  cursor: pointer;
+}
+.flexbook-range:focus {
+  outline: none;
+}
+.flexbook-range:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgb(var(--c-indigo-border) / 0.6);
+}
+.flexbook-range:focus::-moz-range-thumb {
+  box-shadow: 0 0 0 3px rgb(var(--c-indigo-border) / 0.6);
+}

@@ -3,9 +3,24 @@ import { FlightOption, RoundTripOption, MultiCityOption } from '@fast-travel/sha
 import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { searchFlights, searchRoundTrip, searchMultiCity } from '../api/flights.api';
-import { FlightCard, FlightCardSkeleton } from '../components/FlightCard';
-import { RoundTripCard, RoundTripCardSkeleton } from '../components/RoundTripCard';
-import { MultiCityCard, MultiCityCardSkeleton } from '../components/MultiCityCard';
+import { fetchAirlineLogos } from '../api/airlines.api';
+import { FlightCardSkeleton } from '../components/FlightCard';
+import { FlightCardDetailed } from '../components/FlightCardDetailed';
+import {
+  FlightFilters,
+  applyFilters,
+  applyMultiCityFilters,
+  applyRoundTripFilters,
+  computeBounds,
+  computeMultiCityBounds,
+  computeRoundTripBounds,
+  defaultFilters,
+  type FlightFilterState,
+} from '../components/FlightFilters';
+import { RoundTripCardSkeleton } from '../components/RoundTripCard';
+import { RoundTripCardDetailed } from '../components/RoundTripCardDetailed';
+import { MultiCityCardSkeleton } from '../components/MultiCityCard';
+import { MultiCityCardDetailed } from '../components/MultiCityCardDetailed';
 import { GoHomeLogo } from '../components/GoHomeLogo';
 import { useAuthStore } from '../store/auth.store';
 import { format } from 'date-fns';
@@ -23,6 +38,35 @@ import {
 
 type TripType = 'oneway' | 'return' | 'multi';
 
+/** Shared hook: collects airline codes from a list of legs and fetches their
+ *  logo URLs. Each section (one-way / round-trip / multi-city) calls it with
+ *  its own leg list. Returns {} on error so badges fall back to the colored
+ *  letter mark in LegRow. */
+function useAirlineLogos(legs: FlightOption[]): Record<string, string> {
+  const [logos, setLogos] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let cancelled = false;
+    const codes = legs
+      .map((l) => l.airlineCode?.trim().toUpperCase())
+      .filter((c): c is string => Boolean(c));
+    if (codes.length === 0) {
+      setLogos({});
+      return;
+    }
+    fetchAirlineLogos(codes)
+      .then((next) => {
+        if (!cancelled) setLogos(next);
+      })
+      .catch(() => {
+        if (!cancelled) setLogos({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [legs]);
+  return logos;
+}
+
 interface Leg {
   origin: string;
   destination: string;
@@ -39,28 +83,6 @@ interface LegResult {
 const RESULTS_LIMIT = 30;
 const ROUND_TRIP_LIMIT = 15;
 const MULTI_CITY_LIMIT = 30;
-
-type StopsFilter = 'any' | 'direct' | 'one' | 'twoplus';
-
-const STOPS_FILTER_OPTIONS: { value: StopsFilter; label: string }[] = [
-  { value: 'any', label: 'Any' },
-  { value: 'direct', label: 'Direct' },
-  { value: 'one', label: '1 stop' },
-  { value: 'twoplus', label: '2+ stops' },
-];
-
-function legMatchesStopsFilter(leg: { stops: number }, filter: StopsFilter): boolean {
-  switch (filter) {
-    case 'any':
-      return true;
-    case 'direct':
-      return leg.stops === 0;
-    case 'one':
-      return leg.stops === 1;
-    case 'twoplus':
-      return leg.stops >= 2;
-  }
-}
 
 function decodeLegs(raw: string): Leg[] {
   return raw
@@ -166,39 +188,6 @@ function ToolCrossSell() {
   );
 }
 
-function StopsFilterChips({
-  value,
-  onChange,
-}: {
-  value: StopsFilter;
-  onChange: (next: StopsFilter) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Filter by stops">
-      {STOPS_FILTER_OPTIONS.map((opt) => {
-        const active = opt.value === value;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            onClick={() => onChange(opt.value)}
-            className={
-              'px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ' +
-              (active
-                ? 'bg-indigo text-white border-indigo'
-                : 'bg-surface text-text-secondary border-border hover:border-indigo-border hover:text-text-primary')
-            }
-          >
-            {opt.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 interface RoundTripResult {
   loading: boolean;
   error: string | null;
@@ -212,15 +201,13 @@ function RoundTripSection({
   result: RoundTripResult;
   passengers: number;
 }) {
-  const [stopsFilter, setStopsFilter] = useState<StopsFilter>('any');
+  const pairs = result.pairs;
+  const bounds = useMemo(() => computeRoundTripBounds(pairs), [pairs]);
+  const [filters, setFilters] = useState<FlightFilterState>(() => defaultFilters(bounds));
+  const filtered = useMemo(() => applyRoundTripFilters(pairs, filters), [pairs, filters]);
 
-  const filtered = useMemo(() => {
-    return result.pairs.filter(
-      (p) =>
-        legMatchesStopsFilter(p.outbound, stopsFilter) &&
-        legMatchesStopsFilter(p.inbound, stopsFilter),
-    );
-  }, [result.pairs, stopsFilter]);
+  const allLegs = useMemo(() => pairs.flatMap((p) => [p.outbound, p.inbound]), [pairs]);
+  const airlineLogos = useAirlineLogos(allLegs);
 
   function handleSelect(trip: RoundTripOption) {
     if (trip.bookingUrl) {
@@ -228,69 +215,85 @@ function RoundTripSection({
     }
   }
 
+  if (result.loading) {
+    return (
+      <div>
+        <h2 className="text-2xl font-black tracking-tight text-text-primary mb-4">
+          Round-trip options
+        </h2>
+        <div className="space-y-2.5">
+          <RoundTripCardSkeleton />
+          <RoundTripCardSkeleton />
+          <RoundTripCardSkeleton />
+        </div>
+      </div>
+    );
+  }
+
+  if (result.error) {
+    return (
+      <div className="section-shell p-5 text-center">
+        <SearchX size={28} className="text-text-xmuted mx-auto mb-2" />
+        <p className="text-sm text-text-secondary">{result.error}</p>
+      </div>
+    );
+  }
+
+  if (pairs.length === 0) {
+    return (
+      <div className="section-shell p-6 text-center">
+        <SearchX size={28} className="text-text-xmuted mx-auto mb-2" />
+        <p className="text-sm font-semibold text-text-primary">No round-trip pairs found</p>
+        <p className="text-xs text-text-muted mt-1">
+          Try shifting the dates a day or two — bundled fares are date-sensitive.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div>
-      <div className="flex items-end justify-between mb-3 gap-3 flex-wrap">
-        <div>
-          <h2 className="text-sm font-bold text-text-primary">Round-trip options</h2>
-          <p className="text-[11px] text-text-muted mt-0.5">
-            Outbound + return sold together — often cheaper than two one-ways.
+    <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-5 lg:gap-6">
+      <aside>
+        <FlightFilters bounds={bounds} value={filters} onChange={setFilters} />
+      </aside>
+      <div>
+        <div className="flex items-end justify-between gap-3 mb-4 flex-wrap">
+          <div>
+            <h2 className="text-2xl font-black tracking-tight text-text-primary">
+              Available flights
+            </h2>
+            <p className="text-[11px] text-text-muted mt-0.5">
+              Outbound + return sold together — often cheaper than two one-ways.
+            </p>
+          </div>
+          <p className="text-xs text-text-muted">
+            <strong className="text-text-secondary">{filtered.length}</strong> of {pairs.length}{' '}
+            result{pairs.length === 1 ? '' : 's'}
           </p>
         </div>
-        {filtered.length > 0 && (
-          <p className="text-xs text-text-muted">
-            <strong className="text-text-secondary">{filtered.length}</strong> result
-            {filtered.length === 1 ? '' : 's'} · cheapest first
-          </p>
+
+        {filtered.length === 0 ? (
+          <div className="section-shell p-5 text-center">
+            <p className="text-sm text-text-secondary">
+              No round-trips match these filters. Try widening the price or duration sliders.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map((trip, i) => (
+              <div key={trip.tripId} style={{ animationDelay: `${i * 30}ms` }}>
+                <RoundTripCardDetailed
+                  trip={trip}
+                  passengers={passengers}
+                  isBestValue={i === 0}
+                  logos={airlineLogos}
+                  onSelect={handleSelect}
+                />
+              </div>
+            ))}
+          </div>
         )}
       </div>
-
-      <div className="mb-3">
-        <StopsFilterChips value={stopsFilter} onChange={setStopsFilter} />
-      </div>
-
-      {result.loading && (
-        <div className="space-y-2.5">
-          <RoundTripCardSkeleton />
-          <RoundTripCardSkeleton />
-          <RoundTripCardSkeleton />
-        </div>
-      )}
-
-      {!result.loading && result.error && (
-        <div className="section-shell p-5 text-center">
-          <SearchX size={28} className="text-text-xmuted mx-auto mb-2" />
-          <p className="text-sm text-text-secondary">{result.error}</p>
-        </div>
-      )}
-
-      {!result.loading && !result.error && result.pairs.length === 0 && (
-        <div className="section-shell p-6 text-center">
-          <SearchX size={28} className="text-text-xmuted mx-auto mb-2" />
-          <p className="text-sm font-semibold text-text-primary">No round-trip pairs found</p>
-          <p className="text-xs text-text-muted mt-1">
-            Try shifting the dates a day or two — bundled fares are date-sensitive.
-          </p>
-        </div>
-      )}
-
-      {!result.loading && !result.error && result.pairs.length > 0 && filtered.length === 0 && (
-        <div className="section-shell p-5 text-center">
-          <p className="text-sm text-text-secondary">
-            No round-trips match this stops filter. Try a less strict choice.
-          </p>
-        </div>
-      )}
-
-      {!result.loading && filtered.length > 0 && (
-        <div className="space-y-2.5">
-          {filtered.map((trip, i) => (
-            <div key={trip.tripId} style={{ animationDelay: `${i * 30}ms` }}>
-              <RoundTripCard trip={trip} passengers={passengers} onSelect={handleSelect} />
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -310,11 +313,13 @@ function MultiCitySection({
   legCount: number;
   passengers: number;
 }) {
-  const [stopsFilter, setStopsFilter] = useState<StopsFilter>('any');
+  const trips = result.trips;
+  const bounds = useMemo(() => computeMultiCityBounds(trips), [trips]);
+  const [filters, setFilters] = useState<FlightFilterState>(() => defaultFilters(bounds));
+  const filtered = useMemo(() => applyMultiCityFilters(trips, filters), [trips, filters]);
 
-  const filtered = useMemo(() => {
-    return result.trips.filter((trip) => trip.legs.every((leg) => legMatchesStopsFilter(leg, stopsFilter)));
-  }, [result.trips, stopsFilter]);
+  const allLegs = useMemo(() => trips.flatMap((t) => t.legs), [trips]);
+  const airlineLogos = useAirlineLogos(allLegs);
 
   function handleSelect(trip: MultiCityOption) {
     // No bundled deep link — open each leg in its own tab. Browsers may block
@@ -327,69 +332,85 @@ function MultiCitySection({
     }
   }
 
+  if (result.loading) {
+    return (
+      <div>
+        <h2 className="text-2xl font-black tracking-tight text-text-primary mb-4">
+          Multi-city trips
+        </h2>
+        <div className="space-y-2.5">
+          <MultiCityCardSkeleton legCount={legCount} />
+          <MultiCityCardSkeleton legCount={legCount} />
+          <MultiCityCardSkeleton legCount={legCount} />
+        </div>
+      </div>
+    );
+  }
+
+  if (result.error) {
+    return (
+      <div className="section-shell p-5 text-center">
+        <SearchX size={28} className="text-text-xmuted mx-auto mb-2" />
+        <p className="text-sm text-text-secondary">{result.error}</p>
+      </div>
+    );
+  }
+
+  if (trips.length === 0) {
+    return (
+      <div className="section-shell p-6 text-center">
+        <SearchX size={28} className="text-text-xmuted mx-auto mb-2" />
+        <p className="text-sm font-semibold text-text-primary">No multi-city trips found</p>
+        <p className="text-xs text-text-muted mt-1">
+          One of the legs had no flights on its date — try shifting a date or swapping airports.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div>
-      <div className="flex items-end justify-between mb-3 gap-3 flex-wrap">
-        <div>
-          <h2 className="text-sm font-bold text-text-primary">Multi-city trips</h2>
-          <p className="text-[11px] text-text-muted mt-0.5">
-            All {legCount} legs combined — each leg is booked as a separate ticket.
+    <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-5 lg:gap-6">
+      <aside>
+        <FlightFilters bounds={bounds} value={filters} onChange={setFilters} />
+      </aside>
+      <div>
+        <div className="flex items-end justify-between gap-3 mb-4 flex-wrap">
+          <div>
+            <h2 className="text-2xl font-black tracking-tight text-text-primary">
+              Available flights
+            </h2>
+            <p className="text-[11px] text-text-muted mt-0.5">
+              All {legCount} legs combined — each leg is booked as a separate ticket.
+            </p>
+          </div>
+          <p className="text-xs text-text-muted">
+            <strong className="text-text-secondary">{filtered.length}</strong> of {trips.length}{' '}
+            trip{trips.length === 1 ? '' : 's'}
           </p>
         </div>
-        {filtered.length > 0 && (
-          <p className="text-xs text-text-muted">
-            <strong className="text-text-secondary">{filtered.length}</strong> trip
-            {filtered.length === 1 ? '' : 's'} · cheapest first
-          </p>
+
+        {filtered.length === 0 ? (
+          <div className="section-shell p-5 text-center">
+            <p className="text-sm text-text-secondary">
+              No trips match these filters. Try widening the price or duration sliders.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map((trip, i) => (
+              <div key={trip.tripId} style={{ animationDelay: `${i * 30}ms` }}>
+                <MultiCityCardDetailed
+                  trip={trip}
+                  passengers={passengers}
+                  isBestValue={i === 0}
+                  logos={airlineLogos}
+                  onSelect={handleSelect}
+                />
+              </div>
+            ))}
+          </div>
         )}
       </div>
-
-      <div className="mb-3">
-        <StopsFilterChips value={stopsFilter} onChange={setStopsFilter} />
-      </div>
-
-      {result.loading && (
-        <div className="space-y-2.5">
-          <MultiCityCardSkeleton legCount={legCount} />
-          <MultiCityCardSkeleton legCount={legCount} />
-          <MultiCityCardSkeleton legCount={legCount} />
-        </div>
-      )}
-
-      {!result.loading && result.error && (
-        <div className="section-shell p-5 text-center">
-          <SearchX size={28} className="text-text-xmuted mx-auto mb-2" />
-          <p className="text-sm text-text-secondary">{result.error}</p>
-        </div>
-      )}
-
-      {!result.loading && !result.error && result.trips.length === 0 && (
-        <div className="section-shell p-6 text-center">
-          <SearchX size={28} className="text-text-xmuted mx-auto mb-2" />
-          <p className="text-sm font-semibold text-text-primary">No multi-city trips found</p>
-          <p className="text-xs text-text-muted mt-1">
-            One of the legs had no flights on its date — try shifting a date or swapping airports.
-          </p>
-        </div>
-      )}
-
-      {!result.loading && !result.error && result.trips.length > 0 && filtered.length === 0 && (
-        <div className="section-shell p-5 text-center">
-          <p className="text-sm text-text-secondary">
-            No trips match this stops filter. Try a less strict choice.
-          </p>
-        </div>
-      )}
-
-      {!result.loading && filtered.length > 0 && (
-        <div className="space-y-2.5">
-          {filtered.map((trip, i) => (
-            <div key={trip.tripId} style={{ animationDelay: `${i * 30}ms` }}>
-              <MultiCityCard trip={trip} passengers={passengers} onSelect={handleSelect} />
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -408,68 +429,92 @@ function ResultsSection({
     [result.flights],
   );
 
+  const bounds = useMemo(() => computeBounds(sorted), [sorted]);
+  const [filters, setFilters] = useState<FlightFilterState>(() => defaultFilters(bounds));
+  const filtered = useMemo(() => applyFilters(sorted, filters), [sorted, filters]);
+
+  const airlineLogos = useAirlineLogos(sorted);
+
   function handleSelect(flight: FlightOption) {
     if (flight.bookingUrl) {
       window.open(flight.bookingUrl, '_blank', 'noopener,noreferrer');
     }
   }
 
+  if (result.loading) {
+    return (
+      <div>
+        <h2 className="text-2xl font-black tracking-tight text-text-primary mb-4">{heading}</h2>
+        <div className="space-y-2.5">
+          <FlightCardSkeleton />
+          <FlightCardSkeleton />
+          <FlightCardSkeleton />
+        </div>
+      </div>
+    );
+  }
+
+  if (result.error) {
+    return (
+      <div className="section-shell p-5 text-center">
+        <SearchX size={28} className="text-text-xmuted mx-auto mb-2" />
+        <p className="text-sm text-text-secondary">{result.error}</p>
+      </div>
+    );
+  }
+
+  if (sorted.length === 0) {
+    return (
+      <div className="section-shell p-6 text-center">
+        <SearchX size={28} className="text-text-xmuted mx-auto mb-2" />
+        <p className="text-sm font-semibold text-text-primary">No flights found</p>
+        <p className="text-xs text-text-muted mt-1">
+          We couldn't find {result.leg.origin} → {result.leg.destination} on {formatDate(result.leg.date)}.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div>
-      <div className="flex items-end justify-between mb-3">
-        <h2 className="text-sm font-bold text-text-primary">{heading}</h2>
-        {sorted.length > 0 && (
+    <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-5 lg:gap-6">
+      <aside>
+        <FlightFilters bounds={bounds} value={filters} onChange={setFilters} />
+      </aside>
+      <div>
+        <div className="flex items-end justify-between gap-3 mb-4 flex-wrap">
+          <h2 className="text-2xl font-black tracking-tight text-text-primary">{heading}</h2>
           <p className="text-xs text-text-muted">
-            <strong className="text-text-secondary">{sorted.length}</strong> result
-            {sorted.length === 1 ? '' : 's'} · cheapest first
+            <strong className="text-text-secondary">{filtered.length}</strong> of {sorted.length}{' '}
+            result{sorted.length === 1 ? '' : 's'}
           </p>
+        </div>
+
+        {filtered.length === 0 ? (
+          <div className="section-shell p-5 text-center">
+            <p className="text-sm text-text-secondary">
+              No flights match these filters. Try widening the price or duration sliders.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map((flight, i) => (
+              <div key={flight.flightId} style={{ animationDelay: `${i * 30}ms` }}>
+                <FlightCardDetailed
+                  flight={flight}
+                  passengers={passengers}
+                  isBestValue={i === 0}
+                  logoUrl={
+                    flight.airlineCode
+                      ? airlineLogos[flight.airlineCode.toUpperCase()]
+                      : undefined
+                  }
+                  onSelect={handleSelect}
+                />
+              </div>
+            ))}
+          </div>
         )}
       </div>
-
-      {result.loading && (
-        <div className="space-y-2.5">
-          <FlightCardSkeleton />
-          <FlightCardSkeleton />
-          <FlightCardSkeleton />
-        </div>
-      )}
-
-      {!result.loading && result.error && (
-        <div className="section-shell p-5 text-center">
-          <SearchX size={28} className="text-text-xmuted mx-auto mb-2" />
-          <p className="text-sm text-text-secondary">{result.error}</p>
-        </div>
-      )}
-
-      {!result.loading && !result.error && sorted.length === 0 && (
-        <div className="section-shell p-6 text-center">
-          <SearchX size={28} className="text-text-xmuted mx-auto mb-2" />
-          <p className="text-sm font-semibold text-text-primary">No flights found</p>
-          <p className="text-xs text-text-muted mt-1">
-            We couldn't find {result.leg.origin} → {result.leg.destination} on {formatDate(result.leg.date)}.
-          </p>
-        </div>
-      )}
-
-      {!result.loading && sorted.length > 0 && (
-        <div className="space-y-2.5">
-          {sorted.map((flight, i) => (
-            <div key={flight.flightId} style={{ animationDelay: `${i * 30}ms` }}>
-              <FlightCard
-                flight={flight}
-                weather={flight.weather}
-                onSelect={handleSelect}
-              />
-              {/* Approximate per-passenger price hint for multi-traveler searches */}
-              {passengers > 1 && (
-                <p className="text-[10px] text-text-xmuted mt-1 text-right pr-1">
-                  ≈ ${(flight.priceUsd * passengers).toFixed(0)} for {passengers} travelers
-                </p>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -711,7 +756,7 @@ export function SearchResultsScreen({ onMenuOpen }: { onMenuOpen?: () => void })
         </div>
       </nav>
 
-      <div className="relative px-5 pb-16 md:max-w-4xl md:mx-auto md:px-8 md:pt-6 lg:px-12">
+      <div className="relative px-5 pb-16 md:mx-auto md:px-8 md:pt-6 lg:px-12 md:max-w-4xl lg:max-w-6xl">
         {/* Header: trip summary + edit */}
         <div className="flex items-start justify-between gap-3 mb-6 flex-wrap">
           <div className="flex items-start gap-3 flex-1 min-w-0">
