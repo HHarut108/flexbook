@@ -24,6 +24,7 @@ import { MultiCityCardDetailed } from '../components/MultiCityCardDetailed';
 import { MarketingShellV2 } from '../components/MarketingShellV2';
 import { FilterSidebar } from '../components/FilterSidebar';
 import { EditSearchPanel, type EditSearchLeg, type TripType as EditTripType } from '../components/EditSearchPanel';
+import { getAirportIndex, resolveMarkerInIndex } from '../lib/airportIndex';
 import {
   ArrowRight,
   CalendarSearch,
@@ -100,6 +101,93 @@ function formatDate(ymd: string): string {
   }
 }
 
+/** Map markers → friendly labels via the airport index. IATA markers ("EVN")
+ *  stay as-is so the chip shows the code the user typed. City markers
+ *  ("@paris_fr") resolve to a {short, code} pair — e.g. "Paris" + "PAR" —
+ *  so the human reads a city name instead of an internal slug. Falls back
+ *  to a Title-Cased version of the slug ("Paris Fr" → "Paris") on misses
+ *  so the chip never shows the underscore form. */
+interface MarkerLabel {
+  short: string;
+  code: string | null;
+  isCity: boolean;
+}
+
+function fallbackCityFromMarker(marker: string): string {
+  if (!marker.startsWith('@')) return marker;
+  // "@paris_fr" → "Paris". Drop the country code suffix; words separated by
+  // underscores get title-cased.
+  const slug = marker.slice(1);
+  const segments = slug.split('_');
+  // Last segment is typically the country code (2 letters). Keep everything
+  // up to but not including it when there's more than one segment.
+  const cityParts = segments.length > 1 ? segments.slice(0, -1) : segments;
+  return cityParts
+    .map((p) => (p ? p[0].toUpperCase() + p.slice(1) : p))
+    .join(' ')
+    .trim();
+}
+
+function useMarkerLabels(markers: string[]): Record<string, MarkerLabel> {
+  const [labels, setLabels] = useState<Record<string, MarkerLabel>>({});
+  useEffect(() => {
+    let cancelled = false;
+    const needsLookup = markers.some((m) => m && m.startsWith('@'));
+    if (!needsLookup) {
+      setLabels({});
+      return;
+    }
+    void getAirportIndex().then((index) => {
+      if (cancelled) return;
+      const next: Record<string, MarkerLabel> = {};
+      for (const m of markers) {
+        if (!m || !m.startsWith('@')) continue;
+        const resolved = resolveMarkerInIndex(index, m);
+        if (resolved && resolved.kind === 'city') {
+          next[m] = {
+            short: resolved.city.name,
+            code: resolved.city.airports[0] ?? null,
+            isCity: true,
+          };
+        } else {
+          next[m] = { short: fallbackCityFromMarker(m), code: null, isCity: true };
+        }
+      }
+      setLabels(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [markers]);
+  return labels;
+}
+
+function MarkerChip({
+  marker,
+  labels,
+}: {
+  marker: string;
+  labels: Record<string, MarkerLabel>;
+}) {
+  if (!marker.startsWith('@')) {
+    // Plain IATA — show as-is in mono so it reads as a code.
+    return <span className="font-mono font-bold text-text-primary">{marker}</span>;
+  }
+  const label = labels[marker];
+  if (!label) {
+    // Index still loading — show a soft placeholder rather than the raw slug.
+    return (
+      <span className="font-bold text-text-primary">{fallbackCityFromMarker(marker)}</span>
+    );
+  }
+  return (
+    <span className="inline-flex items-baseline gap-1 min-w-0 whitespace-nowrap">
+      <span className="font-bold text-text-primary">{label.short}</span>
+      <span className="text-[10px] font-semibold text-text-xmuted">(all)</span>
+    </span>
+  );
+}
+
 function TripSummary({
   type,
   legs,
@@ -112,6 +200,12 @@ function TripSummary({
   const paxLabel = `${passengers} traveler${passengers > 1 ? 's' : ''}`;
   const typeLabel = type === 'oneway' ? 'One-way' : type === 'return' ? 'Return' : 'Multi-city';
 
+  const markers = useMemo(
+    () => Array.from(new Set(legs.flatMap((l) => [l.origin, l.destination]))),
+    [legs],
+  );
+  const labels = useMarkerLabels(markers);
+
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-text-secondary">
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-soft text-indigo text-[11px] font-bold">
@@ -120,9 +214,9 @@ function TripSummary({
       {legs.map((leg, i) => (
         <span key={i} className="inline-flex items-center gap-1.5">
           {i > 0 && <span className="text-text-xmuted">·</span>}
-          <span className="font-mono font-bold text-text-primary">{leg.origin}</span>
+          <MarkerChip marker={leg.origin} labels={labels} />
           <Plane size={11} className="rotate-90 text-text-xmuted" />
-          <span className="font-mono font-bold text-text-primary">{leg.destination}</span>
+          <MarkerChip marker={leg.destination} labels={labels} />
           <span className="text-text-muted">· {formatDate(leg.date)}</span>
         </span>
       ))}
