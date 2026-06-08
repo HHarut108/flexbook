@@ -93,40 +93,51 @@ export interface LegRowProps {
 export function LegRow({ leg, logoUrl, legLabel, isBestValue }: LegRowProps) {
   const carrierName = leg.airlineName || leg.carriers?.[0] || 'Airline';
   const code = leg.airlineCode?.toUpperCase() || carrierName.slice(0, 1).toUpperCase();
-  const stopLabel =
-    leg.stops === 0 ? 'Direct' : `${leg.stops} stop${leg.stops > 1 ? 's' : ''}`;
+  const isDirect = leg.stops === 0;
+  const stopLabel = isDirect ? 'Direct' : `${leg.stops} stop${leg.stops > 1 ? 's' : ''}`;
   const firstLayover = leg.layovers?.find((l) => l.durationMinutes > 0);
   const viaIata = firstLayover?.iata ?? leg.viaIatas?.[0] ?? null;
-  const badgeBg = airlineBadgeColor(code);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr] gap-3 lg:gap-5 items-center">
+    <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-3 lg:gap-5 items-center">
       <div className="flex items-center gap-3 min-w-0">
-        <div
-          className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 overflow-hidden"
-          style={{ background: badgeBg }}
-        >
+        {/* Airline mark — neutral surface lets the brand logo speak. Falls
+            back to a 2-letter monogram in the same chrome so the card weight
+            stays consistent whether the logo loaded or not. */}
+        <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 overflow-hidden bg-surface border border-border/70 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
           {logoUrl ? (
             <img
               src={logoUrl}
               alt={`${carrierName} logo`}
-              className="h-6 w-8 object-contain"
+              className="h-7 w-8 object-contain"
               loading="lazy"
             />
           ) : (
-            <span className="font-bold text-sm text-white">{code.slice(0, 2)}</span>
+            <span className="font-mono font-bold text-[13px] text-text-primary tracking-tight">
+              {code.slice(0, 2)}
+            </span>
           )}
         </div>
         <div className="min-w-0">
           {legLabel && (
-            <p className="text-[10px] uppercase tracking-wider font-bold text-indigo-mid">
+            <p className="text-[9px] uppercase tracking-[0.14em] font-bold text-text-muted mb-0.5">
               {legLabel}
             </p>
           )}
-          <p className="text-sm font-bold text-text-primary truncate">{carrierName}</p>
-          <p className="text-xs text-text-muted">{stopLabel}</p>
+          <p className="text-[15px] font-bold text-text-primary truncate leading-tight">
+            {carrierName}
+          </p>
+          <p className="mt-0.5 text-[11px] text-text-muted">
+            <span
+              className={
+                'inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle ' +
+                (isDirect ? 'bg-emerald-500' : 'bg-sky-500')
+              }
+            />
+            {stopLabel}
+          </p>
           {isBestValue && (
-            <span className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo text-white text-[10px] font-semibold">
+            <span className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo text-white text-[10px] font-semibold">
               <Sparkles size={10} /> Best value
             </span>
           )}
@@ -250,22 +261,3 @@ function layoverQuality(minutes: number): string {
   return 'long';
 }
 
-/** Stable color per airline code so the badges look like the screenshot
- *  (Lufthansa = navy, Wizz = magenta, etc.) without hardcoding every carrier. */
-export function airlineBadgeColor(code: string): string {
-  const palette = [
-    'linear-gradient(135deg, #1a2238 0%, #0f172a 100%)',
-    'linear-gradient(135deg, #c4007b 0%, #9c0a73 100%)',
-    'linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)',
-    'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
-    'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
-    'linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)',
-    'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)',
-    'linear-gradient(135deg, #0d9488 0%, #115e59 100%)',
-  ];
-  let hash = 0;
-  for (let i = 0; i < code.length; i++) {
-    hash = (hash * 31 + code.charCodeAt(i)) >>> 0;
-  }
-  return palette[hash % palette.length];
-}
