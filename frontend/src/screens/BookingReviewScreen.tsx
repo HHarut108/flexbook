@@ -7,7 +7,8 @@ import { fetchAirlineLogos } from '../api/airlines.api';
 import { formatDate, formatTime, durationLabel } from '../utils/date.utils';
 import { formatPrice, totalPrice } from '../utils/price.utils';
 import { track, AnalyticsEvent } from '../lib/analytics';
-import { buildKiwiMultiCitySearchUrl } from '../utils/kiwi.utils';
+import { persistSelectedTrip } from '../lib/selectedTrip';
+import { BookingChoice } from '../components/BookingChoice';
 import { MapErrorBoundary } from '../components/MapErrorBoundary';
 import { GoHomeLogo } from '../components/GoHomeLogo';
 import {
@@ -23,7 +24,6 @@ import {
   CalendarDays,
   Luggage,
   Menu,
-  Headphones as HeadphonesIcon,
 } from 'lucide-react';
 import { AssistanceRequestModal } from '../components/AssistanceRequestModal';
 
@@ -392,37 +392,39 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
     return () => { cancelled = true; };
   }, [orderedLegs]);
 
-  const multiCityBookingUrl = useMemo(
-    () => buildKiwiMultiCitySearchUrl(orderedLegs, passengers),
-    [orderedLegs, passengers],
-  );
-
-  const handleBookAll = useCallback(() => {
-    if (!multiCityBookingUrl) return;
+  // DIY path: persist the trip to sessionStorage so the BookingConciergeScreen
+  // can load it by id (same mechanism Quick Search uses for /trip/:id). Then
+  // navigate to /book/concierge/:id where the user walks through each leg's
+  // unified Kiwi /booking/?token= checkout one at a time.
+  const handleStartConcierge = useCallback(() => {
+    if (orderedLegs.length === 0) return;
     track(AnalyticsEvent.BookingClicked, {
       legs: orderedLegs.length,
       totalUsd: total,
       partial,
     });
-    window.open(multiCityBookingUrl, '_blank', 'noopener,noreferrer');
-  }, [multiCityBookingUrl, orderedLegs.length, total, partial]);
+    const saved = persistSelectedTrip({
+      type: 'multi',
+      passengers,
+      flights: orderedLegs,
+      bookings: orderedLegs.map((leg, i) => ({
+        label: `Book Leg ${i + 1}: ${leg.originIata} → ${leg.destinationIata}`,
+        url: leg.bookingUrl ?? '',
+      })),
+      totalPriceUsd: total,
+    });
+    navigate(`/book/concierge/${saved.id}`);
+  }, [orderedLegs, passengers, total, partial, navigate]);
 
   /* ── Booking CTA panel (shared between mobile inline + desktop sidebar) ── */
   const ctaPanel = (
     <div className="section-shell px-4 py-4">
-      <button
-        className="btn-primary flex items-center justify-center gap-2"
-        onClick={handleBookAll}
-        style={{ minHeight: '48px' }}
-        aria-label={`Book entire itinerary for ${formatPrice(total)}`}
-      >
-        <ExternalLink size={16} />
-        Book this itinerary · {formatPrice(total)}
-      </button>
-      <p className="text-[11px] text-text-muted text-center mt-2 leading-relaxed">
-        Opens a multi-city search on Kiwi with every leg pre-filled.
-        Confirm prices and details before completing the booking.
-      </p>
+      <BookingChoice
+        totalLabel={formatPrice(total)}
+        legCount={orderedLegs.length}
+        onSelfService={handleStartConcierge}
+        onRequestAssistance={() => setAssistModalOpen(true)}
+      />
     </div>
   );
 
@@ -569,19 +571,6 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
           {/* Book CTA */}
           <div className="px-4 mb-4 md:px-0 md:mb-0">
             {ctaPanel}
-          </div>
-
-          {/* Assistant help */}
-          <div className="px-4 mb-4 md:px-0 md:mb-0">
-            <button
-              className="w-full flex items-center justify-center gap-2 rounded-2xl border border-indigo-border bg-indigo-soft/40 text-indigo px-4 py-3 text-sm font-semibold hover:bg-indigo-soft transition-colors active:scale-[0.98]"
-              style={{ minHeight: '48px' }}
-              onClick={() => setAssistModalOpen(true)}
-              aria-label="Request assistant help with booking"
-            >
-              <HeadphonesIcon size={16} />
-              Request assistant help
-            </button>
           </div>
 
           {/* Back button — desktop only */}
