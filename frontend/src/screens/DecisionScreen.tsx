@@ -93,23 +93,25 @@ export function DecisionScreen() {
             From here, you can keep the trip going by choosing your next destination or wrap it up
             and head home.
           </p>
-          <div className="mt-4 rounded-2xl bg-indigo-soft border border-indigo-border px-4 py-3">
-            <p className="text-[11px] uppercase tracking-[0.16em] text-text-muted mb-1">
-              Continue from {lastLeg.destinationCity}
-            </p>
-            <p className="text-text-primary font-semibold">
-              Find the cheapest next destination on {formatDate(lastLeg.nextDepartureDate)}
-            </p>
-          </div>
         </div>
 
-        {/* Trip timeline — always visible */}
+        {/* Trip timeline — always visible. Grouped with the "Get tickets so far"
+            link below so the trip-summary cluster reads as one block. */}
         <div className="mb-5">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-text-muted uppercase tracking-wide">Trip so far</p>
             <span className="font-mono text-orange text-sm font-bold">{formatPrice(tripTotal)}</span>
           </div>
           <TripTimeline legs={legs} highlightLast />
+          <div className="mt-3 text-center">
+            <button
+              type="button"
+              onClick={() => navigate('/book/partial')}
+              className="inline-flex items-center gap-1.5 text-xs text-text-muted hover:text-indigo underline-offset-2 hover:underline transition-colors"
+            >
+              <Ticket size={12} /> Get tickets for flights so far
+            </button>
+          </div>
         </div>
 
         {/* Desktop-only trip route map */}
@@ -168,8 +170,20 @@ export function DecisionScreen() {
           </div>
         )}
 
-        {/* Action buttons */}
+        {/* Action buttons. The "Continue from {city} / Find the cheapest" framing
+            sits directly above its CTA so the prompt and the action read as one
+            grouped commitment. */}
         <div className="space-y-3">
+          {canContinue && (
+            <div className="rounded-2xl bg-indigo-soft border border-indigo-border px-4 py-3">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-text-muted mb-1">
+                Continue from {lastLeg.destinationCity}
+              </p>
+              <p className="text-text-primary font-semibold">
+                Find the cheapest next destination on {formatDate(lastLeg.nextDepartureDate)}
+              </p>
+            </div>
+          )}
           {canContinue ? (
             <button className="btn-primary" onClick={handleContinue}>
               Continue to the next destination
@@ -181,18 +195,6 @@ export function DecisionScreen() {
           )}
           <button className="btn-secondary" onClick={handleWrapUp}>
             Wrap up and fly home
-          </button>
-        </div>
-
-        {/* Secondary, lower-stakes link — visually de-emphasized so it doesn't
-            compete with the two primary commitments above. */}
-        <div className="mt-4 text-center">
-          <button
-            type="button"
-            onClick={() => navigate('/book/partial')}
-            className="inline-flex items-center gap-1.5 text-xs text-text-muted hover:text-indigo underline-offset-2 hover:underline transition-colors"
-          >
-            <Ticket size={12} /> Get tickets for flights so far
           </button>
         </div>
       </div>

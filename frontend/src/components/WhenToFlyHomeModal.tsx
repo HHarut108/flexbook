@@ -124,11 +124,6 @@ export function WhenToFlyHomeModal({
 
   if (!isOpen) return null;
 
-  const windowLabel =
-    dates.length > 0
-      ? `${formatDateLong(dates[0])} – ${formatDateLong(dates[dates.length - 1])}`
-      : '';
-
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
@@ -146,7 +141,7 @@ export function WhenToFlyHomeModal({
         </button>
 
         <div className="px-6 pt-7 pb-3">
-          <div className="flex items-center gap-3 mb-3">
+          <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-indigo-soft border border-indigo-border flex items-center justify-center">
               <Plane size={18} className="text-indigo" />
             </div>
@@ -159,10 +154,6 @@ export function WhenToFlyHomeModal({
               </h3>
             </div>
           </div>
-          <p className="text-sm text-text-muted leading-relaxed">
-            We checked every day from <span className="text-text-primary font-semibold">{fromCity}</span> to{' '}
-            <span className="text-text-primary font-semibold">{toCity}</span> across {windowLabel}.
-          </p>
         </div>
 
         <div className="px-6 pb-6">
@@ -244,28 +235,25 @@ export function WhenToFlyHomeModal({
                   className="rounded-2xl border border-indigo-border bg-indigo-soft/40 px-5 py-4 mb-4"
                   style={{ boxShadow: '0 4px 12px rgba(79,70,229,0.10)' }}
                 >
-                  <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-indigo">
+                      <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-indigo mb-1">
                         {cardLabel}
                       </p>
-                      <p className="text-text-primary font-bold text-base leading-tight mt-1">
+                      <p className="text-text-primary font-bold text-base leading-tight">
                         {formatDateLong(cheapestDate)}
+                      </p>
+                      <p className="text-sm text-text-secondary mt-0.5">
+                        {cheapest.airlineName} ·{' '}
+                        {cheapest.stops === 0
+                          ? 'Direct'
+                          : `${cheapest.stops} ${cheapest.stops === 1 ? 'stop' : 'stops'}`}
                       </p>
                     </div>
                     <p className="font-mono text-orange text-xl font-bold shrink-0">
                       {formatPrice(cheapest.priceUsd)}
                     </p>
                   </div>
-                  <p className="text-sm text-text-secondary">
-                    {cheapest.airlineName} ·{' '}
-                    {cheapest.stops === 0
-                      ? 'Direct'
-                      : `${cheapest.stops} ${cheapest.stops === 1 ? 'stop' : 'stops'}`}
-                  </p>
-                  <p className="text-[12px] text-text-muted mt-1">
-                    {cheapest.originIata} → {cheapest.destinationIata}
-                  </p>
                 </div>
 
                 <button
@@ -274,7 +262,7 @@ export function WhenToFlyHomeModal({
                   className="w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-full bg-orange text-white text-sm font-bold hover:bg-orange-dark transition-all"
                   style={{ boxShadow: '0 12px 24px -8px rgba(249,115,22,0.45)' }}
                 >
-                  Book this flight home
+                  Book this flight · {formatDateLong(cheapestDate)}
                 </button>
               </>
             );
@@ -286,7 +274,7 @@ export function WhenToFlyHomeModal({
               onClick={onSeeMoreOptions}
               className="w-full mt-3 inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-surface border border-border text-sm font-semibold text-indigo hover:bg-indigo-soft hover:border-indigo-border transition-all"
             >
-              See more flight options
+              See options on {formatDateLong(nextDepartureDate)}
             </button>
           )}
 

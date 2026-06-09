@@ -54,7 +54,7 @@ export function ItineraryScreen() {
         className="btn-primary flex items-center justify-center gap-2"
         onClick={() => navigate('/book')}
       >
-        <CreditCard size={16} /> Proceed to booking options
+        <CreditCard size={16} /> Book this trip
       </button>
       <div className="flex gap-3">
         <button
@@ -73,9 +73,15 @@ export function ItineraryScreen() {
           {sharing ? <><Loader2 size={16} className="animate-spin" /> Generating…</> : <><Share2 size={16} /> Share trip</>}
         </button>
       </div>
-      <button className="btn-outline" onClick={handleNewTrip}>
-        Plan another trip
-      </button>
+      <div className="text-center pt-1">
+        <button
+          type="button"
+          onClick={handleNewTrip}
+          className="text-xs text-text-muted hover:text-indigo underline-offset-2 hover:underline transition-colors"
+        >
+          Plan another trip
+        </button>
+      </div>
     </div>
   );
 
