@@ -1,4 +1,4 @@
-import { ArrowRight, Headphones, ListChecks, Sparkles } from 'lucide-react';
+import { ArrowRight, Headphones, ListChecks } from 'lucide-react';
 
 /** Dual-route CTA shown to multi-city travelers on the trip review screens.
  *
@@ -89,14 +89,12 @@ export function BookingChoice({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-              <p className="font-bold text-base text-text-primary">Have us book it</p>
-              <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.14em] font-mono bg-indigo/10 text-indigo px-1.5 py-0.5 rounded-full">
-                <Sparkles size={9} /> Free during launch
-              </span>
+              <p className="font-bold text-base text-text-primary">Request assistance</p>
             </div>
             <p className="text-[12px] text-text-muted leading-relaxed">
-              Share your contact details and our team will book every leg for you{totalLabel ? `, ${totalLabel} total` : ''}.
-              No tabs to juggle, no checklist to track.
+              Leave your name and email and we'll get back to you with next steps.
+              A team member reviews the request and confirms availability and the
+              final price{totalLabel ? ` (currently ${totalLabel})` : ''} before any booking is made.
             </p>
           </div>
           <ArrowRight

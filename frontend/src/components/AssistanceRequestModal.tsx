@@ -111,9 +111,15 @@ export function AssistanceRequestModal({ onClose, origin, legs, total }: Props) 
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <p className="text-sm text-text-muted leading-relaxed">
-                Share your contact details and our team will assist you with this{' '}
-                {total > 0 ? <span className="font-semibold text-text-primary">{formatPrice(total)}</span> : 'trip'}{' '}
-                booking.
+                Leave your details and a team member will get back to you to confirm
+                availability and the final price{' '}
+                {total > 0 ? (
+                  <>
+                    (currently{' '}
+                    <span className="font-semibold text-text-primary">{formatPrice(total)}</span>)
+                  </>
+                ) : null}{' '}
+                before any booking is made.
               </p>
 
               <div className="space-y-3">

@@ -256,7 +256,7 @@ export function TripDetailsScreen({ onMenuOpen }: Props) {
         </div>
 
         {/* ── Booking CTA panel ───────────────────────────────────────────── */}
-        <div className="rounded-3xl bg-surface border border-border p-4 md:p-5 sticky bottom-2 shadow-[0_-12px_30px_-18px_rgba(15,23,42,0.18)]">
+        <div className="rounded-3xl bg-surface border border-border p-4 md:p-5 shadow-[0_-12px_30px_-18px_rgba(15,23,42,0.18)]">
           <div className="flex items-center justify-between gap-3 mb-3">
             <p className="text-xs text-text-muted">
               Total · {trip.passengers} traveler{trip.passengers === 1 ? '' : 's'}

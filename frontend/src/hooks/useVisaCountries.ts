@@ -63,3 +63,11 @@ export function resolveCountryCode(name: string | null | undefined): string | nu
   if (!name || !cached?.loaded) return null;
   return cached.byNameLower.get(name.trim().toLowerCase()) ?? null;
 }
+
+/** Fire-and-forget warmer. Pulls the country list (and wakes the
+ *  visa-service cold start) so that by the time the user lands on a
+ *  results screen the lookup is instant. Safe to call multiple times. */
+export function prefetchVisaCountries(): void {
+  if (cached?.loaded && cached.error === null) return;
+  void load();
+}
