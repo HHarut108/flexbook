@@ -223,50 +223,6 @@ export function BookingConciergeScreen({ onMenuOpen }: Props) {
           </div>
         </div>
 
-        {/* ── Completion banner ────────────────────────────────────────────── */}
-        {complete && (
-          <div className="rounded-3xl bg-emerald-50 border border-emerald-200 p-4 md:p-5">
-            <div className="flex items-start gap-3 mb-3">
-              <div className="w-11 h-11 rounded-2xl bg-emerald-500 flex items-center justify-center shrink-0">
-                <CheckCircle2 size={22} className="text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-emerald-700 font-mono mb-1">
-                  Trip booked
-                </p>
-                <h2 className="text-lg font-bold text-text-primary leading-tight">
-                  {booked} ticket{booked === 1 ? '' : 's'} booked · {formatPrice(totalBooked)}
-                </h2>
-                {skipped > 0 && (
-                  <p className="text-xs text-amber-700 mt-1">
-                    {skipped} leg{skipped === 1 ? '' : 's'} skipped — you can come back any time.
-                  </p>
-                )}
-              </div>
-            </div>
-            <p className="text-xs text-text-muted leading-relaxed mb-3">
-              Your booking confirmations and e-tickets are in your email. We don't
-              store payment info — refer to Kiwi for changes, cancellations, or
-              support on each ticket.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Link
-                to="/quick-search"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo text-white text-xs font-bold hover:bg-indigo/90 transition-all"
-              >
-                Plan another trip
-              </Link>
-              <button
-                type="button"
-                onClick={handleStartOver}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-surface border border-border text-xs font-semibold text-text-secondary hover:border-indigo-border hover:text-indigo transition-all"
-              >
-                <RotateCcw size={12} /> Restart checklist
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* ── Per-leg list ─────────────────────────────────────────────────── */}
         <div className="space-y-3">
           {trip.flights.map((leg, i) => {
@@ -303,6 +259,54 @@ export function BookingConciergeScreen({ onMenuOpen }: Props) {
               Take your time. Your progress saves automatically — close the tab and
               come back whenever you're ready to book the next ticket.
             </p>
+          </div>
+        )}
+
+        {/* ── Completion banner (bottom of screen) ─────────────────────────── */}
+        {complete && (
+          <div
+            className="rounded-3xl border-2 border-emerald-500 bg-white p-5 md:p-6"
+            style={{ boxShadow: '0 20px 48px -16px rgba(16,185,129,0.45)' }}
+          >
+            <div className="flex items-start gap-3 mb-3">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-600 flex items-center justify-center shrink-0">
+                <CheckCircle2 size={24} className="text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-emerald-700 font-mono font-bold mb-1">
+                  Trip booked
+                </p>
+                <h2 className="text-xl md:text-2xl font-black text-text-primary leading-tight">
+                  {booked} ticket{booked === 1 ? '' : 's'} booked · {formatPrice(totalBooked)}
+                </h2>
+                {skipped > 0 && (
+                  <p className="text-xs font-semibold text-amber-800 mt-1">
+                    {skipped} leg{skipped === 1 ? '' : 's'} skipped — you can come back any time.
+                  </p>
+                )}
+              </div>
+            </div>
+            <p className="text-sm text-text-secondary leading-relaxed mb-4">
+              Your booking confirmations and e-tickets are in your email. We don't
+              store payment info — refer to Kiwi for changes, cancellations, or
+              support on each ticket.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                to="/quick-search"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo text-white text-sm font-bold hover:bg-indigo/90 transition-all"
+                style={{ color: '#FFFFFF' }}
+              >
+                Plan another trip
+              </Link>
+              <button
+                type="button"
+                onClick={handleStartOver}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white border-2 border-border text-sm font-bold text-text-primary hover:border-indigo hover:text-indigo transition-all"
+              >
+                <RotateCcw size={13} /> Restart checklist
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -422,9 +426,10 @@ function LegCard({
             <button
               type="button"
               onClick={onMarkBooked}
-              className="flex-1 min-w-[140px] inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-500 text-white text-xs font-bold hover:bg-emerald-600 transition-all active:scale-[0.98]"
+              className="flex-1 min-w-[140px] inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all active:scale-[0.98] shadow-[0_10px_24px_-10px_rgba(16,185,129,0.55)]"
+              style={{ color: '#FFFFFF' }}
             >
-              <CheckCircle2 size={13} /> Yes, booked
+              <CheckCircle2 size={13} className="text-white" /> Yes, I booked it
             </button>
             <button
               type="button"

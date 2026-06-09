@@ -42,6 +42,8 @@ import { authApi } from './api/auth.api';
 import { useAuthStore } from './store/auth.store';
 import { hasSessionHint, clearSessionHint } from './utils/sessionHint';
 import { useV2 } from './lib/layoutFlag';
+import { prefetchVisaCountries } from './hooks/useVisaCountries';
+import { apiClient } from './api/client';
 
 const ME_TIMEOUT_MS = 3000;
 
@@ -57,6 +59,17 @@ export default function App() {
   useAnalyticsPageviews();
   const v2 = useV2();
   const openDrawer = () => setDrawerOpen(true);
+
+  useEffect(() => {
+    // Warm the visa-service + country list as early as possible so the
+    // requirement pills on Flight Results land instantly instead of after
+    // a Render free-tier cold start. Idempotent — safe to call on every mount.
+    prefetchVisaCountries();
+    // Cheap ping to wake the backend dyno before the user kicks off a
+    // search. Fire-and-forget; cold starts on Render free tier are ~5-15s
+    // so paying that cost in the background saves it from the first search.
+    apiClient.get('/health').catch(() => { /* ignore */ });
+  }, []);
 
   useEffect(() => {
     // First-time visitors have no session hint → skip /me entirely so the UI

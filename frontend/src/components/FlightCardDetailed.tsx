@@ -317,12 +317,12 @@ export function LegRow({
             </p>
           </div>
           {isMixed && (
-            <span className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 text-[10px] font-semibold leading-none">
+            <span className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-100 border border-amber-300 text-amber-900 dark:bg-amber-500/20 dark:border-amber-400/40 dark:text-amber-200 text-[10px] font-semibold leading-none">
               <Users size={10} /> Mixed carriers
             </span>
           )}
           {isBestValue && (
-            <span className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-indigo text-white text-[10px] font-semibold leading-none">
+            <span className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo text-white text-[10px] font-bold leading-none shadow-[0_2px_8px_rgba(55,48,163,0.35)]">
               <Sparkles size={9} /> Best value
             </span>
           )}
@@ -459,20 +459,20 @@ export function ActionColumn({
 
       <div className="flex flex-row lg:flex-col lg:items-end gap-1 shrink-0">
         {hasSelfTransfer ? (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 lg:px-2 lg:py-1 rounded-md bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 text-[10px] lg:text-[11px] font-semibold whitespace-nowrap">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 lg:px-2 lg:py-1 rounded-md bg-amber-100 border border-amber-300 text-amber-900 dark:bg-amber-500/20 dark:border-amber-400/40 dark:text-amber-200 text-[10px] lg:text-[11px] font-semibold whitespace-nowrap">
             <AlertTriangle size={10} className="lg:hidden" />
             <AlertTriangle size={11} className="hidden lg:inline" />
             Self-transfer
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 lg:px-2 lg:py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 text-[10px] lg:text-[11px] font-semibold whitespace-nowrap">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 lg:px-2 lg:py-1 rounded-md bg-emerald-100 border border-emerald-300 text-emerald-900 dark:bg-emerald-500/20 dark:border-emerald-400/40 dark:text-emerald-200 text-[10px] lg:text-[11px] font-semibold whitespace-nowrap">
             <ShieldCheck size={10} className="lg:hidden" />
             <ShieldCheck size={11} className="hidden lg:inline" />
             Protected
           </span>
         )}
         {separateTickets && (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 lg:px-2 lg:py-1 rounded-md bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 text-[10px] lg:text-[11px] font-semibold whitespace-nowrap">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 lg:px-2 lg:py-1 rounded-md bg-amber-100 border border-amber-300 text-amber-900 dark:bg-amber-500/20 dark:border-amber-400/40 dark:text-amber-200 text-[10px] lg:text-[11px] font-semibold whitespace-nowrap">
             <Ticket size={10} className="lg:hidden" />
             <Ticket size={11} className="hidden lg:inline" />
             Separate tickets

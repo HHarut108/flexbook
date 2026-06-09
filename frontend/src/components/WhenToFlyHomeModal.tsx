@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FlightOption } from '@fast-travel/shared';
-import { X, Plane, AlertTriangle, Check, CalendarClock } from 'lucide-react';
+import { X, Plane, AlertTriangle, Check, CalendarClock, Loader2 } from 'lucide-react';
 import { addDays, format, parseISO, differenceInCalendarDays } from 'date-fns';
 import { searchFlights } from '../api/flights.api';
 import { formatPrice } from '../utils/price.utils';
@@ -158,10 +158,26 @@ export function WhenToFlyHomeModal({
 
         <div className="px-6 pb-6">
           {loading && (
-            <div className="rounded-2xl border border-border bg-surface-2/40 px-4 py-5 animate-pulse">
-              <div className="h-3 w-24 bg-surface-2 rounded mb-3" />
-              <div className="h-5 w-44 bg-surface-2 rounded mb-2" />
-              <div className="h-4 w-32 bg-surface-2 rounded" />
+            <div className="rounded-2xl border border-indigo-border bg-indigo-soft/50 px-4 py-5 flex items-start gap-3">
+              <Loader2 size={18} className="text-indigo shrink-0 mt-0.5 animate-spin" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-text-primary leading-tight mb-1">
+                  Searching cheaper home flights…
+                </p>
+                <p className="text-xs text-text-muted leading-relaxed">
+                  Scanning a {dates.length}-day window around{' '}
+                  <strong className="text-text-secondary">{formatDateLong(nextDepartureDate)}</strong>{' '}
+                  for the cheapest {fromCity} → {toCity} return.
+                </p>
+                <div className="mt-3 space-y-1.5">
+                  <div className="h-2.5 w-3/4 rounded-full bg-indigo/15 overflow-hidden">
+                    <div className="h-full w-1/2 rounded-full bg-indigo/40 animate-pulse" />
+                  </div>
+                  <div className="h-2.5 w-1/2 rounded-full bg-indigo/15 overflow-hidden">
+                    <div className="h-full w-1/3 rounded-full bg-indigo/40 animate-pulse" />
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
