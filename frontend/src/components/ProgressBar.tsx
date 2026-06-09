@@ -36,8 +36,13 @@ export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const HIDDEN_PATHS = new Set(['/', '/hop-planner', '/search', '/quick-search', '/trip-planner', '/when-to-go', '/book', '/book/partial', '/login', '/signup', '/verify-email', '/account', '/trips', '/deals', '/tools', '/about']);
   // /trip/:id (new in-app booking-review screen) also shouldn't show the
   // multi-stop progress strip — it belongs to the Quick Search flow, not
-  // the trip-builder.
-  if (HIDDEN_PATHS.has(pathname) || pathname.startsWith('/trip/')) return null;
+  // the trip-builder. Same for /book/concierge/:tripId (the Booking Concierge
+  // stepper renders its own progress UI).
+  if (
+    HIDDEN_PATHS.has(pathname) ||
+    pathname.startsWith('/trip/') ||
+    pathname.startsWith('/book/concierge/')
+  ) return null;
 
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
   const stopCount = nonReturnLegs.length;

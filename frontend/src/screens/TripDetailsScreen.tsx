@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { format, differenceInCalendarDays, parseISO } from 'date-fns';
@@ -10,13 +10,14 @@ import {
   Plane,
   Ticket,
 } from 'lucide-react';
-import { FlightOption } from '@fast-travel/shared';
+import { FlightOption, TripLeg } from '@fast-travel/shared';
 import { MarketingShellV2 } from '../components/MarketingShellV2';
 import { LegRow } from '../components/FlightCardDetailed';
+import { BookingChoice } from '../components/BookingChoice';
+import { AssistanceRequestModal } from '../components/AssistanceRequestModal';
 import { loadSelectedTrip, SelectedTrip } from '../lib/selectedTrip';
 import { formatPrice } from '../utils/price.utils';
 import { durationLabel } from '../utils/date.utils';
-import { buildKiwiMultiCitySearchUrl } from '../utils/kiwi.utils';
 
 interface Props {
   onMenuOpen?: () => void;
@@ -116,20 +117,30 @@ export function TripDetailsScreen({ onMenuOpen }: Props) {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
-  // Multi-city: each leg is sold as a separate ticket on Kiwi, so the per-leg
-  // deep-link checkout URLs each open a different page. Previously we'd loop
-  // window.open per leg, but the browser's popup blocker only lets the first
-  // through — the user would land on Kiwi seeing one leg, not the whole trip.
-  // Instead build a single Kiwi multi-city *search* URL with every sector
-  // pre-filled and open it in one tab.
-  const multiCityBookingUrl = useMemo(
-    () => buildKiwiMultiCitySearchUrl(trip?.flights ?? [], trip?.passengers ?? 1),
-    [trip],
-  );
+  // Multi-city: choice screen replaces a single CTA. DIY navigates to the
+  // Booking Concierge stepper (per-leg checklist that uses the existing Kiwi
+  // deep-link tokens — each opens the unified /booking/?token= checkout). The
+  // assist path opens the existing AssistanceRequestModal which routes the
+  // request to the back-office inbox via POST /assistance-requests.
+  const [assistOpen, setAssistOpen] = useState(false);
 
-  function openMultiCitySearch() {
-    if (!multiCityBookingUrl) return;
-    window.open(multiCityBookingUrl, '_blank', 'noopener,noreferrer');
+  // The Assistance modal expects TripLeg[] (FlightOption + nav fields). Our
+  // FlightOption list has the essentials; pad the few extra fields to
+  // sensible defaults so the modal renders the trip summary correctly.
+  const assistLegs: TripLeg[] = useMemo(() => {
+    if (!trip) return [];
+    return trip.flights.map((f, i) => ({
+      ...f,
+      stopIndex: i + 1,
+      stayDurationDays: 0,
+      nextDepartureDate: '',
+      isReturn: trip.type === 'return' && i === trip.flights.length - 1,
+    }));
+  }, [trip]);
+
+  function handleStartConcierge() {
+    if (!trip) return;
+    navigate(`/book/concierge/${trip.id}`);
   }
 
   return (
@@ -256,38 +267,12 @@ export function TripDetailsScreen({ onMenuOpen }: Props) {
           </div>
 
           {trip.type === 'multi' ? (
-            <>
-              <p className="text-[11px] text-text-muted mb-3 leading-relaxed">
-                Opens a Kiwi multi-city search with every leg pre-filled. Each
-                leg is still sold as its own ticket — confirm prices and baggage
-                rules on Kiwi before completing the booking.
-              </p>
-              <button
-                type="button"
-                onClick={openMultiCitySearch}
-                disabled={!multiCityBookingUrl}
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-orange text-white text-sm font-bold hover:bg-orange-dark transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{ boxShadow: '0 14px 30px -10px rgba(249,115,22,0.5)' }}
-              >
-                <ExternalLink size={14} /> Book all flights on Kiwi
-              </button>
-              <div className="mt-3 space-y-2">
-                <p className="text-[10px] uppercase tracking-[0.14em] text-text-xmuted font-semibold px-1">
-                  Or open one leg at a time
-                </p>
-                {trip.bookings.map((b, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => openBooking(b.url)}
-                    className="w-full inline-flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-surface border border-border text-sm font-semibold text-text-primary hover:border-indigo-border hover:text-indigo transition-colors"
-                  >
-                    <span className="truncate">{b.label}</span>
-                    <ExternalLink size={13} className="shrink-0" />
-                  </button>
-                ))}
-              </div>
-            </>
+            <BookingChoice
+              totalLabel={formatPrice(trip.totalPriceUsd)}
+              legCount={trip.flights.length}
+              onSelfService={handleStartConcierge}
+              onRequestAssistance={() => setAssistOpen(true)}
+            />
           ) : (
             <button
               type="button"
@@ -300,11 +285,21 @@ export function TripDetailsScreen({ onMenuOpen }: Props) {
             </button>
           )}
           <p className="text-[10px] text-text-xmuted text-center mt-3">
-            Opens the partner site in a new tab. Final price + baggage rules
-            shown there.
+            {trip.type === 'multi'
+              ? 'Pick how you want to book. Both options use the same trusted Kiwi.com checkout.'
+              : 'Opens the partner site in a new tab. Final price + baggage rules shown there.'}
           </p>
         </div>
       </div>
+
+      {assistOpen && (
+        <AssistanceRequestModal
+          onClose={() => setAssistOpen(false)}
+          origin={cities[0]}
+          legs={assistLegs}
+          total={trip.totalPriceUsd}
+        />
+      )}
     </MarketingShellV2>
   );
 }
