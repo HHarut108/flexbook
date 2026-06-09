@@ -20,9 +20,7 @@ import {
   PlaneTakeoff,
   PlaneLanding,
   CalendarDays,
-  ShieldCheck,
   Luggage,
-  CheckCircle2,
   Menu,
   Headphones as HeadphonesIcon,
 } from 'lucide-react';
@@ -365,8 +363,7 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
   const navigate = useNavigate();
   const origin = useTripStore((s) => s.origin);
   const allLegs = useTripStore((s) => s.legs);
-  const [bulkStarted, setBulkStarted] = useState(false);
-  const [bookingConfirm, setBookingConfirm] = useState(false);
+  const passengers = useTripStore((s) => s.passengers);
   const [assistModalOpen, setAssistModalOpen] = useState(false);
   const [airlineLogos, setAirlineLogos] = useState<Record<string, string>>({});
 
@@ -394,85 +391,47 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
     return () => { cancelled = true; };
   }, [orderedLegs]);
 
+  // Build a single Kiwi multi-city search URL covering every leg in this trip,
+  // so the user lands on one page with all segments pre-filled instead of
+  // opening N popup tabs (and losing all but the first to popup blockers).
+  // Format: kiwi.com/.../{from}-{to}/{YYYY-MM-DD}/no-return,{from2}-{to2}/.../?adults=N
+  const multiCityBookingUrl = useMemo(() => {
+    if (orderedLegs.length === 0) return null;
+    const segments = orderedLegs
+      .map((leg) => {
+        const date = leg.departureDatetime.slice(0, 10);
+        return `${leg.originIata}-${leg.destinationIata}/${date}/no-return`;
+      })
+      .join(',');
+    return `https://www.kiwi.com/en/search/results/${segments}?adults=${passengers}&sortBy=price`;
+  }, [orderedLegs, passengers]);
+
   const handleBookAll = useCallback(() => {
-    if (!bookingConfirm) {
-      setBookingConfirm(true);
-      return;
-    }
-    setBulkStarted(true);
+    if (!multiCityBookingUrl) return;
     track(AnalyticsEvent.BookingClicked, {
       legs: orderedLegs.length,
       totalUsd: total,
       partial,
     });
-    let firstTab: Window | null = null;
-    orderedLegs.forEach((leg) => {
-      if (leg.bookingUrl) {
-        const tab = window.open(leg.bookingUrl, '_blank', 'noopener,noreferrer');
-        if (!firstTab && tab) firstTab = tab;
-      }
-    });
-    if (firstTab) (firstTab as Window).focus();
-  }, [bookingConfirm, orderedLegs, total, partial]);
+    window.open(multiCityBookingUrl, '_blank', 'noopener,noreferrer');
+  }, [multiCityBookingUrl, orderedLegs.length, total, partial]);
 
   /* ── Booking CTA panel (shared between mobile inline + desktop sidebar) ── */
   const ctaPanel = (
     <div className="section-shell px-4 py-4">
-      {!bookingConfirm ? (
-        <>
-          <button
-            className="btn-primary flex items-center justify-center gap-2"
-            onClick={handleBookAll}
-            style={{ minHeight: '48px' }}
-            aria-label={`Book entire itinerary for ${formatPrice(total)}`}
-          >
-            <ExternalLink size={16} />
-            Book this itinerary · {formatPrice(total)}
-          </button>
-          <p className="text-[11px] text-text-muted text-center mt-2 leading-relaxed">
-            This will open each booking in a new tab — one per flight.
-            Check final prices before completing each purchase.
-          </p>
-        </>
-      ) : (
-        <div className="space-y-3">
-          <div className="flex items-start gap-3 rounded-xl bg-[#FFF7ED] border border-orange/20 px-3 py-3">
-            <ShieldCheck size={18} className="text-orange shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-text-primary mb-0.5">Ready to open booking pages?</p>
-              <p className="text-xs text-text-muted leading-relaxed">
-                This will open {orderedLegs.length} tab{orderedLegs.length > 1 ? 's' : ''} — one for each flight leg.
-                Check final prices, baggage rules, and layover details on each page.
-              </p>
-            </div>
-          </div>
-          <button
-            className="btn-primary flex items-center justify-center gap-2"
-            onClick={handleBookAll}
-            style={{ minHeight: '48px' }}
-          >
-            {bulkStarted ? (
-              <><CheckCircle2 size={16} /> Booking pages opened</>
-            ) : (
-              <><ExternalLink size={16} /> Confirm — open all booking pages</>
-            )}
-          </button>
-          {!bulkStarted && (
-            <button
-              className="w-full text-center text-sm text-text-muted py-2 hover:text-text-primary transition-colors"
-              onClick={() => setBookingConfirm(false)}
-            >
-              Cancel
-            </button>
-          )}
-          {bulkStarted && (
-            <p className="text-xs text-text-muted text-center flex items-center justify-center gap-1.5">
-              <CheckCircle2 size={12} className="text-emerald-500" />
-              Opened {orderedLegs.length} tab{orderedLegs.length > 1 ? 's' : ''} — your first flight is shown
-            </p>
-          )}
-        </div>
-      )}
+      <button
+        className="btn-primary flex items-center justify-center gap-2"
+        onClick={handleBookAll}
+        style={{ minHeight: '48px' }}
+        aria-label={`Book entire itinerary for ${formatPrice(total)}`}
+      >
+        <ExternalLink size={16} />
+        Book this itinerary · {formatPrice(total)}
+      </button>
+      <p className="text-[11px] text-text-muted text-center mt-2 leading-relaxed">
+        Opens a multi-city search on Kiwi with every leg pre-filled.
+        Confirm prices and details before completing the booking.
+      </p>
     </div>
   );
 

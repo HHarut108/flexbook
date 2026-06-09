@@ -9,18 +9,11 @@ import { countryDisplayName } from '../utils/country.utils';
 import { ArrowLeft, ArrowRight, Minus, Plus, AlertTriangle, Waypoints, MapPin } from 'lucide-react';
 import { TripTimeline } from '../components/TripTimeline';
 import { DestinationGuideCard } from '../components/DestinationGuideCard';
-import { getStayDurationHint } from '../utils/copy.utils';
 import { useCurrentPassport } from '../hooks/useCurrentPassport';
 import { useVisaCountries, resolveCountryCode } from '../hooks/useVisaCountries';
 import { useVisaRequirements } from '../hooks/useVisaRequirements';
-import recommendationsRaw from '../../public/stayRecommendations.json';
-const recommendations = recommendationsRaw as Record<string, string>;
 
 const QUICK_PICK_NIGHTS = [1, 3, 5, 7];
-
-function formatRecommendation(text: string) {
-  return text.replace(/^Typically\s+/i, 'A great first plan is ');
-}
 
 export function StayDurationScreen() {
   const navigate = useNavigate();
@@ -63,7 +56,6 @@ export function StayDurationScreen() {
   if (!selectedFlight) return null;
 
   const nextDeparture = computeNextDeparture(selectedFlight.arrivalDatetime, days);
-  const recommendation = recommendations[selectedFlight.destinationIata];
   const stopIndex = legs.filter((l) => !l.isReturn).length + 1;
 
   function handleConfirm() {
@@ -110,7 +102,7 @@ export function StayDurationScreen() {
           <div className="flex items-center gap-2 mb-3">
             <div className="h-0.5 w-5 bg-orange rounded-full" />
             <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-orange">
-              Flexbook tool · Stay duration
+              Trip Builder · Stay duration
             </p>
           </div>
 
@@ -125,23 +117,10 @@ export function StayDurationScreen() {
             <span className="text-orange">?</span>
           </h1>
 
-          <p className="mt-4 text-base md:text-lg leading-7 text-text-muted max-w-[44ch]">
-            {getStayDurationHint(selectedFlight.flightId)}
-          </p>
-
-          <div className="mt-3 flex items-center gap-1.5 text-text-muted text-sm">
+          <div className="mt-4 flex items-center gap-1.5 text-text-muted text-sm">
             <MapPin size={14} className="text-indigo-mid" />
             <span>{destinationCity}, {destinationCountryName}</span>
           </div>
-
-          {recommendation && (
-            <div className="mt-5 rounded-2xl bg-indigo-soft border border-indigo-border px-4 py-3 max-w-md">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-text-muted mb-1 font-semibold">
-                A helpful starting point
-              </p>
-              <p className="text-indigo text-sm leading-6">{formatRecommendation(recommendation)}</p>
-            </div>
-          )}
 
           {/* Desktop-only Stay/Do/Eat preview — gives the user a sense of
               what awaits them while they pick the duration. Hidden on mobile
@@ -160,10 +139,10 @@ export function StayDurationScreen() {
 
         {/* RIGHT — picker card */}
         <div
-          className="bg-surface rounded-[24px] border border-border/60 p-5 md:p-6 self-start"
+          className="bg-surface rounded-[24px] border border-border/60 p-4 md:p-5 self-start"
           style={{ boxShadow: '0 20px 50px -20px rgba(15,23,42,0.18)' }}
         >
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-bold text-text-primary">Your stay</h2>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-2 border border-border text-[11px] font-bold text-text-secondary">
               <Waypoints size={11} />
@@ -175,12 +154,12 @@ export function StayDurationScreen() {
           <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1.5 px-1">
             Quick pick
           </div>
-          <div className="grid grid-cols-4 gap-2 mb-5">
+          <div className="grid grid-cols-4 gap-2 mb-4">
             {QUICK_PICK_NIGHTS.map((n) => (
               <button
                 key={n}
                 onClick={() => setDays(n)}
-                className={`py-3 rounded-2xl text-sm font-semibold transition-all active:scale-95 border
+                className={`py-2.5 rounded-2xl text-sm font-semibold transition-all active:scale-95 border
                   ${days === n
                     ? 'bg-indigo text-white border-indigo shadow-[0_8px_20px_rgba(79,70,229,0.28)]'
                     : 'bg-indigo-soft text-indigo border-indigo-border hover:border-indigo/50'
@@ -192,35 +171,35 @@ export function StayDurationScreen() {
             ))}
           </div>
 
-          <hr className="border-border/60 my-5" />
+          <hr className="border-border/60 my-4" />
 
           {/* Stepper */}
           <div className="flex items-center justify-center gap-6 md:gap-8 mb-1">
             <button
               onClick={() => setDays((d) => Math.max(1, d - 1))}
-              className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-indigo-soft border border-indigo-border text-indigo hover:bg-indigo hover:text-white transition-all active:scale-90 flex items-center justify-center"
+              className="w-11 h-11 md:w-12 md:h-12 rounded-2xl bg-indigo-soft border border-indigo-border text-indigo hover:bg-indigo hover:text-white transition-all active:scale-90 flex items-center justify-center"
               aria-label="Decrease days"
             >
-              <Minus size={22} />
+              <Minus size={20} />
             </button>
             <div className="text-center">
-              <div className="text-5xl md:text-6xl font-bold font-mono text-text-primary tracking-tight leading-none">
+              <div className="text-4xl md:text-5xl font-bold font-mono text-text-primary tracking-tight leading-none">
                 {days}
               </div>
-              <div className="text-text-muted text-xs mt-1.5 uppercase tracking-[0.16em]">
+              <div className="text-text-muted text-[11px] mt-1.5 uppercase tracking-[0.16em]">
                 {days === 1 ? 'day' : 'days'}
               </div>
             </div>
             <button
               onClick={() => setDays((d) => Math.min(90, d + 1))}
-              className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-indigo-soft border border-indigo-border text-indigo hover:bg-indigo hover:text-white transition-all active:scale-90 flex items-center justify-center"
+              className="w-11 h-11 md:w-12 md:h-12 rounded-2xl bg-indigo-soft border border-indigo-border text-indigo hover:bg-indigo hover:text-white transition-all active:scale-90 flex items-center justify-center"
               aria-label="Increase days"
             >
-              <Plus size={22} />
+              <Plus size={20} />
             </button>
           </div>
 
-          <hr className="border-border/60 my-5" />
+          <hr className="border-border/60 my-4" />
 
           {/* Visa stay-length warning — fires when the planned nights exceed
               the visa-free / on-arrival / eVisa window for this passport×
@@ -229,7 +208,7 @@ export function StayDurationScreen() {
           {visa && typeof visa.days === 'number' && days > visa.days && (
             <div
               role="alert"
-              className="rounded-2xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700/40 px-3.5 py-3 mb-5 flex items-start gap-2.5"
+              className="rounded-2xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700/40 px-3.5 py-3 mb-4 flex items-start gap-2.5"
             >
               <AlertTriangle
                 size={16}
@@ -251,11 +230,11 @@ export function StayDurationScreen() {
           )}
 
           {/* Departure preview */}
-          <div className="rounded-2xl border border-border bg-surface-2/60 px-4 py-3 mb-5">
+          <div className="rounded-2xl border border-border bg-surface-2/60 px-4 py-2.5 mb-4">
             <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-semibold">
-              You&apos;ll depart {destinationCity} on
+              You&apos;ll depart from {destinationCity}
             </p>
-            <p className="text-text-primary font-bold text-lg mt-1">
+            <p className="text-text-primary font-bold text-base mt-0.5">
               {formatDateLong(nextDeparture)}
             </p>
           </div>
@@ -264,19 +243,21 @@ export function StayDurationScreen() {
           <button
             type="button"
             onClick={handleConfirm}
-            className="w-full inline-flex items-center justify-center gap-2 px-5 py-4 rounded-full bg-orange text-white text-sm font-bold hover:bg-orange-dark transition-all"
+            className="w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-full bg-orange text-white text-sm font-bold hover:bg-orange-dark transition-all"
             style={{ boxShadow: '0 12px 24px -8px rgba(249,115,22,0.45)' }}
           >
             Stay {days} {days === 1 ? 'day' : 'days'} and continue
             <ArrowRight size={14} />
           </button>
-          <button
-            type="button"
-            onClick={() => navigate('/flights')}
-            className="w-full mt-3 inline-flex items-center justify-center px-5 py-3 rounded-full bg-surface border border-border text-sm font-semibold text-text-secondary hover:bg-surface-2 hover:text-text-primary transition-all"
-          >
-            Back to flight options
-          </button>
+          <div className="mt-3 text-center">
+            <button
+              type="button"
+              onClick={() => navigate('/flights')}
+              className="text-xs text-text-muted hover:text-indigo underline-offset-2 hover:underline transition-colors"
+            >
+              Back to flight options
+            </button>
+          </div>
 
           {/* Trip so far — only render once we have at least one leg in store */}
           {priorLegs.length > 0 && (

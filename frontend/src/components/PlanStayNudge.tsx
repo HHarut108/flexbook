@@ -51,18 +51,15 @@ export function PlanStayNudge({ city, nights, visited, onTap }: PlanStayNudgePro
         </p>
       )}
 
-      {/* CTA button */}
+      {/* CTA link — de-emphasized hyperlink so the primary "Continue" CTA below
+          stays the dominant action on the page. */}
       {!visited ? (
         <button
           onClick={onTap}
-          className="w-full flex items-center justify-center gap-2 rounded-2xl py-3 px-4 text-sm font-semibold text-white transition-all duration-150 active:scale-[0.98]"
-          style={{
-            background: 'linear-gradient(135deg, #4F46E5 0%, #3730A3 100%)',
-            boxShadow: '0 4px 14px rgba(79,70,229,0.35)',
-          }}
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo underline-offset-2 hover:underline transition-colors"
           aria-label={`Plan your time in ${city}`}
         >
-          <Sparkles size={15} />
+          <Sparkles size={14} />
           Plan your time in {city}
         </button>
       ) : (
