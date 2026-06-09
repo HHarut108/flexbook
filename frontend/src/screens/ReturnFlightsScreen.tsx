@@ -87,7 +87,11 @@ export function ReturnFlightsScreen() {
   }, [outboundLegs, pendingFlights]);
 
   return (
-    <div className="flex flex-col min-h-screen md:flex-row md:min-h-0 md:flex-1">
+    /* App.tsx wraps `/return` in `h-screen overflow-hidden` so each panel can
+       scroll independently on desktop. On mobile both panels stack vertically,
+       so we need a single page-level scroll — without it the content below the
+       viewport (extra flight cards, "Day before / Day after" CTA) is unreachable. */
+    <div className="flex flex-col h-full overflow-y-auto md:overflow-hidden md:flex-row md:min-h-0 md:flex-1">
       <Helmet><title>Fly home from {currentCityName} · FlexBook</title></Helmet>
       {/* Left panel: controls */}
       <div className="px-4 pt-4 pb-3 md:w-[340px] lg:w-[380px] md:flex-shrink-0 md:border-r md:border-border/50 md:overflow-y-auto md:pb-8">
