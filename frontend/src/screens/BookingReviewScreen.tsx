@@ -416,15 +416,55 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
     navigate(`/book/concierge/${saved.id}`);
   }, [orderedLegs, passengers, total, partial, navigate]);
 
+  // Single-leg edge case (typically a Trip Builder user who added exactly one
+  // stop with no return). One ticket = one Kiwi /booking/?token= — there's no
+  // checklist to manage, so don't burden the user with the DIY-vs-Assisted
+  // choice. Match the Quick Search one-way/round-trip UX: a single direct CTA.
+  // Anything ≥2 legs is genuinely N separate tickets — that's where the
+  // BookingChoice (and the Concierge stepper or Assistance request) earns
+  // its keep.
+  const singleLeg = orderedLegs.length === 1 ? orderedLegs[0] : null;
+  const singleLegBookingUrl = singleLeg?.bookingUrl ?? '';
+
+  const handleBookSingle = useCallback(() => {
+    if (!singleLegBookingUrl) return;
+    track(AnalyticsEvent.BookingClicked, {
+      legs: 1,
+      totalUsd: total,
+      partial,
+    });
+    window.open(singleLegBookingUrl, '_blank', 'noopener,noreferrer');
+  }, [singleLegBookingUrl, total, partial]);
+
   /* ── Booking CTA panel (shared between mobile inline + desktop sidebar) ── */
   const ctaPanel = (
     <div className="section-shell px-4 py-4">
-      <BookingChoice
-        totalLabel={formatPrice(total)}
-        legCount={orderedLegs.length}
-        onSelfService={handleStartConcierge}
-        onRequestAssistance={() => setAssistModalOpen(true)}
-      />
+      {singleLeg ? (
+        <>
+          <button
+            type="button"
+            onClick={handleBookSingle}
+            disabled={!singleLegBookingUrl}
+            className="btn-primary flex items-center justify-center gap-2"
+            style={{ minHeight: '48px' }}
+            aria-label={`Book ${singleLeg.originIata} → ${singleLeg.destinationIata} for ${formatPrice(total)}`}
+          >
+            <ExternalLink size={16} />
+            Book this trip · {formatPrice(total)}
+          </button>
+          <p className="text-[11px] text-text-muted text-center mt-2 leading-relaxed">
+            Opens Kiwi's secure checkout in a new tab. Final price and baggage
+            rules shown there.
+          </p>
+        </>
+      ) : (
+        <BookingChoice
+          totalLabel={formatPrice(total)}
+          legCount={orderedLegs.length}
+          onSelfService={handleStartConcierge}
+          onRequestAssistance={() => setAssistModalOpen(true)}
+        />
+      )}
     </div>
   );
 
