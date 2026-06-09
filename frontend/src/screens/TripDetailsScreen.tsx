@@ -16,6 +16,7 @@ import { LegRow } from '../components/FlightCardDetailed';
 import { loadSelectedTrip, SelectedTrip } from '../lib/selectedTrip';
 import { formatPrice } from '../utils/price.utils';
 import { durationLabel } from '../utils/date.utils';
+import { buildKiwiMultiCitySearchUrl } from '../utils/kiwi.utils';
 
 interface Props {
   onMenuOpen?: () => void;
@@ -115,18 +116,20 @@ export function TripDetailsScreen({ onMenuOpen }: Props) {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
-  function openAllBookings() {
-    if (!trip) return;
-    // Multi-city: each leg is a separate ticket. Open them one after the
-    // other; popup blockers will only show the first without a gesture, but
-    // since this onClick is the gesture they typically all open.
-    let firstTab: Window | null = null;
-    for (const b of trip.bookings) {
-      if (!b.url) continue;
-      const tab = window.open(b.url, '_blank', 'noopener,noreferrer');
-      if (!firstTab && tab) firstTab = tab;
-    }
-    if (firstTab) (firstTab as Window).focus();
+  // Multi-city: each leg is sold as a separate ticket on Kiwi, so the per-leg
+  // deep-link checkout URLs each open a different page. Previously we'd loop
+  // window.open per leg, but the browser's popup blocker only lets the first
+  // through — the user would land on Kiwi seeing one leg, not the whole trip.
+  // Instead build a single Kiwi multi-city *search* URL with every sector
+  // pre-filled and open it in one tab.
+  const multiCityBookingUrl = useMemo(
+    () => buildKiwiMultiCitySearchUrl(trip?.flights ?? [], trip?.passengers ?? 1),
+    [trip],
+  );
+
+  function openMultiCitySearch() {
+    if (!multiCityBookingUrl) return;
+    window.open(multiCityBookingUrl, '_blank', 'noopener,noreferrer');
   }
 
   return (
@@ -255,18 +258,23 @@ export function TripDetailsScreen({ onMenuOpen }: Props) {
           {trip.type === 'multi' ? (
             <>
               <p className="text-[11px] text-text-muted mb-3 leading-relaxed">
-                Each leg is sold as a separate ticket — booking opens one tab per
-                leg. Check final prices and baggage rules on each page.
+                Opens a Kiwi multi-city search with every leg pre-filled. Each
+                leg is still sold as its own ticket — confirm prices and baggage
+                rules on Kiwi before completing the booking.
               </p>
               <button
                 type="button"
-                onClick={openAllBookings}
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-orange text-white text-sm font-bold hover:bg-orange-dark transition-all active:scale-[0.98]"
+                onClick={openMultiCitySearch}
+                disabled={!multiCityBookingUrl}
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-orange text-white text-sm font-bold hover:bg-orange-dark transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ boxShadow: '0 14px 30px -10px rgba(249,115,22,0.5)' }}
               >
-                <ExternalLink size={14} /> Book all flights · {trip.bookings.length} tabs
+                <ExternalLink size={14} /> Book all flights on Kiwi
               </button>
               <div className="mt-3 space-y-2">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-text-xmuted font-semibold px-1">
+                  Or open one leg at a time
+                </p>
                 {trip.bookings.map((b, i) => (
                   <button
                     key={i}

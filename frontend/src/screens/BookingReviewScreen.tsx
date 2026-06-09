@@ -7,6 +7,7 @@ import { fetchAirlineLogos } from '../api/airlines.api';
 import { formatDate, formatTime, durationLabel } from '../utils/date.utils';
 import { formatPrice, totalPrice } from '../utils/price.utils';
 import { track, AnalyticsEvent } from '../lib/analytics';
+import { buildKiwiMultiCitySearchUrl } from '../utils/kiwi.utils';
 import { MapErrorBoundary } from '../components/MapErrorBoundary';
 import { GoHomeLogo } from '../components/GoHomeLogo';
 import {
@@ -391,25 +392,10 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
     return () => { cancelled = true; };
   }, [orderedLegs]);
 
-  // Build a single Kiwi multi-city search URL covering every leg in this trip,
-  // so the user lands on one page with all segments pre-filled instead of
-  // opening N popup tabs (and losing all but the first to popup blockers).
-  //
-  // Kiwi's path format is slash-separated: `/results/{FROM}/{TO}/{YYYY-MM-DD}/...`
-  // repeated per segment. Other variants we tried (hyphen-joined IATA codes,
-  // comma between segments, `/no-return` trailer) all silently 302 to kiwi.com/en/.
-  // Verified by inspecting the rendered HTML — Kiwi's internal state correctly
-  // shows `travelType: MULTICITY` and both sectors populated.
-  const multiCityBookingUrl = useMemo(() => {
-    if (orderedLegs.length === 0) return null;
-    const segments = orderedLegs
-      .map((leg) => {
-        const date = leg.departureDatetime.slice(0, 10);
-        return `${leg.originIata}/${leg.destinationIata}/${date}`;
-      })
-      .join('/');
-    return `https://www.kiwi.com/en/search/results/${segments}/?adults=${passengers}&sortBy=price`;
-  }, [orderedLegs, passengers]);
+  const multiCityBookingUrl = useMemo(
+    () => buildKiwiMultiCitySearchUrl(orderedLegs, passengers),
+    [orderedLegs, passengers],
+  );
 
   const handleBookAll = useCallback(() => {
     if (!multiCityBookingUrl) return;
