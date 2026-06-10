@@ -90,14 +90,11 @@ export function HomeScreenV2({ onMenuOpen }: Props) {
       {/* ============ FOUR TOOLS, ONE JOB ============ */}
       <section className="max-w-6xl xl:max-w-7xl mx-auto px-5 md:px-8 lg:px-10 mt-6 md:mt-12">
         <div className="text-center mb-8 md:mb-12">
-          <p className="text-[10px] md:text-[11px] font-extrabold tracking-[0.18em] text-orange uppercase mb-2 md:mb-3">
-            Four tools, one job
-          </p>
           <h2
             className="font-black text-text-primary leading-tight"
             style={{ fontSize: 'clamp(1.5rem, 4.4vw, 3.4rem)', letterSpacing: '-0.04em' }}
           >
-            Whatever you know first, start there.
+            Cheaper flights. Bigger trips. Zero markup.
           </h2>
         </div>
 
@@ -124,7 +121,7 @@ export function HomeScreenV2({ onMenuOpen }: Props) {
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Link
-            to="/search"
+            to="/quick-search"
             className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full bg-orange text-white text-sm font-bold hover:bg-orange-dark transition-all"
             style={{ boxShadow: '0 14px 32px -10px rgba(249,115,22,0.5)' }}
           >

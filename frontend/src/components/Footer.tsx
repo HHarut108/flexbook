@@ -2,6 +2,20 @@ import { Link } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
 import { GoHomeLogo } from './GoHomeLogo';
 
+function sampleTripHref(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 30);
+  const depart = d.toISOString().slice(0, 10);
+  const params = new URLSearchParams({
+    type: 'oneway',
+    origin: 'BCN',
+    destination: 'AMS',
+    depart,
+    pax: '1',
+  });
+  return `/search?${params.toString()}`;
+}
+
 /**
  * Shared footer for V2 screens. Three columns on desktop, stacks on mobile.
  * Lives below page content; nothing inside it knows about the V2 flag.
@@ -25,7 +39,7 @@ export function Footer() {
             <h4 className="text-sm font-bold text-text-primary mb-4">Tools</h4>
             <ul className="space-y-3 text-sm">
               <li>
-                <Link to="/search" className="text-text-muted hover:text-text-primary transition-colors">
+                <Link to="/quick-search" className="text-text-muted hover:text-text-primary transition-colors">
                   Quick Search
                 </Link>
               </li>
@@ -57,7 +71,7 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link to="/" className="text-text-muted hover:text-text-primary transition-colors">
+                <Link to={sampleTripHref()} className="text-text-muted hover:text-text-primary transition-colors">
                   Sample trip
                 </Link>
               </li>

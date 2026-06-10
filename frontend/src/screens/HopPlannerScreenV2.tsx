@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Airport, LocationSelection, selectionLabel, selectionName, selectionCountryCode } from '@fast-travel/shared';
 import { format, addDays } from 'date-fns';
-import { ArrowRight, MapPin, Waypoints, CalendarDays, Loader2 } from 'lucide-react';
+import { ArrowRight, MapPin, CalendarDays, Loader2 } from 'lucide-react';
 import { MarketingShellV2 } from '../components/MarketingShellV2';
 import { AirportSearchInput } from '../components/AirportSearchInput';
 import { TripMapColumn } from '../components/TripMapColumn';
@@ -47,7 +47,6 @@ export function HopPlannerScreenV2({ onMenuOpen }: Props) {
 
   // Stops accumulate in V1 once user proceeds; V2 landing tracks only origin.
   const stops: LocationSelection[] = [];
-  const cityCount = origin ? 1 : 0;
 
   // Resolve user coords + fetch 3 nearby airports. Prefer cached values so the
   // chips appear instantly on repeat visits; otherwise hit the API in the
@@ -148,14 +147,6 @@ export function HopPlannerScreenV2({ onMenuOpen }: Props) {
             className={`bg-surface rounded-[24px] border border-border/60 p-5 md:p-6 ${mobileView === 'list' ? '' : 'hidden'} md:block`}
             style={{ boxShadow: '0 20px 50px -20px rgba(15,23,42,0.18)' }}
           >
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-base font-bold text-text-primary">Your trip</h2>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-2 border border-border text-[11px] font-bold text-text-secondary">
-                <Waypoints size={11} />
-                {cityCount} {cityCount === 1 ? 'city' : 'cities'}
-              </span>
-            </div>
-
             {/* Origin block */}
             <FieldLabel>Starting from</FieldLabel>
             {origin ? (
