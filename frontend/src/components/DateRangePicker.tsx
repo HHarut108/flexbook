@@ -130,14 +130,14 @@ export function DateRangePicker({
         <button
           type="button"
           onClick={() => setPhase('from')}
-          className={`flex flex-col p-3 rounded-2xl border transition-all text-left ${
+          className={`flex flex-col p-3 md:p-2.5 rounded-2xl border transition-all text-left ${
             phase === 'from' && !(dateFrom && dateTo) ? 'border-indigo bg-indigo-soft' : 'border-border bg-surface-2'
           }`}
         >
-          <span className="text-[10px] uppercase tracking-wide font-semibold text-text-xmuted">
+          <span className="text-[10px] md:text-[9px] uppercase tracking-wide font-semibold text-text-xmuted">
             {fromLabel}
           </span>
-          <span className={`text-sm font-semibold mt-0.5 ${dateFrom ? 'text-text-primary' : 'text-text-xmuted'}`}>
+          <span className={`text-sm md:text-[13px] font-semibold mt-0.5 ${dateFrom ? 'text-text-primary' : 'text-text-xmuted'}`}>
             {dateFrom ? fmtDisplay(dateFrom) : 'dd.mm.yyyy'}
           </span>
         </button>
@@ -145,45 +145,47 @@ export function DateRangePicker({
           type="button"
           onClick={() => { if (dateFrom) setPhase('to'); }}
           disabled={!dateFrom}
-          className={`flex flex-col p-3 rounded-2xl border transition-all text-left ${
+          className={`flex flex-col p-3 md:p-2.5 rounded-2xl border transition-all text-left ${
             phase === 'to' && !(dateFrom && dateTo) ? 'border-indigo bg-indigo-soft' : 'border-border bg-surface-2'
           } ${!dateFrom ? 'opacity-40 cursor-not-allowed' : ''}`}
         >
-          <span className="text-[10px] uppercase tracking-wide font-semibold text-text-xmuted">
+          <span className="text-[10px] md:text-[9px] uppercase tracking-wide font-semibold text-text-xmuted">
             {toLabel}
           </span>
-          <span className={`text-sm font-semibold mt-0.5 ${dateTo ? 'text-text-primary' : 'text-text-xmuted'}`}>
+          <span className={`text-sm md:text-[13px] font-semibold mt-0.5 ${dateTo ? 'text-text-primary' : 'text-text-xmuted'}`}>
             {dateTo ? fmtDisplay(dateTo) : 'dd.mm.yyyy'}
           </span>
         </button>
       </div>
 
       {/* Single-month calendar */}
-      <div className="bg-surface border border-border rounded-2xl p-3">
-        <div className="flex items-center justify-between mb-2">
+      <div className="bg-surface border border-border rounded-2xl p-3 md:p-2.5">
+        <div className="flex items-center justify-between mb-2 md:mb-1.5">
           <button
             type="button"
             onClick={prevMonth}
             disabled={!canGoPrev}
-            className="p-1.5 rounded-lg hover:bg-surface-2 transition-colors text-text-muted disabled:opacity-30 disabled:cursor-not-allowed"
+            className="p-1.5 md:p-1 rounded-lg hover:bg-surface-2 transition-colors text-text-muted disabled:opacity-30 disabled:cursor-not-allowed"
             aria-label="Previous month"
           >
-            <ChevronLeft size={16} />
+            <ChevronLeft size={16} className="md:hidden" />
+            <ChevronLeft size={14} className="hidden md:block" />
           </button>
-          <span className="text-sm font-bold text-text-primary">{headerLabel}</span>
+          <span className="text-sm md:text-[13px] font-bold text-text-primary">{headerLabel}</span>
           <button
             type="button"
             onClick={nextMonth}
-            className="p-1.5 rounded-lg hover:bg-surface-2 transition-colors text-text-muted"
+            className="p-1.5 md:p-1 rounded-lg hover:bg-surface-2 transition-colors text-text-muted"
             aria-label="Next month"
           >
-            <ChevronRight size={16} />
+            <ChevronRight size={16} className="md:hidden" />
+            <ChevronRight size={14} className="hidden md:block" />
           </button>
         </div>
 
         <div className="grid grid-cols-7 mb-0.5">
           {DAY_NAMES.map((d) => (
-            <div key={d} className="text-center text-[10px] font-semibold text-text-xmuted py-0.5">
+            <div key={d} className="text-center text-[10px] md:text-[9px] font-semibold text-text-xmuted py-0.5">
               {d}
             </div>
           ))}
@@ -200,7 +202,7 @@ export function DateRangePicker({
             const isOffMonth = dayObj.getMonth() !== viewMonth;
 
             let cls =
-              'relative flex items-center justify-center h-9 w-full text-[13px] transition-colors select-none rounded-lg ';
+              'relative flex items-center justify-center h-9 md:h-7 w-full text-[13px] md:text-[12px] transition-colors select-none rounded-lg ';
             if (isPast) {
               cls += 'opacity-25 cursor-not-allowed ';
             } else if (isFrom || isTo) {
