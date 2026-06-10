@@ -24,9 +24,9 @@ const ACCENTS: Record<string, AccentMap> = {
 
 const QUESTIONS: Record<string, string> = {
   'quick-search':   "I know exactly where and when I want to fly.",
-  'trip-builder':   "I have a city — show me where's cheap to fly.",
-  'hop-planner':    "I have a city — show me where's cheap to fly.",
-  'when-to-go':     "I know where or when — find the cheapest dates.",
+  'trip-builder':   "Chain the cheapest one-way fares into a multi-stop adventure.",
+  'hop-planner':    "Chain the cheapest one-way fares into a multi-stop adventure.",
+  'when-to-go':     "Pin two cities — I'll find the cheapest day to fly.",
   'budget-planner': "I have $X and some days — build me a trip.",
 };
 

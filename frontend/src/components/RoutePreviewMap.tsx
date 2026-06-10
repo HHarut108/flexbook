@@ -192,7 +192,9 @@ export function RoutePreviewMap({ origin, destination, stops = [], legs, userCoo
       center={[initialCenter.lat, initialCenter.lng]}
       zoom={initialZoom}
       scrollWheelZoom={false}
-      zoomControl={false}
+      zoomControl={hasMarkers}
+      touchZoom
+      doubleClickZoom
       className={theme === 'dark' ? 'map-dark' : ''}
       style={{ width: '100%', height: '100%', background: tileBg }}
     >
@@ -275,13 +277,26 @@ function SizeWatcher() {
 function FitBounds({ coords }: { coords: { lat: number; lng: number }[] }) {
   const map = useMap();
   useEffect(() => {
-    if (coords.length === 0) return;
-    if (coords.length === 1) {
-      map.setView([coords[0].lat, coords[0].lng], 5, { animate: true });
-      return;
+    function fit() {
+      if (coords.length === 0) return;
+      if (coords.length === 1) {
+        map.setView([coords[0].lat, coords[0].lng], 5, { animate: false });
+        return;
+      }
+      const bounds = L.latLngBounds(coords.map((c) => [c.lat, c.lng] as [number, number]));
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 6, animate: false });
     }
-    const bounds = L.latLngBounds(coords.map((c) => [c.lat, c.lng] as [number, number]));
-    map.fitBounds(bounds, { padding: [40, 40], maxZoom: 6, animate: true });
+    fit();
+    // Re-fit when the container resizes. On mobile, the map is initially
+    // mounted inside a `display:none` panel (List/Map toggle) — when the user
+    // taps Map, the container goes from 0×0 to its real size, but Leaflet's
+    // initial bounds calculation used the zero box, so the trip would appear
+    // off-centre or zoomed too far in. ResizeObserver catches that transition
+    // and re-fits with the correct viewport.
+    const container = map.getContainer();
+    const ro = new ResizeObserver(() => fit());
+    ro.observe(container);
+    return () => ro.disconnect();
   }, [coords, map]);
   return null;
 }

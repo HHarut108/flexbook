@@ -71,6 +71,15 @@ export default function App() {
     apiClient.get('/health').catch(() => { /* ignore */ });
   }, []);
 
+  // Reset scroll on route change. Without this, react-router preserves the
+  // previous scroll offset — so navigating from a long page (home footer) to
+  // a tool page lands the user mid-form. Skip on /flights and /return which
+  // own their own scroll containers.
+  useEffect(() => {
+    if (FIXED_HEIGHT_PATHS.has(pathname)) return;
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [pathname]);
+
   useEffect(() => {
     // First-time visitors have no session hint → skip /me entirely so the UI
     // never waits on a cold backend just to discover they're logged out.
