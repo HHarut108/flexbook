@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { useUrlSync } from './hooks/useUrlSync';
 import { useAnalyticsPageviews } from './hooks/useAnalyticsPageviews';
 import { ProgressBar } from './components/ProgressBar';
@@ -160,6 +160,14 @@ export default function App() {
           path="/trip-planner"
           element={v2 ? <TripPlannerScreenV2 onMenuOpen={openDrawer} /> : <TripPlannerScreen />}
         />
+
+        {/* Legacy paths that pre-date the /hop-planner and /trip-planner rename.
+            Vercel rewrites send all unknown paths to the SPA, so without these
+            fallbacks the router would render an empty shell. Redirects in
+            vercel.json catch most real-world hits at the edge with a 301; this
+            keeps local dev and any non-Vercel host correct too. */}
+        <Route path="/trip-builder" element={<Navigate to="/hop-planner" replace />} />
+        <Route path="/budget-planner" element={<Navigate to="/trip-planner" replace />} />
 
         <Route element={<RequireOrigin />}>
           <Route path="/date"         element={<DatePickerScreen />} />

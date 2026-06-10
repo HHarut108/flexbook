@@ -2,6 +2,10 @@
   "installCommand": "cd .. && npm install",
   "buildCommand": "cd .. && npm run build --workspace=packages/shared && npm run build --workspace=frontend",
   "outputDirectory": "dist",
+  "redirects": [
+    { "source": "/trip-builder", "destination": "/hop-planner", "permanent": true },
+    { "source": "/budget-planner", "destination": "/trip-planner", "permanent": true }
+  ],
   "rewrites": [
     { "source": "/((?!api|icons|assets|sw\\.js|workbox-.*\\.js|manifest\\.webmanifest).*)", "destination": "/index.html" }
   ],

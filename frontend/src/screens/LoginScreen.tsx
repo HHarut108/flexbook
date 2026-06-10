@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link, Navigate } from 'react-router-dom';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { authApi } from '../api/auth.api';
 import { useAuthStore } from '../store/auth.store';
@@ -10,11 +10,16 @@ export function LoginScreen() {
   const [searchParams] = useSearchParams();
   const returnTo = searchParams.get('from') ?? '/';
   const setUser = useAuthStore((s) => s.setUser);
+  const user = useAuthStore((s) => s.user);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Already signed in → bounce out instead of showing the login form alongside
+  // an authenticated sidebar (the contradictory state QA caught on 2026-06-11).
+  if (user) return <Navigate to={returnTo} replace />;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
