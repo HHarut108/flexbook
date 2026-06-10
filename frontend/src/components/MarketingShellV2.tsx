@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
-import { User, Share2 } from 'lucide-react';
+import { User } from 'lucide-react';
 import { GoHomeLogo } from './GoHomeLogo';
 import { Footer } from './Footer';
 import { useAuthStore } from '../store/auth.store';
@@ -25,9 +25,6 @@ interface Props {
   description?: string;
   /** Logged-in avatar click handler — opens AppDrawer. */
   onMenuOpen?: () => void;
-  /** Render a Share button in the nav (Build & Budget pages). */
-  showShare?: boolean;
-  onShareClick?: () => void;
   /** Page body. Footer is rendered automatically below. */
   children: ReactNode;
   /** Set false to hide the footer (e.g. inner booking screens). */
@@ -36,17 +33,15 @@ interface Props {
 
 /**
  * V2 marketing/tool shell. Provides nav (Build / When to Go / Budget /
- * How it works), account avatar, optional Share button, and shared footer.
- * Page body fills naturally below the nav — no enforced 2-column layout
- * (each screen controls its own composition).
+ * How it works), account avatar, and shared footer. Page body fills
+ * naturally below the nav — no enforced 2-column layout (each screen
+ * controls its own composition).
  */
 export function MarketingShellV2({
   active,
   title,
   description,
   onMenuOpen,
-  showShare = false,
-  onShareClick,
   children,
   showFooter = true,
 }: Props) {
@@ -99,18 +94,6 @@ export function MarketingShellV2({
             >
               How it works
             </Link>
-
-            {showShare && (
-              <button
-                type="button"
-                onClick={onShareClick}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-surface border border-border text-sm font-semibold text-text-primary hover:bg-surface-2 transition-all"
-                aria-label="Share trip"
-              >
-                <Share2 size={14} />
-                <span className="hidden sm:inline">Share</span>
-              </button>
-            )}
 
             {!user && (
               <Link

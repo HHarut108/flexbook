@@ -18,7 +18,13 @@ const MONTH_NAMES = [
 const DAY_NAMES = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
 function dateStrOf(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  // Build the YYYY-MM-DD in *local* time — `toISOString()` converts to UTC,
+  // which in any positive-offset timezone rolls midnight back to the previous
+  // day (e.g. Armenia/UTC+4: tapping the 25th wrote "2026-06-24").
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function fmtDisplay(dateStr: string): string {
@@ -60,6 +66,11 @@ export function DateRangePicker({
 }: Props) {
   const todayObj = new Date(today + 'T12:00:00');
   const [phase, setPhase] = useState<'from' | 'to'>(dateFrom && !dateTo ? 'to' : 'from');
+  // On desktop the calendar grid collapses once both dates are chosen to free
+  // up form space — re-opens when the user taps a chip. Mobile always shows
+  // it. Mounting with both dates set (URL prefill, modify-search) starts
+  // collapsed.
+  const [expanded, setExpanded] = useState<boolean>(!(dateFrom && dateTo));
 
   // Anchor month: prefer the user's existing dateFrom; otherwise show today's.
   const initAnchor = dateFrom
@@ -116,6 +127,7 @@ export function DateRangePicker({
     } else {
       onChangeTo(dateStr);
       setPhase('from');
+      setExpanded(false);
     }
   }
 
@@ -129,7 +141,7 @@ export function DateRangePicker({
       <div className="grid grid-cols-2 gap-2">
         <button
           type="button"
-          onClick={() => setPhase('from')}
+          onClick={() => { setPhase('from'); setExpanded(true); }}
           className={`flex flex-col p-3 md:p-2.5 rounded-2xl border transition-all text-left ${
             phase === 'from' && !(dateFrom && dateTo) ? 'border-indigo bg-indigo-soft' : 'border-border bg-surface-2'
           }`}
@@ -143,7 +155,7 @@ export function DateRangePicker({
         </button>
         <button
           type="button"
-          onClick={() => { if (dateFrom) setPhase('to'); }}
+          onClick={() => { if (dateFrom) { setPhase('to'); setExpanded(true); } }}
           disabled={!dateFrom}
           className={`flex flex-col p-3 md:p-2.5 rounded-2xl border transition-all text-left ${
             phase === 'to' && !(dateFrom && dateTo) ? 'border-indigo bg-indigo-soft' : 'border-border bg-surface-2'
@@ -158,8 +170,9 @@ export function DateRangePicker({
         </button>
       </div>
 
-      {/* Single-month calendar */}
-      <div className="bg-surface border border-border rounded-2xl p-3 md:p-2.5">
+      {/* Single-month calendar — collapses on desktop once both dates are
+          picked; mobile keeps it visible. Tap a chip above to re-open. */}
+      <div className={`bg-surface border border-border rounded-2xl p-3 md:p-2.5 ${expanded ? '' : 'md:hidden'}`}>
         <div className="flex items-center justify-between mb-2 md:mb-1.5">
           <button
             type="button"
@@ -235,7 +248,7 @@ export function DateRangePicker({
         </div>
       </div>
 
-      <p className="text-[11px] text-text-xmuted px-1">
+      <p className={`text-[11px] text-text-xmuted px-1 ${expanded ? '' : 'md:hidden'}`}>
         {phase === 'from' ? `Tap a ${fromLabel.toLowerCase()} date` : `Now tap your ${toLabel.toLowerCase()} date`}
       </p>
     </div>

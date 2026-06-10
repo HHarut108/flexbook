@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import {
@@ -12,6 +12,7 @@ import {
   PlaneTakeoff,
   PlaneLanding,
   RefreshCw,
+  ExternalLink,
 } from 'lucide-react';
 import { Airport, LocationSelection, selectionLabel } from '@fast-travel/shared';
 import { MarketingShellV2 } from '../components/MarketingShellV2';
@@ -23,6 +24,12 @@ import { NearbyAirportRow } from '../components/NearbyAirportRow';
 import { MobileViewToggle, type MobileView } from '../components/MobileViewToggle';
 import { planBudgetTrip, BudgetPlanResult, BudgetPlanLeg } from '../api/budgetTrip.api';
 import { nearbyAirportsByCoords } from '../api/airports.api';
+import { persistSelectedTrip } from '../lib/selectedTrip';
+import {
+  saveBudgetSnapshot,
+  loadBudgetSnapshot,
+  clearBudgetSnapshot,
+} from '../lib/budgetPlannerState';
 import {
   resolveUserCoords,
   readCachedCoords,
@@ -259,6 +266,29 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
     !!origin && !!dateFrom && !!dateTo && budget >= 100 && passengers >= 1 && destCount !== null;
 
   /* effects */
+  // Hydrate from sessionStorage on first mount — restores the user's plan
+  // when they refresh the page after a successful search. Cleared by the
+  // "Modify search" link and overwritten on the next submit.
+  const didHydrateRef = useRef(false);
+  useEffect(() => {
+    if (didHydrateRef.current) return;
+    didHydrateRef.current = true;
+    const snap = loadBudgetSnapshot();
+    if (!snap) return;
+    setOrigin(snap.origin);
+    setOriginQuery(selectionLabel(airportToSelection(snap.origin)));
+    setBudget(snap.budget);
+    setDateFrom(snap.dateFrom);
+    setDateTo(snap.dateTo);
+    setPassengers(snap.passengers);
+    setDestCount(snap.destCount);
+    setNightsPerStopArr(snap.nightsPerStopArr);
+    setTripStyle(snap.tripStyle);
+    setExcludedDestinations(snap.excludedDestinations);
+    setResult(snap.result);
+    setView('result');
+  }, []);
+
   useEffect(() => {
     if (passengersVisible && destCount === null) {
       setDestCount(Math.min(2, maxDestinations));
@@ -336,6 +366,23 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
       setResult(res);
       setView('result');
       setMobileView('list');
+      // Persist for refresh recovery — the search params + the plan itself.
+      saveBudgetSnapshot({
+        origin,
+        budget,
+        dateFrom,
+        dateTo,
+        passengers,
+        destCount,
+        nightsPerStopArr,
+        tripStyle,
+        excludedDestinations: [],
+        result: res,
+      });
+      // Land the user at the top of the result view rather than wherever the
+      // form's scroll position left them (after a long form they're at the
+      // bottom and would otherwise miss the headline price).
+      if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'auto' });
     } catch (err: unknown) {
       const message =
         err && typeof err === 'object' && 'message' in err
@@ -370,6 +417,18 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
         excludedDestinations: nextExcluded,
       });
       setResult(res);
+      saveBudgetSnapshot({
+        origin,
+        budget,
+        dateFrom,
+        dateTo,
+        passengers,
+        destCount,
+        nightsPerStopArr,
+        tripStyle,
+        excludedDestinations: nextExcluded,
+        result: res,
+      });
     } catch (err: unknown) {
       const message =
         err && typeof err === 'object' && 'message' in err
@@ -386,6 +445,27 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
     setMobileView('list');
     setError(null);
     setSwapWarningIndex(null);
+    // Drop the persisted plan — modifying inputs invalidates the snapshot;
+    // a fresh submit will write a new one.
+    setResult(null);
+    setExcludedDestinations([]);
+    clearBudgetSnapshot();
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'auto' });
+  }
+
+  function handleBook() {
+    if (!result) return;
+    const saved = persistSelectedTrip({
+      type: 'multi',
+      passengers,
+      flights: result.legs,
+      bookings: result.legs.map((leg, i) => ({
+        label: `Book Leg ${i + 1}: ${leg.originIata} → ${leg.destinationIata}`,
+        url: leg.bookingUrl ?? '',
+      })),
+      totalPriceUsd: result.totalCostPerPerson * passengers,
+    });
+    navigate(`/trip/${saved.id}`, { state: { trip: saved } });
   }
 
   return (
@@ -394,7 +474,6 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
       title="Budget Planner"
       description="Set a budget — we build the cheapest multi-stop trip that fits."
       onMenuOpen={onMenuOpen}
-      showShare={!!result}
     >
       <section className="max-w-6xl xl:max-w-7xl mx-auto px-5 md:px-8 lg:px-10 pt-6 md:pt-14 pb-10">
         {/* Two-column on lg+: [hero + map] left, form/result right */}
@@ -429,6 +508,16 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
                 legs={result && origin ? legsToMapLegs(result.legs, origin) : undefined}
               />
             </div>
+
+            {/* Mobile-map CTA — when the user is on the map tab we still want
+                the primary "Book" affordance visible. Hidden on desktop (the
+                desktop CTA lives inside the result card on the right). */}
+            {view === 'result' && result && mobileView === 'map' && (
+              <div className="md:hidden mt-5 flex flex-col items-center gap-3">
+                <BookCta onClick={handleBook} />
+                <ModifySearchLink onClick={handleModifySearch} />
+              </div>
+            )}
           </div>
 
           {/* RIGHT: form (view='search') or result (view='result') —
@@ -447,6 +536,7 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
                 result={result}
                 passengers={passengers}
                 onModify={handleModifySearch}
+                onBook={handleBook}
                 onSwap={handleSwap}
                 swapLoading={swapLoading}
                 swapWarningIndex={swapWarningIndex}
@@ -745,17 +835,13 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
 
         {/* end body grid */}
 
-        {/* Mobile: start-over link below the body */}
-        <div className="mt-6 flex justify-center md:hidden">
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-text-secondary hover:text-text-primary transition-colors"
-          >
-            <ArrowLeft size={14} />
-            Start over with a different tool
-          </button>
-        </div>
+        {/* Mobile: Modify-search link below the body — only meaningful once
+            a plan exists. In search view the form itself is the way to edit. */}
+        {view === 'result' && (
+          <div className="mt-6 flex justify-center md:hidden">
+            <ModifySearchLink onClick={handleModifySearch} />
+          </div>
+        )}
       </section>
     </MarketingShellV2>
   );
@@ -780,6 +866,7 @@ interface ResultPanelProps {
   result: BudgetPlanResult;
   passengers: number;
   onModify: () => void;
+  onBook: () => void;
   onSwap: (excludedIata: string) => void;
   swapLoading: boolean;
   swapWarningIndex: number | null;
@@ -791,6 +878,7 @@ function ResultPanel({
   result,
   passengers,
   onModify,
+  onBook,
   onSwap,
   swapLoading,
   swapWarningIndex,
@@ -806,17 +894,10 @@ function ResultPanel({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Modify-search link — mirrors WhenToGoScreenV2's NewSearchLink pattern
-          so the "back to inputs" affordance reads the same across tools. */}
-      <div className="flex items-center justify-between">
-        <button
-          type="button"
-          onClick={onModify}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-secondary hover:text-indigo transition-colors"
-        >
-          <ArrowLeft size={13} />
-          Modify search
-        </button>
+      {/* Eyebrow row — modify link is rendered as a hyperlink below the
+          Book CTA further down (per design), so we only show the "Your trip"
+          eyebrow here. */}
+      <div className="flex items-center justify-end">
         <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald">
           Your trip
         </p>
@@ -900,7 +981,48 @@ function ResultPanel({
           )}
         </div>
       </div>
+
+      {/* Book hero CTA — same pattern Quick Search / Trip Builder uses to
+          hand off to /trip/:id where each leg's booking link lives. The
+          modify-search hyperlink sits below per the user's "keep the reset
+          hyperlink below the CTA" requirement. */}
+      <div className="flex flex-col items-center gap-3 pt-1">
+        <BookCta onClick={onBook} />
+        <ModifySearchLink onClick={onModify} />
+      </div>
     </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   Shared CTAs — surfaced inside the result panel (list view) and below the
+   mobile map view so the booking flow is reachable from either tab.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+function BookCta({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-center justify-center gap-2 py-4 rounded-full bg-orange text-white text-sm font-bold hover:bg-orange-dark transition-all active:scale-[0.98]"
+      style={{ boxShadow: '0 14px 32px -10px rgba(249,115,22,0.5)' }}
+    >
+      <ExternalLink size={15} />
+      Book
+    </button>
+  );
+}
+
+function ModifySearchLink({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-1.5 text-sm font-semibold text-text-secondary hover:text-indigo transition-colors"
+    >
+      <ArrowLeft size={14} />
+      Modify search
+    </button>
   );
 }
 
