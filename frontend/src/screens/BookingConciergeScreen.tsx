@@ -171,9 +171,14 @@ export function BookingConciergeScreen({ onMenuOpen }: Props) {
               <ArrowLeft size={18} />
             </button>
             <div className="flex-1 min-w-0">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-indigo-mid font-mono mb-1">
-                {complete ? "All set" : `${booked} of ${total} booked`}
-              </p>
+              <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] uppercase tracking-[0.16em] font-mono font-bold mb-1.5 text-white ${
+                  complete ? 'bg-emerald' : 'bg-indigo'
+                }`}
+                style={{ color: '#FFFFFF' }}
+              >
+                {complete ? 'All set' : `${booked} of ${total} booked`}
+              </span>
               <h1 className="text-xl md:text-2xl font-bold text-text-primary leading-tight">
                 {complete ? "You're done — safe travels" : 'Booking checklist'}
               </h1>
@@ -190,7 +195,7 @@ export function BookingConciergeScreen({ onMenuOpen }: Props) {
                   key={i}
                   className={`h-2 flex-1 rounded-full transition-colors ${
                     status === 'booked'
-                      ? 'bg-emerald-500'
+                      ? 'bg-emerald'
                       : status === 'skipped'
                         ? 'bg-amber-400'
                         : isCurrent
@@ -204,19 +209,19 @@ export function BookingConciergeScreen({ onMenuOpen }: Props) {
           </div>
 
           {/* Totals row */}
-          <div className="rounded-xl bg-white/70 border border-border/60 px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap text-xs">
-            <span className="text-text-muted">
-              <strong className="text-emerald-700 font-mono">
+          <div className="rounded-xl bg-white border border-border px-3 py-2.5 flex items-center justify-between gap-3 flex-wrap text-xs">
+            <span className="text-text-secondary font-semibold">
+              <strong className="text-emerald font-mono font-black">
                 {formatPrice(totalBooked)}
               </strong>{' '}
               booked
               {skipped > 0 && (
-                <span className="text-amber-700 ml-2">· {skipped} skipped</span>
+                <span className="text-amber-700 font-bold ml-2">· {skipped} skipped</span>
               )}
             </span>
             {totalRemaining > 0 && (
-              <span className="text-text-muted">
-                <strong className="text-orange font-mono">{formatPrice(totalRemaining)}</strong>{' '}
+              <span className="text-text-secondary font-semibold">
+                <strong className="text-orange font-mono font-black">{formatPrice(totalRemaining)}</strong>{' '}
                 to go
               </span>
             )}
@@ -265,15 +270,17 @@ export function BookingConciergeScreen({ onMenuOpen }: Props) {
         {/* ── Completion banner (bottom of screen) ─────────────────────────── */}
         {complete && (
           <div
-            className="rounded-3xl border-2 border-emerald-500 bg-white p-5 md:p-6"
+            className="rounded-3xl border-2 border-emerald bg-white p-5 md:p-6"
             style={{ boxShadow: '0 20px 48px -16px rgba(16,185,129,0.45)' }}
           >
             <div className="flex items-start gap-3 mb-3">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-600 flex items-center justify-center shrink-0">
+              <div className="w-12 h-12 rounded-2xl bg-emerald flex items-center justify-center shrink-0">
                 <CheckCircle2 size={24} className="text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-emerald-700 font-mono font-bold mb-1">
+                <p
+                  className="text-[11px] uppercase tracking-[0.18em] text-emerald font-mono font-bold mb-1"
+                >
                   Trip booked
                 </p>
                 <h2 className="text-xl md:text-2xl font-black text-text-primary leading-tight">
@@ -354,8 +361,8 @@ function LegCard({
   // Visual emphasis is driven by status. Current = orange highlight; booked =
   // green check; skipped = muted amber; pending-not-current = quiet card.
   const wrapperClass = (() => {
-    if (status === 'booked') return 'bg-emerald-50 border-emerald-200';
-    if (status === 'skipped') return 'bg-amber-50 border-amber-200';
+    if (status === 'booked') return 'bg-emerald-soft border-emerald/40';
+    if (status === 'skipped') return 'bg-amber-50 border-amber-300';
     if (isCurrent) return 'bg-surface border-orange/40 shadow-[0_12px_30px_-18px_rgba(249,115,22,0.4)]';
     return 'bg-surface border-border';
   })();
@@ -365,14 +372,12 @@ function LegCard({
       <div className="flex items-start gap-3 mb-3">
         <StatusBadge status={status} isCurrent={isCurrent} />
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] uppercase tracking-[0.16em] text-text-muted font-mono mb-0.5">
-            Ticket {index + 1} of {total}
-          </p>
-          <div className="flex items-center gap-1.5 flex-wrap">
+          <TicketEyebrow index={index} total={total} status={status} isCurrent={isCurrent} />
+          <div className="flex items-center gap-1.5 flex-wrap mt-1">
             <span className="font-bold text-base text-text-primary">{leg.originCity}</span>
             <Plane size={12} className="rotate-90 text-text-xmuted" />
             <span className="font-bold text-base text-text-primary">{leg.destinationCity}</span>
-            <span className="text-[11px] text-text-muted font-mono">
+            <span className="text-[11px] text-text-secondary font-mono font-semibold">
               · {leg.originIata}→{leg.destinationIata}
             </span>
           </div>
@@ -393,26 +398,29 @@ function LegCard({
       {/* CTA row — depends on status */}
       {status === 'booked' ? (
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
-            <CheckCircle2 size={14} /> Marked as booked
+          <span
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald text-white text-[11px] font-bold shadow-[0_4px_12px_-4px_rgba(16,185,129,0.55)]"
+            style={{ color: '#FFFFFF' }}
+          >
+            <CheckCircle2 size={12} className="text-white" /> Marked as booked
           </span>
           <button
             type="button"
             onClick={onResetLeg}
-            className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-text-muted hover:text-indigo transition-colors"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-border text-[11px] font-bold text-text-primary hover:border-indigo hover:text-indigo transition-colors"
           >
             <RotateCcw size={11} /> Undo
           </button>
         </div>
       ) : status === 'skipped' ? (
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700">
-            <SkipForward size={14} /> Skipped — come back any time
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500 text-white text-[11px] font-bold shadow-[0_4px_12px_-4px_rgba(245,158,11,0.55)]">
+            <SkipForward size={12} className="text-white" /> Skipped — come back any time
           </span>
           <button
             type="button"
             onClick={onResetLeg}
-            className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-text-muted hover:text-indigo transition-colors"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white border border-border text-[11px] font-bold text-text-primary hover:border-indigo hover:text-indigo transition-colors"
           >
             <RotateCcw size={11} /> Undo
           </button>
@@ -426,7 +434,7 @@ function LegCard({
             <button
               type="button"
               onClick={onMarkBooked}
-              className="flex-1 min-w-[140px] inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all active:scale-[0.98] shadow-[0_10px_24px_-10px_rgba(16,185,129,0.55)]"
+              className="flex-1 min-w-[140px] inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald text-white text-xs font-bold hover:opacity-90 transition-all active:scale-[0.98] shadow-[0_10px_24px_-10px_rgba(16,185,129,0.55)]"
               style={{ color: '#FFFFFF' }}
             >
               <CheckCircle2 size={13} className="text-white" /> Yes, I booked it
@@ -460,12 +468,14 @@ function LegCard({
         </button>
       ) : (
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <span className="text-xs text-text-muted">Next up after the current ticket.</span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface border border-border text-[11px] font-bold text-text-secondary">
+            Next up
+          </span>
           <button
             type="button"
             onClick={onOpen}
             disabled={!bookingUrl}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface border border-border text-[11px] font-semibold text-text-secondary hover:border-indigo-border hover:text-indigo transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border-2 border-border text-[11px] font-bold text-text-primary hover:border-indigo hover:text-indigo transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title={bookingLabel}
           >
             <ExternalLink size={11} /> Open out of order
@@ -479,15 +489,15 @@ function LegCard({
 function StatusBadge({ status, isCurrent }: { status: LegBookingStatus; isCurrent: boolean }) {
   if (status === 'booked') {
     return (
-      <div className="w-10 h-10 rounded-2xl bg-emerald-500 flex items-center justify-center shrink-0">
+      <div className="w-10 h-10 rounded-2xl bg-emerald flex items-center justify-center shrink-0">
         <CheckCircle2 size={18} className="text-white" />
       </div>
     );
   }
   if (status === 'skipped') {
     return (
-      <div className="w-10 h-10 rounded-2xl bg-amber-100 border border-amber-300 flex items-center justify-center shrink-0">
-        <SkipForward size={16} className="text-amber-700" />
+      <div className="w-10 h-10 rounded-2xl bg-amber-500 flex items-center justify-center shrink-0">
+        <SkipForward size={16} className="text-white" />
       </div>
     );
   }
@@ -507,10 +517,37 @@ function StatusBadge({ status, isCurrent }: { status: LegBookingStatus; isCurren
 
 function Meta({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-white/60 border border-border/40 px-3 py-2">
-      <p className="text-[9px] uppercase tracking-[0.16em] text-text-muted mb-0.5">{label}</p>
-      <p className="text-text-primary font-semibold text-xs truncate">{value}</p>
+    <div className="rounded-xl bg-white border border-border px-3 py-2">
+      <p className="text-[9px] uppercase tracking-[0.16em] text-text-secondary font-semibold mb-0.5">{label}</p>
+      <p className="text-text-primary font-bold text-xs truncate">{value}</p>
     </div>
+  );
+}
+
+function TicketEyebrow({
+  index,
+  total,
+  status,
+  isCurrent,
+}: {
+  index: number;
+  total: number;
+  status: LegBookingStatus;
+  isCurrent: boolean;
+}) {
+  const bg = (() => {
+    if (status === 'booked') return 'bg-emerald';
+    if (status === 'skipped') return 'bg-amber-500';
+    if (isCurrent) return 'bg-orange';
+    return 'bg-indigo';
+  })();
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${bg} text-white text-[10px] uppercase tracking-[0.14em] font-mono font-bold`}
+      style={{ color: '#FFFFFF' }}
+    >
+      Ticket {index + 1} of {total}
+    </span>
   );
 }
 

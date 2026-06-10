@@ -59,7 +59,7 @@ export function FlightCard({ flight, weather, onSelect }: Props) {
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             {multiCarrier && (
               <span
-                className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-900 dark:text-amber-200 bg-amber-100 dark:bg-amber-500/20 border border-amber-300 dark:border-amber-400/40 px-1.5 py-0.5 rounded shrink-0"
+                className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded shrink-0"
                 title="Itinerary uses multiple airlines"
               >
                 <Users size={10} /> Mixed carriers
@@ -67,7 +67,7 @@ export function FlightCard({ flight, weather, onSelect }: Props) {
             )}
             {hasSelfTransfer && (
               <span
-                className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-rose-900 dark:text-rose-200 bg-rose-100 dark:bg-rose-500/20 border border-rose-300 dark:border-rose-400/40 px-1.5 py-0.5 rounded shrink-0"
+                className="inline-flex items-center gap-0.5 text-[10px] font-bold text-rose-900 bg-rose-100 border border-rose-300 px-1.5 py-0.5 rounded shrink-0"
                 title="You must collect bags and re-check between flights"
               >
                 <AlertTriangle size={10} /> Self-transfer
