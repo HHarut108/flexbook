@@ -11,16 +11,17 @@ import {
   AlertTriangle,
   PlaneTakeoff,
   PlaneLanding,
+  RefreshCw,
 } from 'lucide-react';
 import { Airport, LocationSelection, selectionLabel } from '@fast-travel/shared';
 import { MarketingShellV2 } from '../components/MarketingShellV2';
 import { V2ToolHero } from '../components/V2ToolHero';
 import { AirportSearchInput } from '../components/AirportSearchInput';
-import { TripMapColumn } from '../components/TripMapColumn';
+import { TripMapColumn, type MapLeg } from '../components/TripMapColumn';
 import { DateRangePicker } from '../components/DateRangePicker';
 import { NearbyAirportRow } from '../components/NearbyAirportRow';
 import { MobileViewToggle, type MobileView } from '../components/MobileViewToggle';
-import { planBudgetTrip, BudgetPlanResult } from '../api/budgetTrip.api';
+import { planBudgetTrip, BudgetPlanResult, BudgetPlanLeg } from '../api/budgetTrip.api';
 import { nearbyAirportsByCoords } from '../api/airports.api';
 import {
   resolveUserCoords,
@@ -80,6 +81,35 @@ function todayStr() {
 
 function airportToSelection(a: Airport): LocationSelection {
   return { kind: 'airport', airport: a };
+}
+
+/** Convert budget-plan legs to MapLeg[] for RoutePreviewMap. Each destination
+ *  becomes a synthetic LocationSelection — only the city.lat/lng are read by
+ *  the map (via selectionCoords), so the other fields stay minimal. */
+function legsToMapLegs(legs: BudgetPlanLeg[], originAirport: Airport): MapLeg[] {
+  const out: MapLeg[] = [];
+  let from: LocationSelection = airportToSelection(originAirport);
+  for (const leg of legs) {
+    const to: LocationSelection = {
+      kind: 'airport',
+      airport: {
+        iata: leg.destinationIata,
+        name: leg.destinationCity,
+        timezone: '',
+        city: {
+          id: leg.destinationIata.toLowerCase(),
+          name: leg.destinationCity,
+          countryCode: leg.destinationCountry,
+          countryName: leg.destinationCountry,
+          lat: leg.destinationLat,
+          lng: leg.destinationLng,
+        },
+      },
+    };
+    out.push({ from, to });
+    from = to;
+  }
+  return out;
 }
 
 /* ── Steppers (lifted from V1 TripPlannerScreen) ── */
@@ -200,7 +230,19 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
   const [result, setResult] = useState<BudgetPlanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Mobile view toggle
+  // Per-leg swap state — mirrors V1 TripPlannerScreen's swap flow. Excluded
+  // destinations accumulate across swaps so the planner never re-picks them
+  // for the current session; the user clears them by starting a new search.
+  const [excludedDestinations, setExcludedDestinations] = useState<string[]>([]);
+  const [swapWarningIndex, setSwapWarningIndex] = useState<number | null>(null);
+  const [swapLoading, setSwapLoading] = useState(false);
+
+  // Form vs result view — once a plan exists we hide the inputs and surface
+  // a "Modify search" link to bring the form back. Mirrors WhenToGoScreenV2.
+  const [view, setView] = useState<'search' | 'result'>('search');
+
+  // Mobile view toggle — only meaningful in result view (before a plan, the
+  // form is shown full-width on mobile and there's nothing to map).
   const [mobileView, setMobileView] = useState<MobileView>('list');
 
   /* derived */
@@ -275,6 +317,9 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
     setLoading(true);
     setError(null);
     setResult(null);
+    // Fresh search resets any per-leg exclusions from a previous session.
+    setExcludedDestinations([]);
+    setSwapWarningIndex(null);
     try {
       const maxStops = destCount === 'max' ? Math.max(1, maxDestinations) : (destCount as number);
       const res = await planBudgetTrip({
@@ -289,6 +334,8 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
         tripStyle,
       });
       setResult(res);
+      setView('result');
+      setMobileView('list');
     } catch (err: unknown) {
       const message =
         err && typeof err === 'object' && 'message' in err
@@ -300,6 +347,47 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
     }
   }
 
+  /** Re-plan with one destination excluded — keeps the form values, just
+   *  appends to excludedDestinations and re-hits /trips/budget-plan. */
+  async function handleSwap(excludedIata: string) {
+    if (!origin || destCount === null) return;
+    const nextExcluded = [...excludedDestinations, excludedIata];
+    setExcludedDestinations(nextExcluded);
+    setSwapLoading(true);
+    setError(null);
+    try {
+      const maxStops = destCount === 'max' ? Math.max(1, maxDestinations) : (destCount as number);
+      const res = await planBudgetTrip({
+        originIata: origin.iata,
+        departureDateFrom: dateFrom,
+        departureDateTo: dateTo,
+        budgetPerPerson: budget,
+        passengers,
+        maxStops,
+        nightsPerStop: Math.max(1, Math.floor(tripNights / maxStops)),
+        nightsPerStopArray: destCount === 'max' ? undefined : nightsPerStopArr,
+        tripStyle,
+        excludedDestinations: nextExcluded,
+      });
+      setResult(res);
+    } catch (err: unknown) {
+      const message =
+        err && typeof err === 'object' && 'message' in err
+          ? String((err as { message: string }).message)
+          : 'No alternative found. Try adjusting budget or dates.';
+      setError(message);
+    } finally {
+      setSwapLoading(false);
+    }
+  }
+
+  function handleModifySearch() {
+    setView('search');
+    setMobileView('list');
+    setError(null);
+    setSwapWarningIndex(null);
+  }
+
   return (
     <MarketingShellV2
       active="budget"
@@ -309,9 +397,9 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
       showShare={!!result}
     >
       <section className="max-w-6xl xl:max-w-7xl mx-auto px-5 md:px-8 lg:px-10 pt-6 md:pt-14 pb-10">
-        {/* Two-column on lg+: [hero + result + map] left, form right */}
+        {/* Two-column on lg+: [hero + map] left, form/result right */}
         <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-6 lg:gap-10">
-          {/* LEFT: hero + (mobile toggle) + result panel + map */}
+          {/* LEFT: hero + (mobile toggle, result-only) + map */}
           <div>
             <V2ToolHero
               toolName="Budget Planner"
@@ -320,73 +408,53 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
               subhead="Set a total budget per person — we search live fares and assemble the cheapest multi-stop trip that fits, return flights included."
             />
 
-            <div className="md:hidden mb-5">
-              <MobileViewToggle value={mobileView} onChange={setMobileView} />
-            </div>
+            {/* Mobile toggle only appears once a plan exists. Before that, the
+                form is shown full-width on mobile (there's nothing to map). */}
+            {view === 'result' && (
+              <div className="md:hidden mb-5">
+                <MobileViewToggle value={mobileView} onChange={setMobileView} />
+              </div>
+            )}
 
-            <div className={`flex flex-col gap-6 ${mobileView === 'map' ? '' : 'hidden'} md:flex`}>
-              {result && (
-                <div
-                  className="bg-surface rounded-[24px] border border-border/60 p-5 md:p-6"
-                  style={{ boxShadow: '0 20px 50px -20px rgba(15,23,42,0.18)' }}
-                >
-                  <div className="mb-4">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald mb-1">
-                      Your trip
-                    </p>
-                    <h3 className="text-xl font-black text-text-primary">
-                      ${result.totalCostPerPerson}{' '}
-                      <span className="text-sm font-semibold text-text-muted">per person</span>
-                    </h3>
-                  </div>
-                  <div className="border-t border-border/40">
-                    {result.legs.map((leg, i) => (
-                      <div
-                        key={`${leg.flightId}-${i}`}
-                        className="py-3 border-b border-border/30 last:border-0 flex items-start gap-3"
-                      >
-                        <div
-                          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
-                            leg.isReturn
-                              ? 'bg-emerald/10 border border-emerald/30'
-                              : 'bg-indigo-soft border border-indigo-border'
-                          }`}
-                        >
-                          {leg.isReturn ? (
-                            <PlaneLanding size={13} className="text-emerald" />
-                          ) : (
-                            <PlaneTakeoff size={13} className="text-indigo" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[14px] font-semibold text-text-primary truncate">
-                            {leg.originCity} → {leg.destinationCity}
-                          </p>
-                          <p className="text-[11px] text-text-muted mt-0.5">
-                            {leg.airlineName} · {fmtLegDate(leg.departureDatetime)} ·{' '}
-                            {leg.stops === 0 ? 'Direct' : `${leg.stops} stop${leg.stops > 1 ? 's' : ''}`}
-                          </p>
-                        </div>
-                        <span className="text-[14px] font-bold text-text-primary shrink-0">
-                          ${leg.priceUsd}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
+            {/* Map: desktop always; mobile only when viewing a plan on the
+                map tab. Renders the trip plan as polylines when result exists. */}
+            <div
+              className={`
+                ${view === 'result' && mobileView === 'map' ? '' : 'hidden'}
+                md:block
+              `}
+            >
               <TripMapColumn
                 origin={origin ? airportToSelection(origin) : null}
+                legs={result && origin ? legsToMapLegs(result.legs, origin) : undefined}
               />
             </div>
           </div>
 
-          {/* RIGHT: form card */}
+          {/* RIGHT: form (view='search') or result (view='result') —
+              same card shell, content swaps in place. On mobile, hidden when
+              the user picks Map view. */}
           <div
-            className={`bg-surface rounded-[24px] border border-border/60 p-5 md:p-6 ${mobileView === 'list' ? '' : 'hidden'} md:block`}
+            className={`
+              bg-surface rounded-[24px] border border-border/60 p-5 md:p-6
+              ${view === 'result' && mobileView === 'map' ? 'hidden' : ''}
+              md:block
+            `}
             style={{ boxShadow: '0 20px 50px -20px rgba(15,23,42,0.18)' }}
           >
+            {view === 'result' && result ? (
+              <ResultPanel
+                result={result}
+                passengers={passengers}
+                onModify={handleModifySearch}
+                onSwap={handleSwap}
+                swapLoading={swapLoading}
+                swapWarningIndex={swapWarningIndex}
+                setSwapWarningIndex={setSwapWarningIndex}
+                error={error}
+              />
+            ) : (
+              <>
             {/* 1. Starting from */}
             <FieldLabel>Starting from</FieldLabel>
             {origin ? (
@@ -579,7 +647,7 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
                 </div>
                 {numericDests === 1 && (
                   <p className="text-xs text-text-muted px-1">
-                    You'll spend all <strong className="text-text-primary">{tripNights} nights</strong>{' '}
+                    You&apos;ll spend all <strong className="text-text-primary">{tripNights} nights</strong>{' '}
                     at your destination.
                   </p>
                 )}
@@ -669,6 +737,8 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
                 <p className="text-xs text-error leading-relaxed">{error}</p>
               </div>
             )}
+              </>
+            )}
           </div>
 
         </div>
@@ -695,6 +765,233 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted mb-1.5 px-1">
       {children}
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   ResultPanel — replaces the form once a plan is generated. Shows the trip
+   legs with a per-leg "Try different" swap (V1 parity), a "Modify search"
+   link at the top to bring the form back, and a budget summary.
+   The map column reflects the same plan; this panel stays on the list view.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+interface ResultPanelProps {
+  result: BudgetPlanResult;
+  passengers: number;
+  onModify: () => void;
+  onSwap: (excludedIata: string) => void;
+  swapLoading: boolean;
+  swapWarningIndex: number | null;
+  setSwapWarningIndex: (i: number | null) => void;
+  error: string | null;
+}
+
+function ResultPanel({
+  result,
+  passengers,
+  onModify,
+  onSwap,
+  swapLoading,
+  swapWarningIndex,
+  setSwapWarningIndex,
+  error,
+}: ResultPanelProps) {
+  const usedPct = Math.min(
+    100,
+    Math.round((result.totalCostPerPerson / result.budgetPerPerson) * 100),
+  );
+  const totalForGroup = result.totalCostPerPerson * passengers;
+  const saved = Math.max(0, result.budgetPerPerson - result.totalCostPerPerson);
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Modify-search link — mirrors WhenToGoScreenV2's NewSearchLink pattern
+          so the "back to inputs" affordance reads the same across tools. */}
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={onModify}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-secondary hover:text-indigo transition-colors"
+        >
+          <ArrowLeft size={13} />
+          Modify search
+        </button>
+        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald">
+          Your trip
+        </p>
+      </div>
+
+      {/* Plan-level warnings (e.g. OVER_BUDGET) — informational; trip still valid. */}
+      {result.warnings && result.warnings.length > 0 && (
+        <div className="rounded-2xl bg-orange-soft border border-orange/40 px-4 py-3 flex items-start gap-2.5">
+          <AlertTriangle size={15} className="text-orange-dark shrink-0 mt-0.5" />
+          <div className="space-y-1 min-w-0">
+            {result.warnings.map((w, i) => (
+              <p key={`${w.code}-${i}`} className="text-xs text-orange-dark font-semibold leading-snug">
+                {w.message}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Swap error — surface above legs so user keeps their plan visible. */}
+      {error && (
+        <div className="rounded-2xl bg-error-soft border border-error/30 px-4 py-3 flex items-start gap-2.5">
+          <AlertTriangle size={15} className="text-error shrink-0 mt-0.5" />
+          <p className="text-xs text-error leading-relaxed">{error}</p>
+        </div>
+      )}
+
+      {/* Headline price */}
+      <div>
+        <h3 className="text-2xl font-black text-text-primary leading-tight">
+          ${result.totalCostPerPerson}{' '}
+          <span className="text-sm font-semibold text-text-muted">per person</span>
+        </h3>
+        {passengers > 1 && (
+          <p className="text-xs text-text-muted mt-0.5">
+            ${totalForGroup} total · {passengers} passengers
+          </p>
+        )}
+      </div>
+
+      {/* Legs */}
+      <div
+        className={`border-t border-border/40 transition-opacity ${swapLoading ? 'opacity-50 pointer-events-none' : ''}`}
+      >
+        {result.legs.map((leg, i) => (
+          <ResultLegRow
+            key={`${leg.flightId}-${i}`}
+            leg={leg}
+            showSwap={!leg.isReturn && !swapLoading}
+            isSwapWarning={swapWarningIndex === i}
+            onSwapRequest={() => setSwapWarningIndex(i)}
+            onSwapConfirm={() => {
+              setSwapWarningIndex(null);
+              onSwap(leg.destinationIata);
+            }}
+            onSwapCancel={() => setSwapWarningIndex(null)}
+          />
+        ))}
+        {swapLoading && (
+          <div className="flex items-center gap-2 py-3">
+            <Loader2 size={14} className="animate-spin text-indigo shrink-0" />
+            <span className="text-xs text-text-muted">Finding a different route…</span>
+          </div>
+        )}
+      </div>
+
+      {/* Budget bar */}
+      <div className="bg-surface-2/60 border border-border rounded-2xl p-3.5">
+        <div className="h-2 bg-surface rounded-full overflow-hidden">
+          <div
+            className="h-full bg-indigo rounded-full transition-all duration-700"
+            style={{ width: `${usedPct}%` }}
+          />
+        </div>
+        <div className="flex justify-between mt-1.5">
+          <span className="text-[11px] text-text-muted">
+            {usedPct}% of ${result.budgetPerPerson} budget
+          </span>
+          {saved > 0 && (
+            <span className="text-[11px] font-semibold text-emerald">${saved} saved</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ResultLegRow({
+  leg,
+  showSwap,
+  isSwapWarning,
+  onSwapRequest,
+  onSwapConfirm,
+  onSwapCancel,
+}: {
+  leg: BudgetPlanLeg;
+  showSwap: boolean;
+  isSwapWarning: boolean;
+  onSwapRequest: () => void;
+  onSwapConfirm: () => void;
+  onSwapCancel: () => void;
+}) {
+  return (
+    <div className="py-3 border-b border-border/30 last:border-0">
+      <div className="flex items-start gap-3">
+        <div
+          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
+            leg.isReturn
+              ? 'bg-emerald/10 border border-emerald/30'
+              : 'bg-indigo-soft border border-indigo-border'
+          }`}
+        >
+          {leg.isReturn ? (
+            <PlaneLanding size={13} className="text-emerald" />
+          ) : (
+            <PlaneTakeoff size={13} className="text-indigo" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[14px] font-semibold text-text-primary truncate">
+            {leg.originCity} → {leg.destinationCity}
+          </p>
+          <p className="text-[11px] text-text-muted mt-0.5">
+            {leg.airlineName} · {fmtLegDate(leg.departureDatetime)} ·{' '}
+            {leg.stops === 0 ? 'Direct' : `${leg.stops} stop${leg.stops > 1 ? 's' : ''}`}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[14px] font-bold text-text-primary">${leg.priceUsd}</span>
+          {showSwap && (
+            <button
+              type="button"
+              onClick={onSwapRequest}
+              title="Try a different destination"
+              className={`
+                flex items-center gap-1.5 transition-all active:scale-95 rounded-full
+                w-7 h-7 justify-center md:w-auto md:h-auto md:px-2.5 md:py-1 md:rounded-lg
+                ${
+                  isSwapWarning
+                    ? 'bg-amber-100 dark:bg-amber-800/50 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700'
+                    : 'bg-surface-2 border border-border text-text-muted hover:text-indigo hover:border-indigo-border hover:bg-indigo-soft'
+                }
+              `}
+            >
+              <RefreshCw size={12} className="shrink-0" />
+              <span className="hidden md:inline text-[11px] font-medium">Try different</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Inline swap confirm — shown only for the leg being swapped. */}
+      {isSwapWarning && (
+        <div className="mt-2 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 flex items-center justify-between gap-3">
+          <p className="text-xs text-amber-700 dark:text-amber-300 leading-snug">
+            {leg.destinationCity} and any later stops may be replaced.
+          </p>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={onSwapConfirm}
+              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors"
+            >
+              Swap
+            </button>
+            <button
+              type="button"
+              onClick={onSwapCancel}
+              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg text-text-muted hover:text-text-primary transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
