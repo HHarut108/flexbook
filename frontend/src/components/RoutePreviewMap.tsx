@@ -197,6 +197,7 @@ export function RoutePreviewMap({ origin, destination, stops = [], legs, userCoo
       style={{ width: '100%', height: '100%', background: tileBg }}
     >
       <TileLayer key={tileUrl} url={tileUrl} attribution={TILE_ATTR} />
+      <SizeWatcher />
       <FitBounds coords={coordsList} />
 
       {points.map((p) => {
@@ -243,6 +244,32 @@ function userLocationPin(color: string) {
     iconSize: [18, 18],
     iconAnchor: [9, 9],
   });
+}
+
+/** Leaflet measures its container width/height at init time. If the wrapper
+ *  was `display:none` when the map mounted (e.g. mobile-map view hidden until
+ *  the user taps the tab), the tiles cover a 0×0 canvas until something
+ *  triggers a resize. This watcher calls invalidateSize on mount, when the
+ *  container's box changes, and on viewport resize/orientation events so
+ *  switching to map view always paints correctly. */
+function SizeWatcher() {
+  const map = useMap();
+  useEffect(() => {
+    const container = map.getContainer();
+    const initial = setTimeout(() => map.invalidateSize({ animate: false }), 50);
+    const ro = new ResizeObserver(() => map.invalidateSize({ animate: false }));
+    ro.observe(container);
+    const onResize = () => map.invalidateSize({ animate: false });
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => {
+      clearTimeout(initial);
+      ro.disconnect();
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
+  }, [map]);
+  return null;
 }
 
 function FitBounds({ coords }: { coords: { lat: number; lng: number }[] }) {
