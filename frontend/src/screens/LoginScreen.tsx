@@ -42,7 +42,7 @@ export function LoginScreen() {
   return (
     <div className="min-h-screen bg-bg flex flex-col max-w-[448px] mx-auto">
       <header className="flex items-center gap-3 px-4 py-4 border-b border-border">
-        <button onClick={() => navigate(-1)} className="p-1 -ml-1 text-text-muted hover:text-text-primary transition-colors">
+        <button onClick={() => navigate(-1)} aria-label="Go back" className="p-1 -ml-1 text-text-muted hover:text-text-primary transition-colors">
           <ArrowLeft size={20} />
         </button>
         <h1 className="text-lg font-semibold text-text-primary">Log in</h1>

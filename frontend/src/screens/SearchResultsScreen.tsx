@@ -331,9 +331,10 @@ function RoundTripSection({
   if (result.loading) {
     return (
       <div>
-        <h2 className="text-2xl font-black tracking-tight text-text-primary mb-4">
+        <h2 className="text-2xl font-black tracking-tight text-text-primary mb-1">
           Round-trip options
         </h2>
+        <p className="text-xs text-text-muted mb-4">Searching across 30+ airlines — this usually takes 5–10 seconds.</p>
         <div className="space-y-2.5">
           <RoundTripCardSkeleton />
           <RoundTripCardSkeleton />
@@ -480,9 +481,10 @@ function MultiCitySection({
   if (result.loading) {
     return (
       <div>
-        <h2 className="text-2xl font-black tracking-tight text-text-primary mb-4">
+        <h2 className="text-2xl font-black tracking-tight text-text-primary mb-1">
           Multi-city trips
         </h2>
+        <p className="text-xs text-text-muted mb-4">Searching across 30+ airlines — this usually takes 5–10 seconds.</p>
         <div className="space-y-2.5">
           <MultiCityCardSkeleton legCount={legCount} />
           <MultiCityCardSkeleton legCount={legCount} />
@@ -613,7 +615,8 @@ function ResultsSection({
   if (result.loading) {
     return (
       <div>
-        <h2 className="text-2xl font-black tracking-tight text-text-primary mb-4">{heading}</h2>
+        <h2 className="text-2xl font-black tracking-tight text-text-primary mb-1">{heading}</h2>
+        <p className="text-xs text-text-muted mb-4">Searching across 30+ airlines — this usually takes 5–10 seconds.</p>
         <div className="space-y-2.5">
           <FlightCardSkeleton />
           <FlightCardSkeleton />

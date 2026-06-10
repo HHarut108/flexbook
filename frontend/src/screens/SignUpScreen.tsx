@@ -21,15 +21,6 @@ interface CitizenshipDraft {
   documentNumber: string;
 }
 
-type Gender = 'male' | 'female' | 'other' | 'prefer_not_to_say';
-
-const GENDER_OPTIONS: { value: Gender; label: string }[] = [
-  { value: 'male', label: 'Male' },
-  { value: 'female', label: 'Female' },
-  { value: 'other', label: 'Other' },
-  { value: 'prefer_not_to_say', label: 'Prefer not to say' },
-];
-
 // Letters (including Unicode), space, hyphen, apostrophe. 1–50 chars.
 // Cap follows ICAO 9303 guidance — a single name line on a passport tops out at ~39 chars,
 // so 50 is generous without inviting abuse.
@@ -75,7 +66,6 @@ export function SignUpScreen() {
     password: '',
     confirmPassword: '',
   });
-  const [gender, setGender] = useState<Gender | ''>('');
   const [birthDay, setBirthDay] = useState('');
   const [birthMonth, setBirthMonth] = useState('');
   const [birthYear, setBirthYear] = useState('');
@@ -91,7 +81,9 @@ export function SignUpScreen() {
 
   const today = new Date();
   const currentYear = today.getFullYear();
-  const YEARS = Array.from({ length: currentYear - 13 - 1899 }, (_, i) => currentYear - 13 - i);
+  // Cap the year range at 1920 — a 105-year window is plenty without exposing a
+  // 100+ option list that scrolls forever (the 1900 floor QA flagged on 2026-06-11).
+  const YEARS = Array.from({ length: currentYear - 13 - 1919 }, (_, i) => currentYear - 13 - i);
 
   function setField(key: keyof typeof form, val: string) {
     setForm((f) => ({ ...f, [key]: val }));
@@ -131,10 +123,13 @@ export function SignUpScreen() {
     if (fn) errs.firstName = fn;
     if (ln) errs.lastName = ln;
     if (em) errs.email = em;
-    if (!gender) errs.gender = 'Please select an option';
-    if (!birthDay || !birthMonth || !birthYear) {
-      errs.birthday = 'Please enter your date of birth';
-    } else {
+    // DOB is now optional. Only validate if the user filled any of the three
+    // dropdowns — partial values still count as a typo worth catching.
+    const anyDob = birthDay || birthMonth || birthYear;
+    const allDob = birthDay && birthMonth && birthYear;
+    if (anyDob && !allDob) {
+      errs.birthday = 'Please complete your date of birth or leave it blank';
+    } else if (allDob) {
       const mm = String(MONTHS.indexOf(birthMonth) + 1).padStart(2, '0');
       const dd = String(birthDay).padStart(2, '0');
       const candidate = `${birthYear}-${mm}-${dd}`;
@@ -177,13 +172,16 @@ export function SignUpScreen() {
           };
         });
 
+      const birthday = (birthDay && birthMonth && birthYear)
+        ? `${birthYear}-${String(MONTHS.indexOf(birthMonth) + 1).padStart(2, '0')}-${String(birthDay).padStart(2, '0')}`
+        : undefined;
+
       await authApi.register({
         email: form.email.trim().toLowerCase(),
         password: form.password,
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
-        gender: gender as Gender,
-        birthday: `${birthYear}-${String(MONTHS.indexOf(birthMonth) + 1).padStart(2, '0')}-${String(birthDay).padStart(2, '0')}`,
+        birthday,
         citizenships: filledCitizenships.length > 0 ? filledCitizenships : undefined,
         visas: visaPayload.length > 0 ? visaPayload : undefined,
       });
@@ -210,7 +208,7 @@ export function SignUpScreen() {
   return (
     <div className="min-h-screen bg-bg flex flex-col max-w-[448px] mx-auto">
       <header className="flex items-center gap-3 px-4 py-4 border-b border-border">
-        <button onClick={() => navigate(-1)} className="p-1 -ml-1 text-text-muted hover:text-text-primary transition-colors">
+        <button onClick={() => navigate(-1)} aria-label="Go back" className="p-1 -ml-1 text-text-muted hover:text-text-primary transition-colors">
           <ArrowLeft size={20} />
         </button>
         <h1 className="text-lg font-semibold text-text-primary">Create account</h1>
@@ -249,26 +247,6 @@ export function SignUpScreen() {
           </div>
         </div>
 
-        {/* Gender */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-text-muted uppercase tracking-wide">Gender *</label>
-          <select
-            value={gender}
-            onChange={(e) => {
-              setGender(e.target.value as Gender | '');
-              setFieldErrors((er) => ({ ...er, gender: '' }));
-            }}
-            aria-invalid={!!fieldErrors.gender}
-            className={fieldErrors.gender ? inputErrCls : inputCls}
-          >
-            <option value="">Select gender</option>
-            {GENDER_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-          {fieldErrors.gender && <p className="text-[11px] text-red-500">{fieldErrors.gender}</p>}
-        </div>
-
         {/* Email */}
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-text-muted uppercase tracking-wide">Email *</label>
@@ -289,7 +267,7 @@ export function SignUpScreen() {
 
         {/* Date of birth — three dropdowns (avoids native date-picker focus issues on iOS Safari) */}
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-text-muted uppercase tracking-wide">Date of birth *</label>
+          <label className="text-xs font-medium text-text-muted uppercase tracking-wide">Date of birth <span className="text-text-muted/70 normal-case font-normal">(optional)</span></label>
           <div className="flex gap-2">
             <select
               value={birthDay}
@@ -322,7 +300,6 @@ export function SignUpScreen() {
               {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
-          <p className="text-[11px] text-text-muted">You must be at least 13 to register.</p>
           {fieldErrors.birthday && <p className="text-[11px] text-red-500">{fieldErrors.birthday}</p>}
         </div>
 
