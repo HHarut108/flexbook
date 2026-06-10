@@ -74,9 +74,9 @@ export function HomeScreenV2({ onMenuOpen }: Props) {
 
             {/* Stats: desktop only. */}
             <div className="hidden md:flex items-end gap-12 mt-9">
-              <Stat value="2.1M" label="trips built" />
-              <Stat value="$127" label="avg. saved" />
-              <Stat value="180+" label="cities" />
+              <Stat value="60s" label="to design a full trip" />
+              <Stat value="4 tools" label="one toolkit" />
+              <Stat value="1000s" label="of cheap routes, daily" />
             </div>
           </div>
 

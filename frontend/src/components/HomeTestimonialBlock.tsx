@@ -51,15 +51,15 @@ export function HomeTestimonialBlock() {
         <div className="p-8 md:p-10 lg:p-12 flex flex-col justify-center border-t md:border-t-0 md:border-l border-white/10">
           <Star size={28} className="text-orange mb-5" strokeWidth={1.5} />
           <blockquote className="text-lg md:text-xl text-white leading-relaxed font-normal mb-6">
-            “I built a 4-city loop for €290 in about two minutes. No sign-up,
+            “I built a 4-city loop for $290 in about two minutes. No sign-up,
             no upsell. I keep coming back.”
           </blockquote>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-orange flex items-center justify-center text-white font-bold text-sm">
-              M
+              A
             </div>
             <div>
-              <div className="text-sm font-bold text-white">Mara K.</div>
+              <div className="text-sm font-bold text-white">Aram K.</div>
               <div className="text-xs text-white/60">Digital nomad · Lisbon</div>
             </div>
           </div>

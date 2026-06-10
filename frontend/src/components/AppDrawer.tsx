@@ -174,17 +174,13 @@ export function AppDrawer({ open, onClose }: Props) {
             boxShadow: '0 24px 48px rgba(15,23,42,0.15)',
           }}
         >
-          {/* Header */}
-          <div
-            className="px-5 pt-5 pb-4 flex items-center justify-between shrink-0"
-            style={{
-              background: 'linear-gradient(135deg, rgba(55,48,163,0.97) 0%, rgba(79,70,229,0.97) 100%)',
-            }}
-          >
-            <GoHomeLogo size="sm" variant="dark" onNavigate={onClose} />
+          {/* Header — matches the bright app nav (MarketingShellV2) */}
+          <div className="px-5 pt-5 pb-4 flex items-center justify-between shrink-0 border-b border-border/50 bg-bg/80 backdrop-blur-sm">
+            <GoHomeLogo size="sm" variant="light" onNavigate={onClose} />
             <button
               onClick={onClose}
-              className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center text-white hover:bg-white/25 transition-all active:scale-95"
+              className="w-10 h-10 rounded-2xl bg-surface border border-border flex items-center justify-center text-indigo-mid hover:bg-indigo-soft hover:border-indigo-border transition-all active:scale-95"
+              style={{ boxShadow: '0 4px 10px rgba(15,23,42,0.06)' }}
               aria-label="Close"
             >
               <X size={18} />
