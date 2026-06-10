@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link, Navigate } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2, Eye, EyeOff, Info } from 'lucide-react';
 import { authApi } from '../api/auth.api';
 import { CountrySelect } from '../components/CountrySelect';
 import type { Country } from '../data/countries';
+import { useAuthStore } from '../store/auth.store';
 import { usePassportStore } from '../store/passport.store';
 
 interface VisaDraft {
@@ -61,6 +62,12 @@ export function SignUpScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const returnTo: string | undefined = (location.state as { returnTo?: string } | null)?.returnTo;
+  const authedUser = useAuthStore((s) => s.user);
+
+  // Already signed in → bounce out instead of showing the signup form alongside
+  // an authenticated sidebar (the contradictory state QA caught on 2026-06-11).
+  if (authedUser) return <Navigate to={returnTo ?? '/'} replace />;
+
   const [form, setForm] = useState({
     firstName: '',
     lastName: '',
