@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom';
 import { ArrowRight, Check, Lock, type LucideIcon } from 'lucide-react';
+import { ViewTransitionLink } from './ViewTransitionLink';
 import { intentPrefetch } from '../lib/routePrefetch';
 
 export interface Tool {
@@ -33,7 +33,7 @@ export function ToolCard(props: Props) {
 
   if (props.variant === 'compact') {
     return (
-      <Link
+      <ViewTransitionLink
         to={tool.path}
         {...intentPrefetch(tool.path)}
         className="section-shell p-5 flex flex-col gap-3 transition-colors hover:border-indigo-border group"
@@ -64,7 +64,7 @@ export function ToolCard(props: Props) {
           Open {tool.name}
           <ArrowRight size={13} />
         </div>
-      </Link>
+      </ViewTransitionLink>
     );
   }
 

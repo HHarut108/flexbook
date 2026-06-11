@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Helmet } from 'react-helmet-async';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useNavigate } from 'react-router-dom';
 import { useSessionStore } from '../store/session.store';
 import { useTripStore } from '../store/trip.store';
@@ -74,10 +74,10 @@ export function StayDurationScreen() {
   const priorLegs = legs.filter((l) => !l.isReturn);
   const destinationCity = selectedFlight.destinationCity;
   const destinationCountryName = countryDisplayName(selectedFlight.destinationCountry);
+  useDocumentTitle(`Stay in ${destinationCity} · FlexBook`);
 
   return (
     <div className="max-w-6xl xl:max-w-7xl mx-auto px-5 md:px-8 lg:px-10 pt-6 md:pt-10 pb-10 md:pb-16">
-      <Helmet><title>Stay in {destinationCity} · FlexBook</title></Helmet>
 
       {/* Two-column on lg+: hero on the left, picker card on the right. Mobile
           stacks them. Matches the V2 Trip Builder / Quick Search shells. */}

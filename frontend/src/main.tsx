@@ -1,7 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { HelmetProvider } from 'react-helmet-async';
 import App from './App';
 import { useTripStore } from './store/trip.store';
 import { useSessionStore } from './store/session.store';
@@ -12,8 +11,19 @@ import './index.css';
 import { prefetchAirportIndex } from './lib/airportIndex';
 
 function boot() {
-  // Start loading the airport index immediately so it's warm before the user types.
-  prefetchAirportIndex();
+  // Airport index is ~784 KB of JSON — defer to idle so it never competes
+  // with the critical-path JS/CSS/fonts. The fetch still typically lands
+  // well before the user opens an autocomplete; getAirportIndex() awaits
+  // the same in-flight promise if it's still pending, and the result is
+  // cached in memory after the first load.
+  type IdleCallback = (cb: () => void, opts?: { timeout: number }) => void;
+  const ric = (window as unknown as { requestIdleCallback?: IdleCallback })
+    .requestIdleCallback;
+  if (ric) {
+    ric(() => prefetchAirportIndex(), { timeout: 2500 });
+  } else {
+    window.setTimeout(prefetchAirportIndex, 1500);
+  }
 
   // Boot analytics before render so the first pageview is captured.
   initAnalytics();
@@ -60,11 +70,9 @@ function boot() {
 
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-      <HelmetProvider>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </HelmetProvider>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
     </React.StrictMode>,
   );
 }

@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState, useCallback } from 'react';
 import { TripLeg } from '@fast-travel/shared';
-import { Helmet } from 'react-helmet-async';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { fetchAirlineLogos } from '../api/airlines.api';
@@ -468,9 +468,10 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
     </div>
   );
 
+  useDocumentTitle(`${partial ? 'Book flights so far' : 'Book your trip'} · FlexBook`);
+
   return (
     <div className="pb-8">
-      <Helmet><title>{partial ? 'Book flights so far' : 'Book your trip'} · FlexBook</title></Helmet>
       {/* ── Top brand header ── */}
       <div
         className="sticky top-0 z-50 px-4 py-2.5 flex items-center justify-between"

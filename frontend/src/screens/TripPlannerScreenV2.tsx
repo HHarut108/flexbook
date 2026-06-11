@@ -24,7 +24,11 @@ import type { MapLeg } from '../components/TripMapColumn';
 const TripMapColumn = lazy(() =>
   import('../components/TripMapColumn').then((m) => ({ default: m.TripMapColumn })),
 );
-import { DateRangePicker } from '../components/DateRangePicker';
+// DateRangePicker (calendar grid + date-fns logic) only appears once
+// the user reveals custom dates. Lazy so the form ships without it.
+const DateRangePicker = lazy(() =>
+  import('../components/DateRangePicker').then((m) => ({ default: m.DateRangePicker })),
+);
 import { NearbyAirportRow } from '../components/NearbyAirportRow';
 import { MobileViewToggle, type MobileView } from '../components/MobileViewToggle';
 import { planBudgetTrip, BudgetPlanResult, BudgetPlanLeg } from '../api/budgetTrip.api';
@@ -637,16 +641,18 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
             {datesVisible && (
               <div className="mb-5">
                 <FieldLabel>Travel window</FieldLabel>
-                <DateRangePicker
-                  dateFrom={dateFrom}
-                  dateTo={dateTo}
-                  today={today}
-                  onChangeFrom={(v) => {
-                    setDateFrom(v);
-                    if (dateTo && v >= dateTo) setDateTo('');
-                  }}
-                  onChangeTo={setDateTo}
-                />
+                <Suspense fallback={<div className="h-[260px] rounded-2xl bg-surface-muted" aria-hidden />}>
+                  <DateRangePicker
+                    dateFrom={dateFrom}
+                    dateTo={dateTo}
+                    today={today}
+                    onChangeFrom={(v) => {
+                      setDateFrom(v);
+                      if (dateTo && v >= dateTo) setDateTo('');
+                    }}
+                    onChangeTo={setDateTo}
+                  />
+                </Suspense>
               </div>
             )}
 

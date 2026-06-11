@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useViewTransitionNavigate } from '../hooks/useViewTransitionNavigate';
 import { useSavedTripsStore, SavedTrip } from '../store/saved-trips.store';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
@@ -88,7 +88,7 @@ function SavedTripCard({
 }
 
 export function AppDrawer({ open, onClose }: Props) {
-  const navigate = useNavigate();
+  const navigate = useViewTransitionNavigate();
   const { trips, deleteTrip } = useSavedTripsStore();
   const loadFromItinerary = useTripStore((s) => s.loadFromItinerary);
   const showToast = useSessionStore((s) => s.showToast);

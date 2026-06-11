@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
-import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import { User } from 'lucide-react';
 import { GoHomeLogo } from './GoHomeLogo';
 import { Footer } from './Footer';
 import { useAuthStore } from '../store/auth.store';
+import { useDocumentTitle, useMetaDescription } from '../hooks/useDocumentTitle';
 
 export type V2NavKey = 'home' | 'search' | 'build' | 'when' | 'budget' | 'how';
 
@@ -47,14 +47,11 @@ export function MarketingShellV2({
 }: Props) {
   const user = useAuthStore((s) => s.user);
   const initials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : null;
+  useDocumentTitle(`${title} — Flexbook`);
+  useMetaDescription(description);
 
   return (
     <div className="min-h-screen relative">
-      <Helmet>
-        <title>{title} — Flexbook</title>
-        {description && <meta name="description" content={description} />}
-      </Helmet>
-
       {/* Subtle ambient wash */}
       <div className="absolute inset-0 pointer-events-none" style={{ background: AMBIENT_BG }} />
 

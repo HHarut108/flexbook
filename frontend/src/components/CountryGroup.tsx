@@ -1,11 +1,15 @@
-import { forwardRef, useState } from 'react';
+import { forwardRef, lazy, Suspense, useState } from 'react';
 import { FlightOption } from '@fast-travel/shared';
 import { formatTime, durationLabel } from '../utils/date.utils';
 import { formatPrice } from '../utils/price.utils';
 import { ChevronDown, ChevronRight, Home, Plane } from 'lucide-react';
 import { VisaPill, VISA_TONE_BORDER, visaTone } from './visa/VisaPill';
-import { VisaDetailsPopover } from './visa/VisaDetailsPopover';
 import type { VisaRequirement } from '../api/visa.api';
+// VisaDetailsPopover only mounts when a user taps a visa chip — kept out
+// of the inline render path so the country group ships smaller.
+const VisaDetailsPopover = lazy(() =>
+  import('./visa/VisaDetailsPopover').then((m) => ({ default: m.VisaDetailsPopover })),
+);
 
 interface CompactFlightRowProps {
   flight: FlightOption;
@@ -204,12 +208,14 @@ export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function 
       )}
 
       {popoverOpen && visa && (
-        <VisaDetailsPopover
-          requirement={visa}
-          destinationName={country}
-          passport={passport}
-          onClose={() => setPopoverOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <VisaDetailsPopover
+            requirement={visa}
+            destinationName={country}
+            passport={passport}
+            onClose={() => setPopoverOpen(false)}
+          />
+        </Suspense>
       )}
     </section>
   );

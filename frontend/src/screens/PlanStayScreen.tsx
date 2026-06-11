@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Helmet } from 'react-helmet-async';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { apiClient } from '../api/client';
@@ -313,9 +313,10 @@ export function PlanStayScreen() {
     </div>
   );
 
+  useDocumentTitle(`Plan your stay in ${destinationCity} · FlexBook`);
+
   return (
     <div className="animate-fade-in md:flex md:items-start md:gap-0 md:max-w-6xl md:mx-auto xl:max-w-7xl">
-      <Helmet><title>Plan your stay in {destinationCity} · FlexBook</title></Helmet>
       {/* ── Left panel ── */}
       <div className="px-4 pb-32 pt-4 md:flex-1 md:min-w-0 md:pb-12">
       <StickyReturnBar onBack={handleBack} crumbs={crumbs} currentCity={destinationIata} />

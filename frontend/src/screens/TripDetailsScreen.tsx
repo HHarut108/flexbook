@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Helmet } from 'react-helmet-async';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { format, differenceInCalendarDays, parseISO } from 'date-fns';
 import {
@@ -64,6 +64,7 @@ function stayNightsBetween(arrivalIso: string, nextDepartureIso: string): number
 }
 
 export function TripDetailsScreen({ onMenuOpen }: Props) {
+  useDocumentTitle('Review trip — Flexbook');
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   // Falls back to navigation state — we set `state.trip` on navigate so the
@@ -150,10 +151,6 @@ export function TripDetailsScreen({ onMenuOpen }: Props) {
       description="Review your selected flights before booking."
       onMenuOpen={onMenuOpen}
     >
-      <Helmet>
-        <title>Review trip — Flexbook</title>
-      </Helmet>
-
       <div className="max-w-3xl xl:max-w-4xl mx-auto px-4 md:px-6 lg:px-8 pt-4 md:pt-6 pb-12 space-y-5">
         {/* ── Header / hero panel ─────────────────────────────────────────── */}
         <div className="rounded-3xl bg-indigo-soft border border-indigo-border/70 p-4 md:p-5">
