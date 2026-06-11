@@ -54,7 +54,12 @@ export function SignUpScreen() {
   const location = useLocation();
   const returnTo: string | undefined = (location.state as { returnTo?: string } | null)?.returnTo;
   const authedUser = useAuthStore((s) => s.user);
+  const authLoading = useAuthStore((s) => s.loading);
 
+  // QA W3: while auth is still resolving (the /api/auth/me round-trip hasn't
+  // returned yet), don't flash the signup form to a user who's about to be
+  // recognized as already signed in. Return null until we know.
+  if (authLoading) return null;
   // Already signed in → bounce out instead of showing the signup form alongside
   // an authenticated sidebar (the contradictory state QA caught on 2026-06-11).
   if (authedUser) return <Navigate to={returnTo ?? '/'} replace />;

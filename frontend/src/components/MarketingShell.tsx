@@ -37,7 +37,13 @@ interface Props {
 export function MarketingShell({ active, title, description, onMenuOpen, left, right }: Props) {
   const user = useAuthStore((s) => s.user);
   const initials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : null;
-  useDocumentTitle(`${title} — FlexBook`);
+  // QA W2: align with MarketingShellV2's title rules so "Tools" and a V2
+  // screen both produce "{title} — FlexBook" with the canonical brand casing.
+  const normalisedTitle = (title ?? '').trim();
+  const isBrandOnly =
+    normalisedTitle === '' ||
+    normalisedTitle.toLowerCase() === 'flexbook';
+  useDocumentTitle(isBrandOnly ? 'FlexBook' : `${normalisedTitle} — FlexBook`);
   useMetaDescription(description);
 
   return (

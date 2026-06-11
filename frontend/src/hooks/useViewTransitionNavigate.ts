@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { useNavigate, type NavigateOptions, type To } from 'react-router-dom';
 
 /**
@@ -33,6 +33,13 @@ type DocumentWithViewTransition = Document & {
 
 export function useViewTransitionNavigate() {
   const navigate = useNavigate();
+  // QA W4: defensive guard for the React #300 race spotted during rapid
+  // back-to-back navigation. If a previous view-transition is still mid-
+  // flight when a new one is requested, we skip the wrapper and navigate
+  // synchronously — stacking transitions in the same tick was the most
+  // likely trigger for the reconciler complaint, since each transition
+  // takes a DOM snapshot and forces a synchronous render of the post-state.
+  const inFlightRef = useRef<Promise<void> | null>(null);
 
   return useCallback(
     (to: To | number, options?: NavigateOptions) => {
@@ -47,12 +54,15 @@ export function useViewTransitionNavigate() {
         else navigate(to as To, options);
       };
 
-      if (!doc?.startViewTransition || prefersReducedMotion) {
+      if (!doc?.startViewTransition || prefersReducedMotion || inFlightRef.current) {
         run();
         return;
       }
 
-      doc.startViewTransition(run);
+      const transition = doc.startViewTransition(run);
+      inFlightRef.current = transition.finished.finally(() => {
+        inFlightRef.current = null;
+      });
     },
     [navigate],
   );

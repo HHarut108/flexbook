@@ -11,12 +11,17 @@ export function LoginScreen() {
   const returnTo = searchParams.get('from') ?? '/';
   const setUser = useAuthStore((s) => s.setUser);
   const user = useAuthStore((s) => s.user);
+  const authLoading = useAuthStore((s) => s.loading);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // QA W3: while auth is still resolving (the /api/auth/me round-trip hasn't
+  // returned yet), don't flash the login form to a user who's about to be
+  // recognized as already signed in. Return null until we know.
+  if (authLoading) return null;
   // Already signed in → bounce out instead of showing the login form alongside
   // an authenticated sidebar (the contradictory state QA caught on 2026-06-11).
   if (user) return <Navigate to={returnTo} replace />;

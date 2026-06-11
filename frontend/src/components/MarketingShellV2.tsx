@@ -47,7 +47,17 @@ export function MarketingShellV2({
 }: Props) {
   const user = useAuthStore((s) => s.user);
   const initials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : null;
-  useDocumentTitle(`${title} — Flexbook`);
+  // QA W1/W2: avoid the doubled "Flexbook — Flexbook" tab title that fires
+  // when a screen passes the brand name as its own title (e.g. HomeScreenV2),
+  // and align both V1 and V2 shells on the same capitalization ("FlexBook").
+  // - When the page passes "Flexbook" / "FlexBook" / "" → use the brand
+  //   alone, not "Brand — Brand".
+  // - Otherwise → "{title} — FlexBook" with the canonical brand casing.
+  const normalisedTitle = (title ?? '').trim();
+  const isBrandOnly =
+    normalisedTitle === '' ||
+    normalisedTitle.toLowerCase() === 'flexbook';
+  useDocumentTitle(isBrandOnly ? 'FlexBook' : `${normalisedTitle} — FlexBook`);
   useMetaDescription(description);
 
   return (
