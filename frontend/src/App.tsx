@@ -1,6 +1,7 @@
 import { Suspense, useState, useEffect } from 'react';
 import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { useUrlSync } from './hooks/useUrlSync';
+import { useUrlHydrationOnPop } from './hooks/useUrlHydrationOnPop';
 import { useAnalyticsPageviews } from './hooks/useAnalyticsPageviews';
 import { ProgressBar } from './components/ProgressBar';
 import { Toast } from './components/Toast';
@@ -68,6 +69,7 @@ export default function App() {
   const { pathname } = useLocation();
   const { setUser, setLoading } = useAuthStore();
   useUrlSync();
+  useUrlHydrationOnPop();
   useAnalyticsPageviews();
   const openDrawer = () => setDrawerOpen(true);
 
