@@ -38,17 +38,6 @@ function handlePopState() {
   const encodedTrip = params.get(TRIP_KEY);
   const encodedSession = params.get(SESSION_KEY);
 
-  // Diagnostic — temporary. Once we've confirmed the fix in production
-  // these console calls can be deleted. Tagged so they're greppable in
-  // the production console.
-  // eslint-disable-next-line no-console
-  console.info('[url-hydrate] popstate', {
-    pathname: window.location.pathname,
-    hasT: !!encodedTrip,
-    hasS: !!encodedSession,
-    tLen: encodedTrip?.length ?? 0,
-  });
-
   // Trip state — full re-hydrate or full reset, never partial. Mixing
   // would leave the store inconsistent (e.g. legs that don't match the
   // current origin) and trigger RequireOrigin redirects in odd places.
@@ -56,19 +45,12 @@ function handlePopState() {
   if (encodedTrip) {
     const it = decodeItinerary(encodedTrip);
     if (it?.origin) {
-      // eslint-disable-next-line no-console
-      console.info('[url-hydrate] applying trip', {
-        legs: it.legs.length,
-        originIata: it.origin.iata,
-      });
       trip.loadFromItinerary(it);
-    } else {
-      // eslint-disable-next-line no-console
-      console.warn('[url-hydrate] decodeItinerary returned null/empty origin');
     }
   } else {
-    // eslint-disable-next-line no-console
-    console.info('[url-hydrate] no ?t= → reset trip store');
+    // No `?t=` in the restored URL → the user navigated to a non-funnel
+    // entry (e.g. /, /hop-planner). Clear the trip so RequireOrigin
+    // continues to behave as the user expects.
     trip.reset();
   }
 
@@ -90,8 +72,6 @@ let registered = false;
 if (typeof window !== 'undefined' && !registered) {
   window.addEventListener('popstate', handlePopState, { capture: true });
   registered = true;
-  // eslint-disable-next-line no-console
-  console.info('[url-hydrate] popstate listener registered (capture phase)');
 }
 
 /**
