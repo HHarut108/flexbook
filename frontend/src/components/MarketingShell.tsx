@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import { User } from 'lucide-react';
 import { GoHomeLogo } from './GoHomeLogo';
 import { useAuthStore } from '../store/auth.store';
+import { useDocumentTitle, useMetaDescription } from '../hooks/useDocumentTitle';
 
 const AMBIENT_BG =
   'radial-gradient(ellipse 60% 50% at 20% 10%, rgba(79,70,229,0.10) 0%, transparent 60%), radial-gradient(ellipse 50% 40% at 80% 5%, rgba(14,165,233,0.08) 0%, transparent 55%), radial-gradient(ellipse 40% 30% at 50% 95%, rgba(249,115,22,0.05) 0%, transparent 50%)';
@@ -37,14 +37,17 @@ interface Props {
 export function MarketingShell({ active, title, description, onMenuOpen, left, right }: Props) {
   const user = useAuthStore((s) => s.user);
   const initials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : null;
+  // QA W2: align with MarketingShellV2's title rules so "Tools" and a V2
+  // screen both produce "{title} — FlexBook" with the canonical brand casing.
+  const normalisedTitle = (title ?? '').trim();
+  const isBrandOnly =
+    normalisedTitle === '' ||
+    normalisedTitle.toLowerCase() === 'flexbook';
+  useDocumentTitle(isBrandOnly ? 'FlexBook' : `${normalisedTitle} — FlexBook`);
+  useMetaDescription(description);
 
   return (
     <div className="min-h-screen relative overflow-hidden">
-      <Helmet>
-        <title>{title} — FlexBook</title>
-        {description && <meta name="description" content={description} />}
-      </Helmet>
-
       {/* Ambient background */}
       <div className="absolute inset-0 pointer-events-none" style={{ background: AMBIENT_BG }} />
 

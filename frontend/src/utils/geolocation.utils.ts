@@ -27,7 +27,7 @@ function cacheCoords(coords: Coords): void {
   }
 }
 
-export function getBrowserCoords(timeoutMs = 5000): Promise<Coords> {
+export function getBrowserCoords(timeoutMs = 2500): Promise<Coords> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error('Geolocation unavailable'));

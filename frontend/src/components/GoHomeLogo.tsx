@@ -37,7 +37,16 @@ export function GoHomeLogo({ size = 'sm', variant = 'dark', onNavigate }: GoHome
   };
 
   const logoContent = (
-    <img src={logoSrc} alt="FlexBook" className={`${logoHeight} w-auto`} />
+    // Logo is the LCP element on the marketing chrome — keep it eager but
+    // hint async decode so it never blocks paint. The SVG is tiny, so this
+    // is mostly a parser nudge.
+    <img
+      src={logoSrc}
+      alt="FlexBook"
+      className={`${logoHeight} w-auto`}
+      decoding="async"
+      fetchPriority="high"
+    />
   );
 
   const modal =

@@ -25,9 +25,22 @@
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />
     <link rel="apple-touch-icon" sizes="512x512" href="/icons/icon-512.png" />
+    <!-- Fonts: preconnect to Google Fonts so the CSS + woff2 round-trips start
+         immediately, before the main bundle parses. `display=swap` keeps text
+         visible in the fallback (system sans) during the woff2 download,
+         eliminating the FOIT flash. JetBrains Mono is trimmed to 400/700
+         (the only mono weights actually used — body text + bold prices),
+         and Inter drops the opsz axis to ship a smaller variable file. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+    <!-- Preconnect to API origins so the first /api request doesn't pay
+         DNS+TLS handshake on top of the cold-start ping in App.tsx. Origins
+         are the public Render/Vercel domains; the dev proxy is unaffected. -->
+    <link rel="preconnect" href="https://api.flexbook.space" crossorigin />
+    <link rel="dns-prefetch" href="https://api.flexbook.space" />
+    <link rel="preconnect" href="https://staging-api.flexbook.space" crossorigin />
+    <link rel="dns-prefetch" href="https://staging-api.flexbook.space" />
   </head>
   <body>
     <div id="root"></div>

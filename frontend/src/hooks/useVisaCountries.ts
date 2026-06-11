@@ -20,7 +20,11 @@ function broadcast() {
 }
 
 function load(): Promise<void> {
-  if (cached?.loaded) return Promise.resolve();
+  // Only short-circuit on a *successful* load. After an error (cold visa-
+  // service, transient network), `cached` reflects the error but we want the
+  // next hook mount to be able to retry — otherwise one bad request poisons
+  // the page until full reload.
+  if (cached?.loaded && cached.error === null) return Promise.resolve();
   if (inflight) return inflight;
   inflight = fetchVisaCountries()
     .then((list) => {
@@ -43,7 +47,10 @@ export function useVisaCountries(): State {
   const [state, setState] = useState<State>(cached ?? EMPTY);
   useEffect(() => {
     listeners.add(setState);
-    if (!cached?.loaded) void load();
+    // Retry on mount if we don't have a clean cached success yet — covers both
+    // "never loaded" and "previously failed" (e.g. cold visa-service on first
+    // visit, now warm).
+    if (!cached?.loaded || cached.error) void load();
     else setState(cached);
     return () => {
       listeners.delete(setState);
@@ -55,4 +62,12 @@ export function useVisaCountries(): State {
 export function resolveCountryCode(name: string | null | undefined): string | null {
   if (!name || !cached?.loaded) return null;
   return cached.byNameLower.get(name.trim().toLowerCase()) ?? null;
+}
+
+/** Fire-and-forget warmer. Pulls the country list (and wakes the
+ *  visa-service cold start) so that by the time the user lands on a
+ *  results screen the lookup is instant. Safe to call multiple times. */
+export function prefetchVisaCountries(): void {
+  if (cached?.loaded && cached.error === null) return;
+  void load();
 }

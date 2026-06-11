@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Helmet } from 'react-helmet-async';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { apiClient } from '../api/client';
 import { StickyReturnBar } from '../components/StickyReturnBar';
 import { formatShortDate } from '../utils/date.utils';
 import { countryDisplayName } from '../utils/country.utils';
+import type { PickKind } from '@fast-travel/shared';
 import {
   ArrowLeft,
   BedDouble,
+  Bookmark,
   Building2,
   ChevronDown,
   Compass,
@@ -18,6 +20,7 @@ import {
   Mountain,
   Music,
   Navigation,
+  Sparkles,
   UtensilsCrossed,
 } from 'lucide-react';
 
@@ -151,6 +154,8 @@ export function PlanStayScreen() {
   const legs = useTripStore((s) => s.legs);
   const origin = useTripStore((s) => s.origin);
   const passengers = useTripStore((s) => s.passengers);
+  const picks = useTripStore((s) => s.picks);
+  const togglePick = useTripStore((s) => s.togglePick);
 
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
   const lastLeg = nonReturnLegs.at(-1)!;
@@ -264,9 +269,54 @@ export function PlanStayScreen() {
 
   const dayCount = Math.min(nights, content.days.length);
 
+  const isPicked = (kind: PickKind, name: string) =>
+    picks.some((p) => p.city === destinationCity && p.kind === kind && p.name === name);
+
+  const partitionPicks = <T extends { name: string }>(items: T[], kind: PickKind): { picked: T[]; rest: T[] } => {
+    const picked: T[] = [];
+    const rest: T[] = [];
+    for (const item of items) (isPicked(kind, item.name) ? picked : rest).push(item);
+    return { picked, rest };
+  };
+
+  const PickButton = ({ kind, name }: { kind: PickKind; name: string }) => {
+    const picked = isPicked(kind, name);
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          togglePick({ city: destinationCity, kind, name });
+        }}
+        className={`shrink-0 rounded-lg border p-1.5 transition-all active:scale-90 ${
+          picked
+            ? 'bg-indigo text-white border-indigo'
+            : 'bg-surface text-text-muted border-border hover:border-indigo-border hover:text-indigo'
+        }`}
+        aria-label={picked ? `Remove ${name} from your picks` : `Add ${name} to your picks`}
+        aria-pressed={picked}
+      >
+        <Bookmark size={14} fill={picked ? 'currentColor' : 'none'} />
+      </button>
+    );
+  };
+
+  const PicksHeader = ({ count }: { count: number }) => (
+    <div className="flex items-center justify-between gap-2 mt-1 mb-2.5 px-1">
+      <div className="flex items-center gap-2">
+        <Sparkles size={13} className="text-indigo" />
+        <span className="text-[11px] font-bold tracking-[0.18em] uppercase text-indigo">
+          Your picks · {count}
+        </span>
+      </div>
+      <span className="text-[10px] text-text-muted">Tap a bookmark to add or remove</span>
+    </div>
+  );
+
+  useDocumentTitle(`Plan your stay in ${destinationCity} · FlexBook`);
+
   return (
     <div className="animate-fade-in md:flex md:items-start md:gap-0 md:max-w-6xl md:mx-auto xl:max-w-7xl">
-      <Helmet><title>Plan your stay in {destinationCity} · FlexBook</title></Helmet>
       {/* ── Left panel ── */}
       <div className="px-4 pb-32 pt-4 md:flex-1 md:min-w-0 md:pb-12">
       <StickyReturnBar onBack={handleBack} crumbs={crumbs} currentCity={destinationIata} />
@@ -336,134 +386,175 @@ export function PlanStayScreen() {
           <div key={activeContentTab} className="p-4 space-y-3 animate-fade-in">
 
             {/* Stay */}
-            {activeContentTab === 0 && content.hotels.map((hotel) => (
-              <div key={hotel.name} className="card">
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <h3 className="text-[15px] font-bold text-text-primary leading-tight flex-1 min-w-0">
-                    {hotel.name}
-                  </h3>
-                  {hotel.priceLevel && (
-                    <div className="relative group shrink-0">
-                      <span className="text-sm font-semibold text-indigo cursor-default select-none">
-                        {hotel.priceLevel}
+            {activeContentTab === 0 && (() => {
+              const renderHotel = (hotel: Hotel, accent: boolean) => (
+                <div
+                  key={hotel.name}
+                  className={`card ${accent ? 'ring-1 ring-indigo-border/70 bg-indigo-soft/30' : ''}`}
+                >
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <h3 className="text-[15px] font-bold text-text-primary leading-tight flex-1 min-w-0">
+                      {hotel.name}
+                    </h3>
+                    {hotel.priceLevel && (
+                      <div className="relative group shrink-0">
+                        <span className="text-sm font-semibold text-indigo cursor-default select-none">
+                          {hotel.priceLevel}
+                        </span>
+                        <div className="pointer-events-none absolute right-0 top-6 z-10 w-44 rounded-xl bg-gray-900 px-3 py-2 text-[11px] text-white leading-snug opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg">
+                          Relative price level based on Google Places — not an actual quote.
+                        </div>
+                      </div>
+                    )}
+                    <PickButton kind="stay" name={hotel.name} />
+                  </div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="pill-default text-[10px]">{hotel.neighborhood}</span>
+                    {hotel.rating != null && (
+                      <span className="text-[11px] text-text-muted">
+                        ⭐ {hotel.rating.toFixed(1)}
+                        {hotel.reviewCount != null && (
+                          <span className="text-text-xmuted"> ({hotel.reviewCount.toLocaleString()})</span>
+                        )}
                       </span>
-                      <div className="pointer-events-none absolute right-0 top-6 z-10 w-44 rounded-xl bg-gray-900 px-3 py-2 text-[11px] text-white leading-snug opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg">
-                        Relative price level based on Google Places — not an actual quote.
+                    )}
+                  </div>
+                  <p className="text-sm text-text-secondary leading-relaxed mb-4">{hotel.why}</p>
+                  {hotel.bookingUrl && (
+                    <a
+                      href={hotel.bookingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-border bg-indigo-soft px-4 py-2 text-sm font-semibold text-indigo hover:bg-indigo hover:text-white hover:border-indigo transition-all duration-150 active:scale-[0.98]"
+                      style={{ minHeight: '36px' }}
+                      aria-label={`Check availability for ${hotel.name}`}
+                    >
+                      Check availability <ExternalLink size={13} />
+                    </a>
+                  )}
+                </div>
+              );
+              const { picked, rest } = partitionPicks(content.hotels, 'stay');
+              return (
+                <>
+                  {picked.length > 0 && (
+                    <div className="mb-2">
+                      <PicksHeader count={picked.length} />
+                      <div className="space-y-3">
+                        {picked.map((h) => renderHotel(h, true))}
                       </div>
                     </div>
                   )}
-                </div>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="pill-default text-[10px]">{hotel.neighborhood}</span>
-                  {hotel.rating != null && (
-                    <span className="text-[11px] text-text-muted">
-                      ⭐ {hotel.rating.toFixed(1)}
-                      {hotel.reviewCount != null && (
-                        <span className="text-text-xmuted"> ({hotel.reviewCount.toLocaleString()})</span>
-                      )}
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm text-text-secondary leading-relaxed mb-4">{hotel.why}</p>
-                {hotel.bookingUrl && (
-                  <a
-                    href={hotel.bookingUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-border bg-indigo-soft px-4 py-2 text-sm font-semibold text-indigo hover:bg-indigo hover:text-white hover:border-indigo transition-all duration-150 active:scale-[0.98]"
-                    style={{ minHeight: '36px' }}
-                    aria-label={`Check availability for ${hotel.name}`}
-                  >
-                    Check availability <ExternalLink size={13} />
-                  </a>
-                )}
-              </div>
-            ))}
+                  {rest.map((h) => renderHotel(h, false))}
+                </>
+              );
+            })()}
 
             {/* Do — categorised view */}
-            {activeContentTab === 1 && (
-              <div className="space-y-5">
-                {DO_CATEGORIES.map(({ key, label, icon: Icon }) => {
-                  const places = content.doCategories?.[key] ?? [];
-                  if (places.length === 0) return null;
-                  return (
-                    <div key={key}>
-                      {/* Category header */}
-                      <div className="flex items-center gap-2 mb-2.5 px-1">
-                        <div className="w-6 h-6 rounded-lg bg-indigo-soft border border-indigo-border flex items-center justify-center shrink-0">
-                          <Icon size={12} className="text-indigo" />
-                        </div>
-                        <span className="text-[11px] font-bold tracking-[0.18em] uppercase text-text-muted">
-                          {label}
+            {activeContentTab === 1 && (() => {
+              const renderPlace = (place: PlaceItem, accent: boolean) => (
+                <div
+                  key={place.name}
+                  className={`rounded-[18px] border bg-surface px-4 py-3 ${
+                    accent ? 'border-indigo-border bg-indigo-soft/30' : 'border-border'
+                  }`}
+                  style={{ boxShadow: '0 4px 12px rgba(15,23,42,0.04)' }}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-[14px] font-semibold text-text-primary leading-tight">
+                        {place.name}
+                      </h4>
+                      {place.type && (
+                        <p className="text-[11px] text-text-muted mt-0.5">{place.type}</p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0 mt-0.5">
+                      {place.priceLevel && (
+                        <span className="text-sm font-semibold text-indigo">
+                          {place.priceLevel}
                         </span>
-                      </div>
+                      )}
+                      {place.lat != null && place.lng != null && (
+                        <a
+                          href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 rounded-lg bg-indigo-soft border border-indigo-border px-2 py-1 text-[11px] font-semibold text-indigo hover:bg-indigo hover:text-white hover:border-indigo transition-all duration-150 active:scale-[0.97]"
+                          aria-label={`Get directions to ${place.name}`}
+                        >
+                          <Navigation size={11} />
+                          Go
+                        </a>
+                      )}
+                      <PickButton kind="do" name={place.name} />
+                    </div>
+                  </div>
 
-                      {/* Places under this category */}
+                  {(place.rating != null || place.address) && (
+                    <div className="flex items-center gap-2 mt-1.5 text-[11px] text-text-muted">
+                      {place.rating != null && (
+                        <span>
+                          ⭐ {place.rating.toFixed(1)}
+                          {place.reviewCount != null && (
+                            <span className="text-text-xmuted">
+                              {' '}({place.reviewCount.toLocaleString()})
+                            </span>
+                          )}
+                        </span>
+                      )}
+                      {place.address && (
+                        <span className="truncate text-text-xmuted">
+                          {place.address.split(',')[0]}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+
+              const pickedPlaces: PlaceItem[] = [];
+              for (const { key } of DO_CATEGORIES) {
+                for (const place of content.doCategories?.[key] ?? []) {
+                  if (isPicked('do', place.name)) pickedPlaces.push(place);
+                }
+              }
+
+              return (
+                <div className="space-y-5">
+                  {pickedPlaces.length > 0 && (
+                    <div>
+                      <PicksHeader count={pickedPlaces.length} />
                       <div className="space-y-2">
-                        {places.map((place) => (
-                          <div
-                            key={place.name}
-                            className="rounded-[18px] border border-border bg-surface px-4 py-3"
-                            style={{ boxShadow: '0 4px 12px rgba(15,23,42,0.04)' }}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <h4 className="text-[14px] font-semibold text-text-primary leading-tight">
-                                  {place.name}
-                                </h4>
-                                {place.type && (
-                                  <p className="text-[11px] text-text-muted mt-0.5">{place.type}</p>
-                                )}
-                              </div>
-
-                              <div className="flex items-center gap-2 shrink-0 mt-0.5">
-                                {place.priceLevel && (
-                                  <span className="text-sm font-semibold text-indigo">
-                                    {place.priceLevel}
-                                  </span>
-                                )}
-                                {place.lat != null && place.lng != null && (
-                                  <a
-                                    href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-1 rounded-lg bg-indigo-soft border border-indigo-border px-2 py-1 text-[11px] font-semibold text-indigo hover:bg-indigo hover:text-white hover:border-indigo transition-all duration-150 active:scale-[0.97]"
-                                    aria-label={`Get directions to ${place.name}`}
-                                  >
-                                    <Navigation size={11} />
-                                    Go
-                                  </a>
-                                )}
-                              </div>
-                            </div>
-
-                            {(place.rating != null || place.address) && (
-                              <div className="flex items-center gap-2 mt-1.5 text-[11px] text-text-muted">
-                                {place.rating != null && (
-                                  <span>
-                                    ⭐ {place.rating.toFixed(1)}
-                                    {place.reviewCount != null && (
-                                      <span className="text-text-xmuted">
-                                        {' '}({place.reviewCount.toLocaleString()})
-                                      </span>
-                                    )}
-                                  </span>
-                                )}
-                                {place.address && (
-                                  <span className="truncate text-text-xmuted">
-                                    {place.address.split(',')[0]}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        ))}
+                        {pickedPlaces.map((p) => renderPlace(p, true))}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  )}
+                  {DO_CATEGORIES.map(({ key, label, icon: Icon }) => {
+                    const places = (content.doCategories?.[key] ?? []).filter(
+                      (p) => !isPicked('do', p.name),
+                    );
+                    if (places.length === 0) return null;
+                    return (
+                      <div key={key}>
+                        <div className="flex items-center gap-2 mb-2.5 px-1">
+                          <div className="w-6 h-6 rounded-lg bg-indigo-soft border border-indigo-border flex items-center justify-center shrink-0">
+                            <Icon size={12} className="text-indigo" />
+                          </div>
+                          <span className="text-[11px] font-bold tracking-[0.18em] uppercase text-text-muted">
+                            {label}
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          {places.map((p) => renderPlace(p, false))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             {/* Eat */}
             {activeContentTab === 2 && (
@@ -473,31 +564,55 @@ export function PlanStayScreen() {
                     <div key={i} className="rounded-[20px] bg-surface-2 h-20" />
                   ))}
                 </div>
-              ) : (liveRestaurants ?? content.restaurants).map((r) => (
-                <div
-                  key={r.name}
-                  className="rounded-[20px] border border-border bg-surface px-4 py-3.5"
-                  style={{ boxShadow: '0 4px 12px rgba(15,23,42,0.04)' }}
-                >
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className={`${MEAL_COLORS[r.mealType] ?? 'pill-default'} text-[10px] shrink-0`}>
-                        {r.mealType}
-                      </span>
-                      <h4 className="text-sm font-semibold text-text-primary truncate">{r.name}</h4>
-                    </div>
-                    {(r.rating || r.priceLevel) && (
-                      <div className="flex items-center gap-1.5 shrink-0 text-[11px] text-text-muted">
-                        {r.rating && <span>⭐ {r.rating.toFixed(1)}</span>}
-                        {r.priceLevel && <span className="text-text-xmuted">{r.priceLevel}</span>}
+              ) : (() => {
+                const renderRestaurant = (r: Restaurant, accent: boolean) => (
+                  <div
+                    key={r.name}
+                    className={`rounded-[20px] border bg-surface px-4 py-3.5 ${
+                      accent ? 'border-indigo-border bg-indigo-soft/30' : 'border-border'
+                    }`}
+                    style={{ boxShadow: '0 4px 12px rgba(15,23,42,0.04)' }}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={`${MEAL_COLORS[r.mealType] ?? 'pill-default'} text-[10px] shrink-0`}>
+                          {r.mealType}
+                        </span>
+                        <h4 className="text-sm font-semibold text-text-primary truncate">{r.name}</h4>
                       </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {(r.rating || r.priceLevel) && (
+                          <div className="flex items-center gap-1.5 text-[11px] text-text-muted">
+                            {r.rating && <span>⭐ {r.rating.toFixed(1)}</span>}
+                            {r.priceLevel && <span className="text-text-xmuted">{r.priceLevel}</span>}
+                          </div>
+                        )}
+                        <PickButton kind="eat" name={r.name} />
+                      </div>
+                    </div>
+                    {r.description && !r.description.startsWith('Rated') && r.description !== 'Local favourite' && (
+                      <p className="text-xs text-text-muted leading-relaxed">{r.description}</p>
                     )}
                   </div>
-                  {r.description && !r.description.startsWith('Rated') && r.description !== 'Local favourite' && (
-                    <p className="text-xs text-text-muted leading-relaxed">{r.description}</p>
-                  )}
-                </div>
-              ))
+                );
+                const all = liveRestaurants ?? content.restaurants;
+                const { picked, rest } = partitionPicks(all, 'eat');
+                return (
+                  <>
+                    {picked.length > 0 && (
+                      <div className="mb-2">
+                        <PicksHeader count={picked.length} />
+                        <div className="space-y-3">
+                          {picked.map((r) => renderRestaurant(r, true))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="space-y-3">
+                      {rest.map((r) => renderRestaurant(r, false))}
+                    </div>
+                  </>
+                );
+              })()
             )}
 
           </div>

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState } from 'react';
-import { Helmet } from 'react-helmet-async';
-import { useNavigate } from 'react-router-dom';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { FlightOption } from '@fast-travel/shared';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
 import { formatPrice, totalPrice } from '../utils/price.utils';
@@ -10,6 +11,7 @@ import { TripTimeline } from '../components/TripTimeline';
 import { PlanStayNudge } from '../components/PlanStayNudge';
 import { DestinationGuideCard } from '../components/DestinationGuideCard';
 import { MapErrorBoundary } from '../components/MapErrorBoundary';
+import { WhenToFlyHomeModal } from '../components/WhenToFlyHomeModal';
 import { ArrowLeft, Ticket } from 'lucide-react';
 import { getDecisionHeadline } from '../utils/copy.utils';
 
@@ -22,40 +24,99 @@ export function DecisionScreen() {
   const origin = useTripStore((s) => s.origin);
   const legs = useTripStore((s) => s.legs);
   const passengers = useTripStore((s) => s.passengers);
+  const addLeg = useTripStore((s) => s.addLeg);
+  const finalize = useTripStore((s) => s.finalize);
   const canContinue = useTripStore((s) => s.canContinue());
   const { setSelectedDate } = useSessionStore();
   const [planVisited, setPlanVisited] = useState(false);
+  const [whenToFlyOpen, setWhenToFlyOpen] = useState(false);
 
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
-  const lastLeg = nonReturnLegs.at(-1)!;
+  // QA: defensive guard. The popstate hydration in `useUrlHydrationOnPop`
+  // runs synchronously when the user hits browser back — so if /review's
+  // history entry's `?t=` decodes to `legs=[]` (e.g. user is unwinding
+  // back through the very first leg they committed) the store flips to
+  // empty BEFORE react-router has unmounted DecisionScreen. Without this
+  // guard, the next render hits `nonReturnLegs.at(-1)!` with `undefined`
+  // and throws "Cannot read properties of undefined (reading
+  // 'stayDurationDays')". Sending the user to Trip Builder home is the
+  // right semantic landing — they no longer have a committed leg, so the
+  // decision screen has nothing to decide about.
+  //
+  // The guard variable is declared upfront so the subsequent `useDocumentTitle`
+  // hook call still runs unconditionally — React's Rules of Hooks require the
+  // hook call order to stay stable across renders.
+  const hasLegs = nonReturnLegs.length > 0;
+  const lastLeg = hasLegs ? nonReturnLegs[nonReturnLegs.length - 1] : null;
   const tripTotal = totalPrice(nonReturnLegs);
-  const stayNights = lastLeg.stayDurationDays ?? 1;
-  const checkin = lastLeg.arrivalDatetime ? lastLeg.arrivalDatetime.slice(0, 10) : undefined;
-  const checkout = lastLeg.nextDepartureDate ?? undefined;
+  const stayNights = lastLeg?.stayDurationDays ?? 1;
+  const checkin = lastLeg?.arrivalDatetime ? lastLeg.arrivalDatetime.slice(0, 10) : undefined;
+  const checkout = lastLeg?.nextDepartureDate ?? undefined;
 
   function handleContinue() {
-    if (lastLeg.nextDepartureDate) {
+    if (lastLeg?.nextDepartureDate) {
       setSelectedDate(lastLeg.nextDepartureDate);
     }
     navigate('/flights');
   }
 
-  function handleGoHome() {
+  function handleWrapUp() {
+    // Open the cheapest-day modal first as decision-support. The user can either
+    // accept the suggested cheapest flight, or click "See more options" to open
+    // the full /return picker.
+    setWhenToFlyOpen(true);
+  }
+
+  function handleSeeMoreReturnOptions() {
+    setWhenToFlyOpen(false);
     navigate('/return');
   }
 
+  function handleAcceptHomeFlight(flight: FlightOption) {
+    addLeg({
+      ...flight,
+      stopIndex: nonReturnLegs.length + 1,
+      stayDurationDays: 0,
+      nextDepartureDate: '',
+      isReturn: true,
+    });
+    finalize();
+    setWhenToFlyOpen(false);
+    navigate('/itinerary');
+  }
+
+  useDocumentTitle(
+    hasLegs && lastLeg
+      ? `What's next from ${lastLeg.destinationCity}? · FlexBook`
+      : "What's next? · FlexBook",
+  );
+
+  // Early return must happen AFTER every hook call above so the hook order is
+  // stable across renders (Rules of Hooks). See the comment on `hasLegs`.
+  if (!hasLegs || !lastLeg) return <Navigate to="/hop-planner" replace />;
+
   return (
     <div className="px-4 pb-8 pt-4 md:flex md:gap-6 md:px-8 md:pt-8 md:pb-8 md:max-w-5xl lg:max-w-6xl xl:max-w-7xl md:mx-auto lg:gap-8 lg:px-10 lg:pt-10 lg:pb-10 md:items-start">
-      <Helmet><title>What's next from {lastLeg.destinationCity}? · FlexBook</title></Helmet>
       {/* Left: hero panel */}
       <div className="md:flex-1">
         <div className="hero-panel mb-5">
           <div className="flex items-center gap-3 mb-3">
             <button
-              onClick={() => navigate('/stay')}
+              onClick={() => navigate('/hop-planner')}
               className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white border border-border hover:bg-indigo-soft hover:border-indigo-border transition-all text-text-muted shrink-0"
-              aria-label="Back to stay duration"
+              aria-label="Back to Trip Builder"
             >
+              {/* QA back-loop fix:
+                  Previously navigated to /stay, which formed a triangle:
+                    /flights (leg N+1) → /review → /stay → /flights
+                  Each back press cycled through the same three screens with
+                  the previously-selected flight still in the session store,
+                  giving the user the impression they were "stuck" with the
+                  last selection. Re-pointing the in-app back arrow at the
+                  Trip Builder home gives a single, reliable escape hatch.
+                  Edit-stay-duration is still reachable via the timeline
+                  entry below; this button is just the "get me out of this
+                  flow" affordance. */}
               <ArrowLeft size={18} />
             </button>
             <span className="pill-brand">Stop {nonReturnLegs.length}</span>
@@ -67,23 +128,25 @@ export function DecisionScreen() {
             From here, you can keep the trip going by choosing your next destination or wrap it up
             and head home.
           </p>
-          <div className="mt-4 rounded-2xl bg-indigo-soft border border-indigo-border px-4 py-3">
-            <p className="text-[11px] uppercase tracking-[0.16em] text-text-muted mb-1">
-              Continue from {lastLeg.destinationCity}
-            </p>
-            <p className="text-text-primary font-semibold">
-              Find the cheapest next destination on {formatDate(lastLeg.nextDepartureDate)}
-            </p>
-          </div>
         </div>
 
-        {/* Trip timeline — always visible */}
+        {/* Trip timeline — always visible. Grouped with the "Get tickets so far"
+            link below so the trip-summary cluster reads as one block. */}
         <div className="mb-5">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-text-muted uppercase tracking-wide">Trip so far</p>
             <span className="font-mono text-orange text-sm font-bold">{formatPrice(tripTotal)}</span>
           </div>
           <TripTimeline legs={legs} highlightLast />
+          <div className="mt-3 text-center">
+            <button
+              type="button"
+              onClick={() => navigate('/book/partial')}
+              className="inline-flex items-center gap-1.5 text-xs text-text-muted hover:text-indigo underline-offset-2 hover:underline transition-colors"
+            >
+              <Ticket size={12} /> Get tickets for flights so far
+            </button>
+          </div>
         </div>
 
         {/* Desktop-only trip route map */}
@@ -142,8 +205,20 @@ export function DecisionScreen() {
           </div>
         )}
 
-        {/* Action buttons */}
+        {/* Action buttons. The "Continue from {city} / Find the cheapest" framing
+            sits directly above its CTA so the prompt and the action read as one
+            grouped commitment. */}
         <div className="space-y-3">
+          {canContinue && (
+            <div className="rounded-2xl bg-indigo-soft border border-indigo-border px-4 py-3">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-text-muted mb-1">
+                Continue from {lastLeg.destinationCity}
+              </p>
+              <p className="text-text-primary font-semibold">
+                Find the cheapest next destination on {formatDate(lastLeg.nextDepartureDate)}
+              </p>
+            </div>
+          )}
           {canContinue ? (
             <button className="btn-primary" onClick={handleContinue}>
               Continue to the next destination
@@ -153,17 +228,27 @@ export function DecisionScreen() {
               This trip has reached the current stop limit.
             </p>
           )}
-          <button className="btn-secondary" onClick={handleGoHome}>
+          <button className="btn-secondary" onClick={handleWrapUp}>
             Wrap up and fly home
-          </button>
-          <button
-            className="btn-outline flex items-center justify-center gap-2"
-            onClick={() => navigate('/book/partial')}
-          >
-            <Ticket size={16} /> Get tickets for flights so far
           </button>
         </div>
       </div>
+
+      {origin && (
+        <WhenToFlyHomeModal
+          isOpen={whenToFlyOpen}
+          onClose={() => setWhenToFlyOpen(false)}
+          fromIata={lastLeg.destinationIata}
+          fromCity={lastLeg.destinationCity}
+          toIata={origin.iata}
+          toCity={origin.city.name}
+          arrivalDatetime={lastLeg.arrivalDatetime}
+          nextDepartureDate={lastLeg.nextDepartureDate}
+          passengers={passengers}
+          onSelect={handleAcceptHomeFlight}
+          onSeeMoreOptions={handleSeeMoreReturnOptions}
+        />
+      )}
     </div>
   );
 }

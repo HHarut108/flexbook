@@ -1,8 +1,20 @@
 import { useLocation } from 'react-router-dom';
+import { format, parseISO } from 'date-fns';
 import { useTripStore } from '../store/trip.store';
 import { useAuthStore } from '../store/auth.store';
 import { GoHomeLogo } from './GoHomeLogo';
 import { User } from 'lucide-react';
+
+/** Format an ISO datetime as a short "MMM d" label (e.g. "Jun 19").
+ *  Returns null on invalid/missing input so the caller can skip the slot. */
+function shortDate(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  try {
+    return format(parseISO(iso), 'MMM d');
+  } catch {
+    return null;
+  }
+}
 
 const MAX_STOPS = 15;
 
@@ -33,8 +45,16 @@ export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
   // Hide the trip progress bar on the home + auth/account screens. The crumb row
   // would otherwise render with a placeholder "?" because no trip origin is set yet,
   // which looks like a broken badge next to the brand mark.
-  const HIDDEN_PATHS = new Set(['/', '/trip-planner', '/when-to-go', '/book', '/book/partial', '/login', '/signup', '/verify-email', '/account', '/trips', '/deals', '/tools', '/about']);
-  if (HIDDEN_PATHS.has(pathname)) return null;
+  const HIDDEN_PATHS = new Set(['/', '/hop-planner', '/search', '/quick-search', '/trip-planner', '/when-to-go', '/book', '/book/partial', '/login', '/signup', '/verify-email', '/account', '/trips', '/deals', '/tools', '/about']);
+  // /trip/:id (new in-app booking-review screen) also shouldn't show the
+  // multi-stop progress strip — it belongs to the Quick Search flow, not
+  // the trip-builder. Same for /book/concierge/:tripId (the Booking Concierge
+  // stepper renders its own progress UI).
+  if (
+    HIDDEN_PATHS.has(pathname) ||
+    pathname.startsWith('/trip/') ||
+    pathname.startsWith('/book/concierge/')
+  ) return null;
 
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
   const stopCount = nonReturnLegs.length;
@@ -43,6 +63,18 @@ export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const crumbs = [
     origin?.iata ?? '?',
     ...nonReturnLegs.map((l) => l.destinationIata),
+  ];
+
+  // Dates parallel to `crumbs`. Helps the user track WHEN they're at each
+  // city during planning — without it the breadcrumb is just IATA codes and
+  // it's not obvious whether stop 2 is the same day or three weeks later.
+  //   - Origin slot: the first leg's departureDatetime (when they leave
+  //     home). Null until the user has picked at least one leg.
+  //   - Each destination slot: that leg's arrivalDatetime (the day they
+  //     arrive in that city).
+  const crumbDates: (string | null)[] = [
+    nonReturnLegs.length > 0 ? shortDate(nonReturnLegs[0].departureDatetime) : null,
+    ...nonReturnLegs.map((l) => shortDate(l.arrivalDatetime)),
   ];
 
   const label = stepLabel(pathname);
@@ -66,15 +98,23 @@ export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
           {label && (
             <p className="text-white/55 text-[10px] leading-none mb-0.5 truncate">{label}</p>
           )}
-          <div className="flex items-center gap-1 overflow-x-auto text-xs text-white/70 whitespace-nowrap" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          <div className="flex items-center gap-1.5 overflow-x-auto text-xs text-white/70 whitespace-nowrap" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {crumbs.map((iata, i) => {
               const isLast = i === crumbs.length - 1;
+              const date = crumbDates[i];
               return (
-                <span key={i} className="flex items-center gap-1">
+                <span key={i} className="flex items-center gap-1.5">
                   {i > 0 && <span className="text-white/30 text-[10px]">›</span>}
-                  <span className={`font-mono ${isLast ? 'text-white font-semibold' : 'text-white/60'}`}>
-                    {isLast && <span className="text-orange mr-0.5">●</span>}
-                    {iata}
+                  <span className="flex flex-col items-start leading-none">
+                    <span className={`font-mono ${isLast ? 'text-white font-semibold' : 'text-white/60'}`}>
+                      {isLast && <span className="text-orange mr-0.5">●</span>}
+                      {iata}
+                    </span>
+                    {date && (
+                      <span className="text-white/45 text-[9px] font-medium mt-0.5 tracking-tight">
+                        {date}
+                      </span>
+                    )}
                   </span>
                 </span>
               );

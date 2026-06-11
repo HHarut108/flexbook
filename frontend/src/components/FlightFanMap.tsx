@@ -2,11 +2,17 @@ import { useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, Popup, ZoomControl, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Airport, FlightOption } from '@fast-travel/shared';
+import { Airport } from '@fast-travel/shared';
 import { formatPrice } from '../utils/price.utils';
-import { countryDisplayName } from '../utils/country.utils';
 import { VisaPill } from './visa/VisaPill';
 import type { VisaRequirement } from '../api/visa.api';
+import { buildDirectDestinations, type DirectDestination } from './flightFanData';
+
+// Re-export so existing `import { buildDirectDestinations } from './FlightFanMap'`
+// still works for any laggard consumers — but prefer importing from
+// `./flightFanData` directly so leaflet stays out of your bundle.
+export { buildDirectDestinations };
+export type { DirectDestination };
 
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -14,41 +20,6 @@ L.Icon.Default.mergeOptions({
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
-
-export interface DirectDestination {
-  iata: string;
-  city: string;
-  country: string;
-  lat: number;
-  lng: number;
-  minPriceUsd: number;
-  flightCount: number;
-}
-
-export function buildDirectDestinations(flights: FlightOption[]): DirectDestination[] {
-  const byIata = new Map<string, DirectDestination>();
-  for (const f of flights) {
-    if (f.stops !== 0) continue;
-    if (!Number.isFinite(f.destinationLat) || !Number.isFinite(f.destinationLng)) continue;
-    if (f.destinationLat === 0 && f.destinationLng === 0) continue;
-    const prev = byIata.get(f.destinationIata);
-    if (!prev) {
-      byIata.set(f.destinationIata, {
-        iata: f.destinationIata,
-        city: f.destinationCity,
-        country: countryDisplayName(f.destinationCountry) || 'Other',
-        lat: f.destinationLat,
-        lng: f.destinationLng,
-        minPriceUsd: f.priceUsd,
-        flightCount: 1,
-      });
-    } else {
-      prev.flightCount += 1;
-      if (f.priceUsd < prev.minPriceUsd) prev.minPriceUsd = f.priceUsd;
-    }
-  }
-  return [...byIata.values()];
-}
 
 function createOriginIcon() {
   return L.divIcon({

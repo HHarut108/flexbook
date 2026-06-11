@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useViewTransitionNavigate } from '../hooks/useViewTransitionNavigate';
 import { useSavedTripsStore, SavedTrip } from '../store/saved-trips.store';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
@@ -9,8 +9,10 @@ import { buildSlugShareUrl } from '../utils/url.utils';
 import { createTripShare } from '../api/trips.api';
 import { formatPrice } from '../utils/price.utils';
 import { useThemeStore } from '../store/theme.store';
-import { X, MapPin, Share2, Trash2, Plane, BookmarkCheck, Loader2, Sun, Moon, User, LogOut, ChevronRight, Wallet } from 'lucide-react';
+import { X, MapPin, Share2, Trash2, Plane, BookmarkCheck, Loader2, Sun, Moon, User, LogOut, ChevronRight, ChevronDown } from 'lucide-react';
 import { GoHomeLogo } from './GoHomeLogo';
+import { TOOLS_V2 } from '../screens/ToolsScreen';
+import { intentPrefetch } from '../lib/routePrefetch';
 
 interface Props {
   open: boolean;
@@ -86,7 +88,7 @@ function SavedTripCard({
 }
 
 export function AppDrawer({ open, onClose }: Props) {
-  const navigate = useNavigate();
+  const navigate = useViewTransitionNavigate();
   const { trips, deleteTrip } = useSavedTripsStore();
   const loadFromItinerary = useTripStore((s) => s.loadFromItinerary);
   const showToast = useSessionStore((s) => s.showToast);
@@ -95,6 +97,7 @@ export function AppDrawer({ open, onClose }: Props) {
   const setTheme = useThemeStore((s) => s.setTheme);
   const { user, logout } = useAuthStore();
   const [sharingTripId, setSharingTripId] = useState<string | null>(null);
+  const [savedTripsOpen, setSavedTripsOpen] = useState(true);
 
   async function handleLogout() {
     try { await authApi.logout(); } catch { /* ignore */ }
@@ -172,17 +175,13 @@ export function AppDrawer({ open, onClose }: Props) {
             boxShadow: '0 24px 48px rgba(15,23,42,0.15)',
           }}
         >
-          {/* Header */}
-          <div
-            className="px-5 pt-5 pb-4 flex items-center justify-between shrink-0"
-            style={{
-              background: 'linear-gradient(135deg, rgba(55,48,163,0.97) 0%, rgba(79,70,229,0.97) 100%)',
-            }}
-          >
-            <GoHomeLogo size="sm" variant="dark" onNavigate={onClose} />
+          {/* Header — matches the bright app nav (MarketingShellV2) */}
+          <div className="px-5 pt-5 pb-4 flex items-center justify-between shrink-0 border-b border-border/50 bg-bg/80 backdrop-blur-sm">
+            <GoHomeLogo size="sm" variant="light" onNavigate={onClose} />
             <button
               onClick={onClose}
-              className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center text-white hover:bg-white/25 transition-all active:scale-95"
+              className="w-10 h-10 rounded-2xl bg-surface border border-border flex items-center justify-center text-indigo-mid hover:bg-indigo-soft hover:border-indigo-border transition-all active:scale-95"
+              style={{ boxShadow: '0 4px 10px rgba(15,23,42,0.06)' }}
               aria-label="Close"
             >
               <X size={18} />
@@ -210,6 +209,7 @@ export function AppDrawer({ open, onClose }: Props) {
                   <div className="flex gap-2">
                     <button
                       onClick={() => goTo('/account')}
+                      {...intentPrefetch('/account')}
                       className="flex-1 flex items-center justify-between px-3 py-2.5 rounded-xl bg-indigo-soft border border-indigo-border text-xs font-semibold text-indigo hover:bg-indigo/10 transition-all"
                     >
                       <span>Account settings</span>
@@ -238,12 +238,14 @@ export function AppDrawer({ open, onClose }: Props) {
                   <div className="flex gap-2">
                     <button
                       onClick={() => goTo('/login')}
+                      {...intentPrefetch('/login')}
                       className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold text-text-primary hover:bg-surface-2 transition-all"
                     >
                       Log in
                     </button>
                     <button
                       onClick={() => goTo('/signup')}
+                      {...intentPrefetch('/signup')}
                       className="flex-1 py-3 rounded-xl bg-indigo text-white text-sm font-semibold hover:bg-indigo/90 transition-all"
                       style={{ boxShadow: '0 4px 12px rgba(55,48,163,0.2)' }}
                     >
@@ -254,98 +256,127 @@ export function AppDrawer({ open, onClose }: Props) {
               )}
             </div>
 
-            {/* Saved Trips */}
+            {/* Saved Trips — collapsible */}
             <div className="px-5 pt-5 pb-4">
-              <div className="flex items-center gap-2 mb-4">
-                <BookmarkCheck size={16} className="text-indigo" />
-                <h3 className="text-sm font-bold uppercase tracking-wider text-text-muted">Saved Trips</h3>
-              </div>
+              <button
+                type="button"
+                onClick={() => setSavedTripsOpen((v) => !v)}
+                aria-expanded={savedTripsOpen}
+                className="w-full flex items-center justify-between gap-2 mb-4 group"
+              >
+                <div className="flex items-center gap-2">
+                  <BookmarkCheck size={16} className="text-indigo" />
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-text-muted group-hover:text-text-primary transition-colors">Saved Trips</h3>
+                  {trips.length > 0 && (
+                    <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-indigo-soft border border-indigo-border text-[10px] font-bold text-indigo">
+                      {trips.length}
+                    </span>
+                  )}
+                </div>
+                <ChevronDown
+                  size={16}
+                  className={`text-text-muted transition-transform duration-200 ${savedTripsOpen ? 'rotate-0' : '-rotate-90'}`}
+                />
+              </button>
 
-              {trips.length === 0 ? (
-                <div className="text-center py-8">
-                  <div className="w-12 h-12 rounded-2xl bg-indigo-soft border border-indigo-border flex items-center justify-center mx-auto mb-3">
-                    <MapPin size={20} className="text-indigo" />
+              {savedTripsOpen && (
+                trips.length === 0 ? (
+                  <div className="text-center py-8">
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-soft border border-indigo-border flex items-center justify-center mx-auto mb-3">
+                      <MapPin size={20} className="text-indigo" />
+                    </div>
+                    <p className="text-sm text-text-muted mb-1">No saved trips yet</p>
+                    <p className="text-xs text-text-xmuted mb-4">Plan a trip and save it for later.</p>
+                    <button
+                      onClick={() => { navigate('/'); onClose(); }}
+                      className="inline-flex items-center gap-2 rounded-2xl bg-indigo text-white text-sm font-semibold px-5 py-2.5 hover:bg-indigo/90 transition-all active:scale-95"
+                      style={{ boxShadow: '0 8px 20px rgba(55,48,163,0.25)' }}
+                    >
+                      Plan a new trip
+                    </button>
                   </div>
-                  <p className="text-sm text-text-muted mb-1">No saved trips yet</p>
-                  <p className="text-xs text-text-xmuted mb-4">Plan a trip and save it for later.</p>
-                  <button
-                    onClick={() => { navigate('/'); onClose(); }}
-                    className="inline-flex items-center gap-2 rounded-2xl bg-indigo text-white text-sm font-semibold px-5 py-2.5 hover:bg-indigo/90 transition-all active:scale-95"
-                    style={{ boxShadow: '0 8px 20px rgba(55,48,163,0.25)' }}
-                  >
-                    Plan a new trip
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {trips.map((trip) => (
-                    <SavedTripCard
-                      key={trip.id}
-                      trip={trip}
-                      onLoad={() => handleLoad(trip)}
-                      onShare={() => handleShare(trip)}
-                      onDelete={() => handleDelete(trip.id)}
-                      sharing={sharingTripId === trip.id}
-                    />
-                  ))}
-                </div>
+                ) : (
+                  <div className="space-y-3">
+                    {trips.map((trip) => (
+                      <SavedTripCard
+                        key={trip.id}
+                        trip={trip}
+                        onLoad={() => handleLoad(trip)}
+                        onShare={() => handleShare(trip)}
+                        onDelete={() => handleDelete(trip.id)}
+                        sharing={sharingTripId === trip.id}
+                      />
+                    ))}
+                  </div>
+                )
               )}
             </div>
 
-            {/* Tools hub — available to everyone */}
-            <div className="px-5 pb-4 pt-2 border-t border-border">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-text-muted mb-3 mt-3">Tools</h3>
-              <button
-                onClick={() => goTo('/tools')}
-                className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl bg-indigo-soft border border-indigo-border hover:bg-indigo/10 transition-all"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-indigo/15 flex items-center justify-center shrink-0">
-                    <Wallet size={15} className="text-indigo" />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-sm font-semibold text-text-primary">FlexBook Tools</p>
-                    <p className="text-xs text-text-muted">Budget Planner &amp; more</p>
-                  </div>
-                </div>
-                <ChevronRight size={15} className="text-text-muted" />
-              </button>
-            </div>
-
-            {/* Settings section */}
+            {/* Tools — all 4 from TOOLS_V2 */}
             <div className="px-5 pb-5 pt-2 border-t border-border">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-text-muted mb-3 mt-3">Settings</h3>
-              <div className="flex items-center justify-between bg-surface-2 rounded-2xl px-4 py-3">
-                <div>
-                  <p className="text-sm font-medium text-text-primary">Appearance</p>
-                  <p className="text-xs text-text-muted">Switch between light and dark</p>
-                </div>
-                <div
-                  role="group"
-                  aria-label="Theme"
-                  className="inline-flex items-center rounded-full bg-white border border-border p-0.5"
+              <h3 className="text-sm font-bold uppercase tracking-wider text-text-muted mb-3 mt-3">Tools</h3>
+              <div className="space-y-2">
+                {TOOLS_V2.map((tool) => {
+                  const Icon = tool.icon;
+                  return (
+                    <button
+                      key={tool.id}
+                      onClick={() => goTo(tool.path)}
+                      {...intentPrefetch(tool.path)}
+                      className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-surface-2 border border-border hover:border-indigo-border hover:bg-indigo-soft transition-all active:scale-[0.99]"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                          style={{ background: tool.gradient }}
+                        >
+                          <Icon size={16} className="text-white" />
+                        </div>
+                        <div className="text-left min-w-0">
+                          <p className="text-sm font-semibold text-text-primary truncate">{tool.name}</p>
+                          <p className="text-xs text-text-muted truncate">{tool.tagline}</p>
+                        </div>
+                      </div>
+                      <ChevronRight size={15} className="text-text-muted shrink-0" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Settings — pinned to bottom */}
+          <div className="px-5 py-4 border-t border-border bg-white shrink-0">
+            <div className="flex items-center justify-between bg-surface-2 rounded-2xl px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-text-primary">Appearance</p>
+                <p className="text-xs text-text-muted">Switch between light and dark</p>
+              </div>
+              <div
+                role="group"
+                aria-label="Theme"
+                className="inline-flex items-center rounded-full bg-white border border-border p-0.5"
+              >
+                <button
+                  type="button"
+                  onClick={() => setTheme('light')}
+                  aria-pressed={theme === 'light'}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                    theme === 'light' ? 'bg-indigo text-white' : 'text-text-muted hover:text-text-primary'
+                  }`}
                 >
-                  <button
-                    type="button"
-                    onClick={() => setTheme('light')}
-                    aria-pressed={theme === 'light'}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                      theme === 'light' ? 'bg-indigo text-white' : 'text-text-muted hover:text-text-primary'
-                    }`}
-                  >
-                    <Sun size={13} /> Light
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTheme('dark')}
-                    aria-pressed={theme === 'dark'}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                      theme === 'dark' ? 'bg-indigo text-white' : 'text-text-muted hover:text-text-primary'
-                    }`}
-                  >
-                    <Moon size={13} /> Dark
-                  </button>
-                </div>
+                  <Sun size={13} /> Light
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTheme('dark')}
+                  aria-pressed={theme === 'dark'}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                    theme === 'dark' ? 'bg-indigo text-white' : 'text-text-muted hover:text-text-primary'
+                  }`}
+                >
+                  <Moon size={13} /> Dark
+                </button>
               </div>
             </div>
           </div>

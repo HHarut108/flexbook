@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Airport, FlightOption } from '@fast-travel/shared';
-import { Helmet } from 'react-helmet-async';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import type { TripLeg } from '@fast-travel/shared';
@@ -9,13 +9,26 @@ import { useFlightsStore, flightsUiKey, DEFAULT_UI } from '../store/flights.stor
 import { useFlightResults } from '../hooks/useFlightResults';
 import { useWeatherBatch } from '../hooks/useWeatherBatch';
 import { FlightCardSkeleton } from '../components/FlightCard';
-import { DatePickerOverlay } from '../components/DatePickerOverlay';
 import { MapErrorBoundary } from '../components/MapErrorBoundary';
-import { buildDirectDestinations, type DirectDestination } from '../components/FlightFanMap';
+import { buildDirectDestinations, type DirectDestination } from '../components/flightFanData';
 import { CountryGroup } from '../components/CountryGroup';
-import { VisaCheckPopup } from '../components/visa/VisaCheckPopup';
-import { VisaDetailsPopover } from '../components/visa/VisaDetailsPopover';
 import { ActivePassportCard } from '../components/visa/ActivePassportCard';
+// Heavy modals/popovers only mount when the user explicitly opens them.
+// Lazy-loading drops them out of the initial chunk:
+//   DatePickerOverlay  – month grid + date-fns logic
+//   VisaCheckPopup     – passport selection wizard
+//   VisaDetailsPopover – per-country detail card
+// Each is gated by a boolean state below, so the Suspense fallback never
+// shows; the import resolves before the modal can paint anyway.
+const DatePickerOverlay = lazy(() =>
+  import('../components/DatePickerOverlay').then((m) => ({ default: m.DatePickerOverlay })),
+);
+const VisaCheckPopup = lazy(() =>
+  import('../components/visa/VisaCheckPopup').then((m) => ({ default: m.VisaCheckPopup })),
+);
+const VisaDetailsPopover = lazy(() =>
+  import('../components/visa/VisaDetailsPopover').then((m) => ({ default: m.VisaDetailsPopover })),
+);
 import type { VisaRequirement } from '../api/visa.api';
 import { useCurrentPassport } from '../hooks/useCurrentPassport';
 import { useVisaCountries, resolveCountryCode } from '../hooks/useVisaCountries';
@@ -446,9 +459,10 @@ export function FlightResultsScreen() {
     </>
   );
 
+  useDocumentTitle(title);
+
   return (
     <div className="flex flex-col lg:flex-row h-full overflow-hidden">
-      <Helmet><title>{title}</title></Helmet>
 
       <aside className="shrink-0 lg:w-[440px] xl:w-[500px] flex flex-col border-b lg:border-b-0 lg:border-r border-border min-h-0">
         <div className="px-4 lg:px-6 pt-4 lg:pt-6 pb-3 shrink-0">
@@ -718,32 +732,38 @@ export function FlightResultsScreen() {
 
       {/* Calendar overlay */}
       {showCalendar && (
-        <DatePickerOverlay
-          currentDate={localDate}
-          legs={legs}
-          onConfirm={handleDateConfirm}
-          onClose={() => setShowCalendar(false)}
-        />
+        <Suspense fallback={null}>
+          <DatePickerOverlay
+            currentDate={localDate}
+            legs={legs}
+            onConfirm={handleDateConfirm}
+            onClose={() => setShowCalendar(false)}
+          />
+        </Suspense>
       )}
 
       {/* Visa-requirements popup */}
       {visaPopupMode && (
-        <VisaCheckPopup
-          onClose={() => setVisaPopupMode(null)}
-          initialMode={visaPopupMode}
-        />
+        <Suspense fallback={null}>
+          <VisaCheckPopup
+            onClose={() => setVisaPopupMode(null)}
+            initialMode={visaPopupMode}
+          />
+        </Suspense>
       )}
 
       {/* Visa details popover (opened from the map-popup chip — country-card
           chips render their own popover inline so they share the section
           ref). */}
       {visaDetails && (
-        <VisaDetailsPopover
-          requirement={visaDetails.visa}
-          destinationName={visaDetails.country}
-          passport={passport}
-          onClose={() => setVisaDetails(null)}
-        />
+        <Suspense fallback={null}>
+          <VisaDetailsPopover
+            requirement={visaDetails.visa}
+            destinationName={visaDetails.country}
+            passport={passport}
+            onClose={() => setVisaDetails(null)}
+          />
+        </Suspense>
       )}
     </div>
   );

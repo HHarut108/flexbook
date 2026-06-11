@@ -10,7 +10,7 @@ interface SessionState {
   expiredLinkModal: boolean;
 
   setSelectedDate: (date: string) => void;
-  setSelectedFlight: (flight: FlightOption) => void;
+  setSelectedFlight: (flight: FlightOption | null) => void;
   setWeather: (iata: string, weather: WeatherSummary) => void;
   showToast: (message: string) => void;
   clearToast: () => void;

@@ -1,12 +1,14 @@
 import { lazy, Suspense, useEffect, useMemo, useState, useCallback } from 'react';
 import { TripLeg } from '@fast-travel/shared';
-import { Helmet } from 'react-helmet-async';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { fetchAirlineLogos } from '../api/airlines.api';
 import { formatDate, formatTime, durationLabel } from '../utils/date.utils';
 import { formatPrice, totalPrice } from '../utils/price.utils';
 import { track, AnalyticsEvent } from '../lib/analytics';
+import { persistSelectedTrip } from '../lib/selectedTrip';
+import { BookingChoice } from '../components/BookingChoice';
 import { MapErrorBoundary } from '../components/MapErrorBoundary';
 import { GoHomeLogo } from '../components/GoHomeLogo';
 import {
@@ -20,11 +22,8 @@ import {
   PlaneTakeoff,
   PlaneLanding,
   CalendarDays,
-  ShieldCheck,
   Luggage,
-  CheckCircle2,
   Menu,
-  Headphones as HeadphonesIcon,
 } from 'lucide-react';
 import { AssistanceRequestModal } from '../components/AssistanceRequestModal';
 
@@ -365,8 +364,7 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
   const navigate = useNavigate();
   const origin = useTripStore((s) => s.origin);
   const allLegs = useTripStore((s) => s.legs);
-  const [bulkStarted, setBulkStarted] = useState(false);
-  const [bookingConfirm, setBookingConfirm] = useState(false);
+  const passengers = useTripStore((s) => s.passengers);
   const [assistModalOpen, setAssistModalOpen] = useState(false);
   const [airlineLogos, setAirlineLogos] = useState<Record<string, string>>({});
 
@@ -394,91 +392,86 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
     return () => { cancelled = true; };
   }, [orderedLegs]);
 
-  const handleBookAll = useCallback(() => {
-    if (!bookingConfirm) {
-      setBookingConfirm(true);
-      return;
-    }
-    setBulkStarted(true);
+  // DIY path: persist the trip to sessionStorage so the BookingConciergeScreen
+  // can load it by id (same mechanism Quick Search uses for /trip/:id). Then
+  // navigate to /book/concierge/:id where the user walks through each leg's
+  // unified Kiwi /booking/?token= checkout one at a time.
+  const handleStartConcierge = useCallback(() => {
+    if (orderedLegs.length === 0) return;
     track(AnalyticsEvent.BookingClicked, {
       legs: orderedLegs.length,
       totalUsd: total,
       partial,
     });
-    let firstTab: Window | null = null;
-    orderedLegs.forEach((leg) => {
-      if (leg.bookingUrl) {
-        const tab = window.open(leg.bookingUrl, '_blank', 'noopener,noreferrer');
-        if (!firstTab && tab) firstTab = tab;
-      }
+    const saved = persistSelectedTrip({
+      type: 'multi',
+      passengers,
+      flights: orderedLegs,
+      bookings: orderedLegs.map((leg, i) => ({
+        label: `Book Leg ${i + 1}: ${leg.originIata} → ${leg.destinationIata}`,
+        url: leg.bookingUrl ?? '',
+      })),
+      totalPriceUsd: total,
     });
-    if (firstTab) (firstTab as Window).focus();
-  }, [bookingConfirm, orderedLegs, total, partial]);
+    navigate(`/book/concierge/${saved.id}`);
+  }, [orderedLegs, passengers, total, partial, navigate]);
+
+  // Single-leg edge case (typically a Trip Builder user who added exactly one
+  // stop with no return). One ticket = one Kiwi /booking/?token= — there's no
+  // checklist to manage, so don't burden the user with the DIY-vs-Assisted
+  // choice. Match the Quick Search one-way/round-trip UX: a single direct CTA.
+  // Anything ≥2 legs is genuinely N separate tickets — that's where the
+  // BookingChoice (and the Concierge stepper or Assistance request) earns
+  // its keep.
+  const singleLeg = orderedLegs.length === 1 ? orderedLegs[0] : null;
+  const singleLegBookingUrl = singleLeg?.bookingUrl ?? '';
+
+  const handleBookSingle = useCallback(() => {
+    if (!singleLegBookingUrl) return;
+    track(AnalyticsEvent.BookingClicked, {
+      legs: 1,
+      totalUsd: total,
+      partial,
+    });
+    window.open(singleLegBookingUrl, '_blank', 'noopener,noreferrer');
+  }, [singleLegBookingUrl, total, partial]);
 
   /* ── Booking CTA panel (shared between mobile inline + desktop sidebar) ── */
   const ctaPanel = (
     <div className="section-shell px-4 py-4">
-      {!bookingConfirm ? (
+      {singleLeg ? (
         <>
           <button
+            type="button"
+            onClick={handleBookSingle}
+            disabled={!singleLegBookingUrl}
             className="btn-primary flex items-center justify-center gap-2"
-            onClick={handleBookAll}
             style={{ minHeight: '48px' }}
-            aria-label={`Book entire itinerary for ${formatPrice(total)}`}
+            aria-label={`Book ${singleLeg.originIata} → ${singleLeg.destinationIata} for ${formatPrice(total)}`}
           >
             <ExternalLink size={16} />
-            Book this itinerary · {formatPrice(total)}
+            Book this trip · {formatPrice(total)}
           </button>
           <p className="text-[11px] text-text-muted text-center mt-2 leading-relaxed">
-            This will open each booking in a new tab — one per flight.
-            Check final prices before completing each purchase.
+            Opens Kiwi's secure checkout in a new tab. Final price and baggage
+            rules shown there.
           </p>
         </>
       ) : (
-        <div className="space-y-3">
-          <div className="flex items-start gap-3 rounded-xl bg-[#FFF7ED] border border-orange/20 px-3 py-3">
-            <ShieldCheck size={18} className="text-orange shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-text-primary mb-0.5">Ready to open booking pages?</p>
-              <p className="text-xs text-text-muted leading-relaxed">
-                This will open {orderedLegs.length} tab{orderedLegs.length > 1 ? 's' : ''} — one for each flight leg.
-                Check final prices, baggage rules, and layover details on each page.
-              </p>
-            </div>
-          </div>
-          <button
-            className="btn-primary flex items-center justify-center gap-2"
-            onClick={handleBookAll}
-            style={{ minHeight: '48px' }}
-          >
-            {bulkStarted ? (
-              <><CheckCircle2 size={16} /> Booking pages opened</>
-            ) : (
-              <><ExternalLink size={16} /> Confirm — open all booking pages</>
-            )}
-          </button>
-          {!bulkStarted && (
-            <button
-              className="w-full text-center text-sm text-text-muted py-2 hover:text-text-primary transition-colors"
-              onClick={() => setBookingConfirm(false)}
-            >
-              Cancel
-            </button>
-          )}
-          {bulkStarted && (
-            <p className="text-xs text-text-muted text-center flex items-center justify-center gap-1.5">
-              <CheckCircle2 size={12} className="text-emerald-500" />
-              Opened {orderedLegs.length} tab{orderedLegs.length > 1 ? 's' : ''} — your first flight is shown
-            </p>
-          )}
-        </div>
+        <BookingChoice
+          totalLabel={formatPrice(total)}
+          legCount={orderedLegs.length}
+          onSelfService={handleStartConcierge}
+          onRequestAssistance={() => setAssistModalOpen(true)}
+        />
       )}
     </div>
   );
 
+  useDocumentTitle(`${partial ? 'Book flights so far' : 'Book your trip'} · FlexBook`);
+
   return (
     <div className="pb-8">
-      <Helmet><title>{partial ? 'Book flights so far' : 'Book your trip'} · FlexBook</title></Helmet>
       {/* ── Top brand header ── */}
       <div
         className="sticky top-0 z-50 px-4 py-2.5 flex items-center justify-between"
@@ -619,19 +612,6 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
           {/* Book CTA */}
           <div className="px-4 mb-4 md:px-0 md:mb-0">
             {ctaPanel}
-          </div>
-
-          {/* Assistant help */}
-          <div className="px-4 mb-4 md:px-0 md:mb-0">
-            <button
-              className="w-full flex items-center justify-center gap-2 rounded-2xl border border-indigo-border bg-indigo-soft/40 text-indigo px-4 py-3 text-sm font-semibold hover:bg-indigo-soft transition-colors active:scale-[0.98]"
-              style={{ minHeight: '48px' }}
-              onClick={() => setAssistModalOpen(true)}
-              aria-label="Request assistant help with booking"
-            >
-              <HeadphonesIcon size={16} />
-              Request assistant help
-            </button>
           </div>
 
           {/* Back button — desktop only */}

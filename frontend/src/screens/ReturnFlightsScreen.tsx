@@ -1,10 +1,15 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { FlightOption, TripLeg } from '@fast-travel/shared';
-import { Helmet } from 'react-helmet-async';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { useReturnOptions } from '../hooks/useReturnOptions';
-import { DatePickerOverlay } from '../components/DatePickerOverlay';
+// DatePickerOverlay is a modal — lazy so it doesn't bloat the screen's
+// initial chunk. Suspense fallback is null because the overlay is gated
+// on `showCalendar` and the import resolves before paint.
+const DatePickerOverlay = lazy(() =>
+  import('../components/DatePickerOverlay').then((m) => ({ default: m.DatePickerOverlay })),
+);
 import { ReturnFlightCard, ReturnFlightCardSkeleton } from '../components/ReturnFlightCard';
 import { TripTimeline } from '../components/TripTimeline';
 import { MapErrorBoundary } from '../components/MapErrorBoundary';
@@ -86,9 +91,14 @@ export function ReturnFlightsScreen() {
     return [...outboundLegs, previewLeg];
   }, [outboundLegs, pendingFlights]);
 
+  useDocumentTitle(`Fly home from ${currentCityName} · FlexBook`);
+
   return (
-    <div className="flex flex-col min-h-screen md:flex-row md:min-h-0 md:flex-1">
-      <Helmet><title>Fly home from {currentCityName} · FlexBook</title></Helmet>
+    /* App.tsx wraps `/return` in `h-screen overflow-hidden` so each panel can
+       scroll independently on desktop. On mobile both panels stack vertically,
+       so we need a single page-level scroll — without it the content below the
+       viewport (extra flight cards, "Day before / Day after" CTA) is unreachable. */
+    <div className="flex flex-col h-full overflow-y-auto md:overflow-hidden md:flex-row md:min-h-0 md:flex-1">
       {/* Left panel: controls */}
       <div className="px-4 pt-4 pb-3 md:w-[340px] lg:w-[380px] md:flex-shrink-0 md:border-r md:border-border/50 md:overflow-y-auto md:pb-8">
         {/* Minimal header: back + pill + tight route line */}
@@ -267,12 +277,14 @@ export function ReturnFlightsScreen() {
       </div>{/* end right panel */}
 
       {showCalendar && (
-        <DatePickerOverlay
-          currentDate={localDate}
-          legs={legs}
-          onConfirm={(date) => { setLocalDate(date); setShowCalendar(false); }}
-          onClose={() => setShowCalendar(false)}
-        />
+        <Suspense fallback={null}>
+          <DatePickerOverlay
+            currentDate={localDate}
+            legs={legs}
+            onConfirm={(date) => { setLocalDate(date); setShowCalendar(false); }}
+            onClose={() => setShowCalendar(false)}
+          />
+        </Suspense>
       )}
     </div>
   );
