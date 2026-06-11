@@ -9,18 +9,15 @@ import { ShareModal } from './components/ShareModal';
 import { ExpiredLinkModal } from './components/ExpiredLinkModal';
 import { RequireOrigin } from './components/RequireOrigin';
 import { ShareRedirect } from './components/ShareRedirect';
-import { V2DevToggle } from './components/V2DevToggle';
-// Home stays eager — it's the most common landing page and skipping the
-// Suspense round-trip on first paint saves ~30-50 ms of jank. Every other
+// HomeScreenV2 stays eager — it's the most common landing page and skipping
+// the Suspense round-trip on first paint saves ~30-50 ms of jank. Every other
 // screen is code-split via lazyNamed() so the initial bundle ships with only
 // the chrome + the route the user actually lands on.
-import { HomeScreen } from './screens/HomeScreen';
 import { HomeScreenV2 } from './screens/HomeScreenV2';
 import { lazyNamed } from './lib/lazyNamed';
 import { authApi } from './api/auth.api';
 import { useAuthStore } from './store/auth.store';
 import { hasSessionHint, clearSessionHint } from './utils/sessionHint';
-import { useV2 } from './lib/layoutFlag';
 import { prefetchVisaCountries } from './hooks/useVisaCountries';
 import { apiClient } from './api/client';
 
@@ -34,11 +31,12 @@ const FIXED_HEIGHT_PATHS = new Set(['/flights', '/return']);
 // Each entry maps to its own Rollup chunk. Naming them via the magic
 // `webpackChunkName`-equivalent comment isn't needed under Vite/Rollup —
 // chunk names default to the file name, which is what we want.
-const HopPlannerScreen      = lazyNamed(() => import('./screens/HopPlannerScreen'),      'HopPlannerScreen');
+//
+// File names keep the "V2" suffix as a stable identifier even though V1 is
+// gone — renaming 30+ files plus all the import sites was deferred so this
+// PR stays focused on the layout cleanup.
 const HopPlannerScreenV2    = lazyNamed(() => import('./screens/HopPlannerScreenV2'),    'HopPlannerScreenV2');
-const TripPlannerScreen     = lazyNamed(() => import('./screens/TripPlannerScreen'),     'TripPlannerScreen');
 const TripPlannerScreenV2   = lazyNamed(() => import('./screens/TripPlannerScreenV2'),   'TripPlannerScreenV2');
-const WhenToGoScreen        = lazyNamed(() => import('./screens/WhenToGoScreen'),        'WhenToGoScreen');
 const WhenToGoScreenV2      = lazyNamed(() => import('./screens/WhenToGoScreenV2'),      'WhenToGoScreenV2');
 const SearchResultsScreen   = lazyNamed(() => import('./screens/SearchResultsScreen'),   'SearchResultsScreen');
 const QuickSearchScreenV2   = lazyNamed(() => import('./screens/QuickSearchScreenV2'),   'QuickSearchScreenV2');
@@ -57,7 +55,6 @@ const VerifyOtpScreen       = lazyNamed(() => import('./screens/VerifyOtpScreen'
 const LoginScreen           = lazyNamed(() => import('./screens/LoginScreen'),           'LoginScreen');
 const AccountScreen         = lazyNamed(() => import('./screens/AccountScreen'),         'AccountScreen');
 const ComingSoonScreen      = lazyNamed(() => import('./screens/ComingSoonScreen'),      'ComingSoonScreen');
-const AboutScreen           = lazyNamed(() => import('./screens/AboutScreen'),           'AboutScreen');
 const HowItWorksScreenV2    = lazyNamed(() => import('./screens/HowItWorksScreenV2'),    'HowItWorksScreenV2');
 const ToolsScreen           = lazyNamed(() => import('./screens/ToolsScreen'),           'ToolsScreen');
 
@@ -72,7 +69,6 @@ export default function App() {
   const { setUser, setLoading } = useAuthStore();
   useUrlSync();
   useAnalyticsPageviews();
-  const v2 = useV2();
   const openDrawer = () => setDrawerOpen(true);
 
   useEffect(() => {
@@ -120,14 +116,11 @@ export default function App() {
     };
   }, [setUser, setLoading]);
 
-  // V2 marketing/tool pages are properly responsive — drop the legacy 448px
-  // mobile cap so layouts breathe naturally between 449px and the md
-  // breakpoint (768px). V1 keeps its narrow-column flow because the booking
-  // funnel was tuned for that width.
-  const widthCap = v2 ? '' : 'max-w-[448px] md:max-w-none mx-auto';
+  // V2 marketing/tool pages are responsive — no global width cap. Funnel
+  // screens that prefer a narrow column manage their own max-width inside.
   const rootClass = FIXED_HEIGHT_PATHS.has(pathname)
-    ? `h-screen bg-bg ${widthCap} flex flex-col overflow-hidden`
-    : `min-h-screen bg-bg ${widthCap}`;
+    ? 'h-screen bg-bg flex flex-col overflow-hidden'
+    : 'min-h-screen bg-bg';
 
   return (
     <div className={rootClass}>
@@ -136,26 +129,15 @@ export default function App() {
       <ShareModal />
       <ExpiredLinkModal />
       <AppDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
-      <V2DevToggle />
 
       <Suspense fallback={<RouteFallback />}>
         <Routes>
-          <Route
-            path="/"
-            element={
-              v2 ? <HomeScreenV2 onMenuOpen={openDrawer} /> : <HomeScreen onMenuOpen={openDrawer} />
-            }
-          />
-          <Route
-            path="/hop-planner"
-            element={
-              v2 ? <HopPlannerScreenV2 onMenuOpen={openDrawer} /> : <HopPlannerScreen onMenuOpen={openDrawer} />
-            }
-          />
+          <Route path="/" element={<HomeScreenV2 onMenuOpen={openDrawer} />} />
+          <Route path="/hop-planner" element={<HopPlannerScreenV2 onMenuOpen={openDrawer} />} />
           <Route path="/search" element={<SearchResultsScreen onMenuOpen={() => setDrawerOpen(true)} />} />
           <Route path="/trip/:id" element={<TripDetailsScreen onMenuOpen={() => setDrawerOpen(true)} />} />
           <Route path="/book/concierge/:tripId" element={<BookingConciergeScreen onMenuOpen={() => setDrawerOpen(true)} />} />
-          {v2 && <Route path="/quick-search" element={<QuickSearchScreenV2 onMenuOpen={openDrawer} />} />}
+          <Route path="/quick-search" element={<QuickSearchScreenV2 onMenuOpen={openDrawer} />} />
           <Route path="/share/:slug" element={<ShareRedirect />} />
           <Route path="/signup" element={<SignUpScreen />} />
           <Route path="/verify-email" element={<VerifyOtpScreen />} />
@@ -164,18 +146,9 @@ export default function App() {
           <Route path="/trips" element={<ComingSoonScreen title="Trips" description="A dedicated space to manage all your past and upcoming trips in one place. Track where you've been, pick up where you left off, and share your journeys — coming soon." onMenuOpen={() => setDrawerOpen(true)} />} />
           <Route path="/deals" element={<ComingSoonScreen title="Deals" description="Curated flight deals, fare alerts, and hand-picked routes at jaw-dropping prices. We're building the smartest deals engine for multi-stop travellers — stay tuned." onMenuOpen={() => setDrawerOpen(true)} />} />
           <Route path="/tools" element={<ToolsScreen onMenuOpen={() => setDrawerOpen(true)} />} />
-          <Route path="/when-to-go" element={v2 ? <WhenToGoScreenV2 onMenuOpen={openDrawer} /> : <WhenToGoScreen />} />
-          <Route
-            path="/about"
-            element={
-              v2 ? <HowItWorksScreenV2 onMenuOpen={openDrawer} /> : <AboutScreen onMenuOpen={openDrawer} />
-            }
-          />
-
-          <Route
-            path="/trip-planner"
-            element={v2 ? <TripPlannerScreenV2 onMenuOpen={openDrawer} /> : <TripPlannerScreen />}
-          />
+          <Route path="/when-to-go" element={<WhenToGoScreenV2 onMenuOpen={openDrawer} />} />
+          <Route path="/about" element={<HowItWorksScreenV2 onMenuOpen={openDrawer} />} />
+          <Route path="/trip-planner" element={<TripPlannerScreenV2 onMenuOpen={openDrawer} />} />
 
           {/* Legacy paths that pre-date the /hop-planner and /trip-planner rename.
               Vercel rewrites send all unknown paths to the SPA, so without these

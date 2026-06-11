@@ -27,8 +27,8 @@ type Loader = () => Promise<unknown>;
  * `/trip/`. Order matters for overlapping prefixes — longest first.
  */
 const ROUTE_LOADERS: Array<[prefix: string, loader: Loader]> = [
-  ['/hop-planner',      () => import('../screens/HopPlannerScreen')],
-  ['/trip-planner',     () => import('../screens/TripPlannerScreen')],
+  ['/hop-planner',      () => import('../screens/HopPlannerScreenV2')],
+  ['/trip-planner',     () => import('../screens/TripPlannerScreenV2')],
   ['/quick-search',     () => import('../screens/QuickSearchScreenV2')],
   ['/search',           () => import('../screens/SearchResultsScreen')],
   ['/flights',          () => import('../screens/FlightResultsScreen')],
@@ -45,8 +45,8 @@ const ROUTE_LOADERS: Array<[prefix: string, loader: Loader]> = [
   ['/login',            () => import('../screens/LoginScreen')],
   ['/verify-email',     () => import('../screens/VerifyOtpScreen')],
   ['/account',          () => import('../screens/AccountScreen')],
-  ['/about',            () => import('../screens/AboutScreen')],
-  ['/when-to-go',       () => import('../screens/WhenToGoScreen')],
+  ['/about',            () => import('../screens/HowItWorksScreenV2')],
+  ['/when-to-go',       () => import('../screens/WhenToGoScreenV2')],
   ['/tools',            () => import('../screens/ToolsScreen')],
   ['/trips',            () => import('../screens/ComingSoonScreen')],
   ['/deals',            () => import('../screens/ComingSoonScreen')],
