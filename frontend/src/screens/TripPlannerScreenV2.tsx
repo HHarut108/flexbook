@@ -848,13 +848,13 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
 
         {/* end body grid */}
 
-        {/* Mobile: Modify-search link below the body — only meaningful once
-            a plan exists. In search view the form itself is the way to edit. */}
-        {view === 'result' && (
-          <div className="mt-6 flex justify-center md:hidden">
-            <ModifySearchLink onClick={handleModifySearch} />
-          </div>
-        )}
+        {/* QA fix: on mobile + list view, the ResultPanel itself already
+            renders a `ModifySearchLink` under its `BookCta`, so this
+            section was producing a duplicate link directly below the
+            result card. Mobile + map view renders its own modify link
+            higher up (inside the mobile-map CTA stack). Either way the
+            user already has one reachable modify-search affordance, so
+            we don't need this fallback any more. */}
       </section>
     </MarketingShellV2>
   );
