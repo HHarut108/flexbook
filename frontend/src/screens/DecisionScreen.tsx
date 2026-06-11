@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState } from 'react';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { FlightOption } from '@fast-travel/shared';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
@@ -32,14 +32,29 @@ export function DecisionScreen() {
   const [whenToFlyOpen, setWhenToFlyOpen] = useState(false);
 
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
-  const lastLeg = nonReturnLegs.at(-1)!;
+  // QA: defensive guard. The popstate hydration in `useUrlHydrationOnPop`
+  // runs synchronously when the user hits browser back — so if /review's
+  // history entry's `?t=` decodes to `legs=[]` (e.g. user is unwinding
+  // back through the very first leg they committed) the store flips to
+  // empty BEFORE react-router has unmounted DecisionScreen. Without this
+  // guard, the next render hits `nonReturnLegs.at(-1)!` with `undefined`
+  // and throws "Cannot read properties of undefined (reading
+  // 'stayDurationDays')". Sending the user to Trip Builder home is the
+  // right semantic landing — they no longer have a committed leg, so the
+  // decision screen has nothing to decide about.
+  //
+  // The guard variable is declared upfront so the subsequent `useDocumentTitle`
+  // hook call still runs unconditionally — React's Rules of Hooks require the
+  // hook call order to stay stable across renders.
+  const hasLegs = nonReturnLegs.length > 0;
+  const lastLeg = hasLegs ? nonReturnLegs[nonReturnLegs.length - 1] : null;
   const tripTotal = totalPrice(nonReturnLegs);
-  const stayNights = lastLeg.stayDurationDays ?? 1;
-  const checkin = lastLeg.arrivalDatetime ? lastLeg.arrivalDatetime.slice(0, 10) : undefined;
-  const checkout = lastLeg.nextDepartureDate ?? undefined;
+  const stayNights = lastLeg?.stayDurationDays ?? 1;
+  const checkin = lastLeg?.arrivalDatetime ? lastLeg.arrivalDatetime.slice(0, 10) : undefined;
+  const checkout = lastLeg?.nextDepartureDate ?? undefined;
 
   function handleContinue() {
-    if (lastLeg.nextDepartureDate) {
+    if (lastLeg?.nextDepartureDate) {
       setSelectedDate(lastLeg.nextDepartureDate);
     }
     navigate('/flights');
@@ -70,7 +85,15 @@ export function DecisionScreen() {
     navigate('/itinerary');
   }
 
-  useDocumentTitle(`What's next from ${lastLeg.destinationCity}? · FlexBook`);
+  useDocumentTitle(
+    hasLegs && lastLeg
+      ? `What's next from ${lastLeg.destinationCity}? · FlexBook`
+      : "What's next? · FlexBook",
+  );
+
+  // Early return must happen AFTER every hook call above so the hook order is
+  // stable across renders (Rules of Hooks). See the comment on `hasLegs`.
+  if (!hasLegs || !lastLeg) return <Navigate to="/hop-planner" replace />;
 
   return (
     <div className="px-4 pb-8 pt-4 md:flex md:gap-6 md:px-8 md:pt-8 md:pb-8 md:max-w-5xl lg:max-w-6xl xl:max-w-7xl md:mx-auto lg:gap-8 lg:px-10 lg:pt-10 lg:pb-10 md:items-start">
