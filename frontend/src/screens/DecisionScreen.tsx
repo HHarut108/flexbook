@@ -79,10 +79,21 @@ export function DecisionScreen() {
         <div className="hero-panel mb-5">
           <div className="flex items-center gap-3 mb-3">
             <button
-              onClick={() => navigate('/stay')}
+              onClick={() => navigate('/hop-planner')}
               className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white border border-border hover:bg-indigo-soft hover:border-indigo-border transition-all text-text-muted shrink-0"
-              aria-label="Back to stay duration"
+              aria-label="Back to Trip Builder"
             >
+              {/* QA back-loop fix:
+                  Previously navigated to /stay, which formed a triangle:
+                    /flights (leg N+1) → /review → /stay → /flights
+                  Each back press cycled through the same three screens with
+                  the previously-selected flight still in the session store,
+                  giving the user the impression they were "stuck" with the
+                  last selection. Re-pointing the in-app back arrow at the
+                  Trip Builder home gives a single, reliable escape hatch.
+                  Edit-stay-duration is still reachable via the timeline
+                  entry below; this button is just the "get me out of this
+                  flow" affordance. */}
               <ArrowLeft size={18} />
             </button>
             <span className="pill-brand">Stop {nonReturnLegs.length}</span>
