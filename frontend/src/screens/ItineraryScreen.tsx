@@ -1,5 +1,5 @@
 import { useState, lazy, Suspense } from 'react';
-import { Helmet } from 'react-helmet-async';
+import { useDocumentTitle, useDocumentMeta } from '../hooks/useDocumentTitle';
 import { useNavigate } from 'react-router-dom';
 import { useTripStore } from '../store/trip.store';
 import { useSessionStore } from '../store/session.store';
@@ -89,18 +89,17 @@ export function ItineraryScreen() {
     ? [origin.city.name, ...legs.map((l) => l.destinationCity)].join(' → ')
     : 'Your trip';
 
+  useDocumentTitle(`${routeLabel} · FlexBook`);
+  useDocumentMeta({ name: 'description' }, `${legs.length} flights · ${routeLabel}. View and book your full trip plan.`);
+  useDocumentMeta({ property: 'og:title' }, `My FlexBook trip: ${routeLabel}`);
+  useDocumentMeta({ property: 'og:description' }, `${legs.length} flights, estimated total $${Math.round(total)}. Plan yours at flexbook.travel`);
+  useDocumentMeta({ property: 'og:type' }, 'website');
+  useDocumentMeta({ name: 'twitter:card' }, 'summary');
+  useDocumentMeta({ name: 'twitter:title' }, `My FlexBook trip: ${routeLabel}`);
+  useDocumentMeta({ name: 'twitter:description' }, `${legs.length} flights · estimated $${Math.round(total)}`);
+
   return (
     <div className="pb-8 md:flex md:gap-0 md:items-start md:max-w-6xl md:mx-auto xl:max-w-7xl">
-      <Helmet>
-        <title>{routeLabel} · FlexBook</title>
-        <meta name="description" content={`${legs.length} flights · ${routeLabel}. View and book your full trip plan.`} />
-        <meta property="og:title" content={`My FlexBook trip: ${routeLabel}`} />
-        <meta property="og:description" content={`${legs.length} flights, estimated total $${Math.round(total)}. Plan yours at flexbook.travel`} />
-        <meta property="og:type" content="website" />
-        <meta name="twitter:card" content="summary" />
-        <meta name="twitter:title" content={`My FlexBook trip: ${routeLabel}`} />
-        <meta name="twitter:description" content={`${legs.length} flights · estimated $${Math.round(total)}`} />
-      </Helmet>
       {/* Left: header + tabs + timeline/map */}
       <div className="md:flex-1 md:min-w-0">
         {/* Header */}

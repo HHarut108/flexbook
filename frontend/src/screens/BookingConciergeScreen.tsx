@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Helmet } from 'react-helmet-async';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
 import {
@@ -41,6 +41,7 @@ interface Props {
  *  off. Booking happens off-site on Kiwi — we just sequence the redirects and
  *  let the user check items off the list. */
 export function BookingConciergeScreen({ onMenuOpen }: Props) {
+  useDocumentTitle('Booking checklist — Flexbook');
   const { tripId } = useParams<{ tripId: string }>();
   const navigate = useNavigate();
   const [trip, setTrip] = useState<SelectedTrip | null>(() => loadSelectedTrip(tripId));
@@ -94,7 +95,6 @@ export function BookingConciergeScreen({ onMenuOpen }: Props) {
         description="Step-by-step ticket booking."
         onMenuOpen={onMenuOpen}
       >
-        <Helmet><title>Booking checklist — Flexbook</title></Helmet>
         <div className="max-w-2xl mx-auto px-5 md:px-8 pt-8 pb-16 text-center">
           <p className="text-base font-bold text-text-primary mb-1">
             We couldn't find that trip.
@@ -155,7 +155,6 @@ export function BookingConciergeScreen({ onMenuOpen }: Props) {
       description="Walk through every ticket on Kiwi, one at a time."
       onMenuOpen={onMenuOpen}
     >
-      <Helmet><title>Booking checklist — Flexbook</title></Helmet>
 
       <div className="max-w-3xl xl:max-w-4xl mx-auto px-4 md:px-6 lg:px-8 pt-4 md:pt-6 pb-12 space-y-5">
         {/* ── Header / progress panel ──────────────────────────────────────── */}

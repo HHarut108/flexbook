@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { getAirportIndex, resolveMarkerInIndex } from '../lib/airportIndex';
 import axios from 'axios';
@@ -7,10 +7,16 @@ import { format, addDays, addMonths, endOfMonth, startOfMonth } from 'date-fns';
 import { ArrowLeft, ArrowRight, ExternalLink, Loader2, PlaneTakeoff, TrendingDown } from 'lucide-react';
 import { MarketingShellV2 } from '../components/MarketingShellV2';
 import { AirportSearchInput } from '../components/AirportSearchInput';
-import { TripMapColumn } from '../components/TripMapColumn';
 import { V2ToolHero } from '../components/V2ToolHero';
 import { MobileViewToggle, type MobileView } from '../components/MobileViewToggle';
-import { DateRangePicker } from '../components/DateRangePicker';
+// Leaflet map + DateRangePicker calendar — both below-the-fold or
+// conditionally rendered, both lazy so the form ships smaller.
+const TripMapColumn = lazy(() =>
+  import('../components/TripMapColumn').then((m) => ({ default: m.TripMapColumn })),
+);
+const DateRangePicker = lazy(() =>
+  import('../components/DateRangePicker').then((m) => ({ default: m.DateRangePicker })),
+);
 import { formatYMD } from '../utils/date.utils';
 import { fetchCheapestDay, CheapestDayResponse, CalendarDay } from '../api/whenToGo.api';
 import { track, AnalyticsEvent } from '../lib/analytics';
@@ -250,10 +256,12 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
             </div>
 
             <div className={`${mobileView === 'map' ? '' : 'hidden'} md:block`}>
-              <TripMapColumn
-                origin={origin}
-                destination={destination}
-              />
+              <Suspense fallback={<div className="aspect-square w-full rounded-2xl bg-surface-muted" aria-hidden />}>
+                <TripMapColumn
+                  origin={origin}
+                  destination={destination}
+                />
+              </Suspense>
             </div>
           </div>
 
@@ -329,22 +337,24 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
 
                 {range.id === 'custom' ? (
                   <div className="mb-5">
-                    <DateRangePicker
-                      dateFrom={customStart}
-                      dateTo={customEnd}
-                      today={formatYMD(new Date())}
-                      label=""
-                      fromLabel="Earliest"
-                      toLabel="Latest"
-                      onChangeFrom={(v) => {
-                        setCustomStart(v);
-                        setRange((r) => ({ ...r, start: v }));
-                      }}
-                      onChangeTo={(v) => {
-                        setCustomEnd(v);
-                        setRange((r) => ({ ...r, end: v }));
-                      }}
-                    />
+                    <Suspense fallback={<div className="h-[260px] rounded-2xl bg-surface-muted" aria-hidden />}>
+                      <DateRangePicker
+                        dateFrom={customStart}
+                        dateTo={customEnd}
+                        today={formatYMD(new Date())}
+                        label=""
+                        fromLabel="Earliest"
+                        toLabel="Latest"
+                        onChangeFrom={(v) => {
+                          setCustomStart(v);
+                          setRange((r) => ({ ...r, start: v }));
+                        }}
+                        onChangeTo={(v) => {
+                          setCustomEnd(v);
+                          setRange((r) => ({ ...r, end: v }));
+                        }}
+                      />
+                    </Suspense>
                   </div>
                 ) : (
                   <p className="text-[11px] text-text-muted mb-5 px-1">

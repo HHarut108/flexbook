@@ -1,9 +1,9 @@
-import { Link } from 'react-router-dom';
 import { Send, Wallet } from 'lucide-react';
 import { MarketingShellV2 } from '../components/MarketingShellV2';
 import { HomeHubCard } from '../components/HomeHubCard';
 import { HomeTestimonialBlock } from '../components/HomeTestimonialBlock';
 import { ToolCard } from '../components/ToolCard';
+import { ViewTransitionLink } from '../components/ViewTransitionLink';
 import { TOOLS_V2 } from './ToolsScreen';
 import { useAuthStore } from '../store/auth.store';
 import { intentPrefetch } from '../lib/routePrefetch';
@@ -121,7 +121,7 @@ export function HomeScreenV2({ onMenuOpen }: Props) {
           Pick a tool and start — you'll be looking at prices in seconds.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
-          <Link
+          <ViewTransitionLink
             to="/quick-search"
             {...intentPrefetch('/quick-search')}
             className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full bg-orange text-white text-sm font-bold hover:bg-orange-dark transition-all"
@@ -129,15 +129,15 @@ export function HomeScreenV2({ onMenuOpen }: Props) {
           >
             <Send size={15} />
             Explore flights
-          </Link>
-          <Link
+          </ViewTransitionLink>
+          <ViewTransitionLink
             to="/trip-planner"
             {...intentPrefetch('/trip-planner')}
             className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full bg-surface border border-border text-sm font-bold text-text-primary hover:bg-surface-2 transition-all"
           >
             <Wallet size={15} />
             Plan by budget
-          </Link>
+          </ViewTransitionLink>
         </div>
       </section>
     </MarketingShellV2>

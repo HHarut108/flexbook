@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FlightOption, RoundTripOption, MultiCityOption } from '@fast-travel/shared';
-import { Helmet } from 'react-helmet-async';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { searchFlights, searchRoundTrip, searchMultiCity } from '../api/flights.api';
@@ -715,6 +715,7 @@ function ResultsSection({
 }
 
 export function SearchResultsScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
+  useDocumentTitle('Flight results — Flexbook');
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [editOpen, setEditOpen] = useState(false);
@@ -888,10 +889,6 @@ export function SearchResultsScreen({ onMenuOpen }: { onMenuOpen?: () => void })
       description="Live one-way, round-trip, and multi-city fares for your search."
       onMenuOpen={onMenuOpen}
     >
-      <Helmet>
-        <title>Flight results — Flexbook</title>
-      </Helmet>
-
       <div className="relative px-5 pb-16 md:mx-auto md:px-8 md:pt-6 lg:px-10 md:max-w-4xl lg:max-w-6xl xl:max-w-7xl">
         {/* Trip summary + Edit search toggle. The toggle expands an inline
             EditSearchPanel below this row — it does NOT navigate home, so
