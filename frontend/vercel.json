@@ -11,6 +11,20 @@
   ],
   "headers": [
     {
+      "//": "Hashed Vite assets — content-addressed, so the cache can live forever. immutable tells the browser not to revalidate even on reload.",
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "//": "App icons rarely change; long cache + must-revalidate keeps the manifest honest if we ever swap them.",
+      "source": "/icons/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=604800, must-revalidate" }
+      ]
+    },
+    {
       "source": "/sw.js",
       "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
     },

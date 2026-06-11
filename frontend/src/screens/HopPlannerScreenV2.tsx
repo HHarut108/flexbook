@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Airport, LocationSelection, selectionLabel, selectionName, selectionCountryCode } from '@fast-travel/shared';
 import { format, addDays } from 'date-fns';
 import { ArrowRight, MapPin, CalendarDays, Loader2 } from 'lucide-react';
 import { MarketingShellV2 } from '../components/MarketingShellV2';
 import { AirportSearchInput } from '../components/AirportSearchInput';
-import { TripMapColumn } from '../components/TripMapColumn';
+// TripMapColumn renders Leaflet — keep it out of the screen's main chunk.
+const TripMapColumn = lazy(() =>
+  import('../components/TripMapColumn').then((m) => ({ default: m.TripMapColumn })),
+);
 import { V2ToolHero } from '../components/V2ToolHero';
 import { NearbyAirportRow } from '../components/NearbyAirportRow';
 import { MobileViewToggle, type MobileView } from '../components/MobileViewToggle';
@@ -135,10 +138,12 @@ export function HopPlannerScreenV2({ onMenuOpen }: Props) {
             </div>
 
             <div className={`${mobileView === 'map' ? '' : 'hidden'} md:block`}>
-              <TripMapColumn
-                origin={origin}
-                stops={stops}
-              />
+              <Suspense fallback={<div className="aspect-square w-full rounded-2xl bg-surface-muted" aria-hidden />}>
+                <TripMapColumn
+                  origin={origin}
+                  stops={stops}
+                />
+              </Suspense>
             </div>
           </div>
 

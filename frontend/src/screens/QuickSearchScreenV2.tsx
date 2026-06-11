@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { lazy, Suspense, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LocationSelection, selectionLabel, selectionToMarker } from '@fast-travel/shared';
 import { addDays, format } from 'date-fns';
@@ -6,7 +6,11 @@ import { Send, CalendarDays, Plus, X } from 'lucide-react';
 import { MarketingShellV2 } from '../components/MarketingShellV2';
 import { AirportSearchInput } from '../components/AirportSearchInput';
 import { SegmentedControl } from '../components/SegmentedControl';
-import { TripMapColumn } from '../components/TripMapColumn';
+// TripMapColumn lives behind a leaflet import — lazy so the form ships
+// without ~150 KB of map code.
+const TripMapColumn = lazy(() =>
+  import('../components/TripMapColumn').then((m) => ({ default: m.TripMapColumn })),
+);
 import { V2ToolHero } from '../components/V2ToolHero';
 import { MobileViewToggle, type MobileView } from '../components/MobileViewToggle';
 import { formatYMD } from '../utils/date.utils';
@@ -155,15 +159,17 @@ export function QuickSearchScreenV2({ onMenuOpen }: Props) {
                       ' md:block'
                     }
                   >
-                    {tripType === 'multi' ? (
-                      <TripMapColumn
-                        legs={legs
-                          .filter((l) => l.fromAirport && l.toAirport)
-                          .map((l) => ({ from: l.fromAirport!, to: l.toAirport! }))}
-                      />
-                    ) : (
-                      <TripMapColumn origin={fromAirport} destination={toAirport} />
-                    )}
+                    <Suspense fallback={<div className="aspect-square w-full rounded-2xl bg-surface-muted" aria-hidden />}>
+                      {tripType === 'multi' ? (
+                        <TripMapColumn
+                          legs={legs
+                            .filter((l) => l.fromAirport && l.toAirport)
+                            .map((l) => ({ from: l.fromAirport!, to: l.toAirport! }))}
+                        />
+                      ) : (
+                        <TripMapColumn origin={fromAirport} destination={toAirport} />
+                      )}
+                    </Suspense>
                   </div>
                 </>
               );

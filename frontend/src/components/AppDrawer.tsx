@@ -12,6 +12,7 @@ import { useThemeStore } from '../store/theme.store';
 import { X, MapPin, Share2, Trash2, Plane, BookmarkCheck, Loader2, Sun, Moon, User, LogOut, ChevronRight, ChevronDown } from 'lucide-react';
 import { GoHomeLogo } from './GoHomeLogo';
 import { TOOLS_V2 } from '../screens/ToolsScreen';
+import { intentPrefetch } from '../lib/routePrefetch';
 
 interface Props {
   open: boolean;
@@ -208,6 +209,7 @@ export function AppDrawer({ open, onClose }: Props) {
                   <div className="flex gap-2">
                     <button
                       onClick={() => goTo('/account')}
+                      {...intentPrefetch('/account')}
                       className="flex-1 flex items-center justify-between px-3 py-2.5 rounded-xl bg-indigo-soft border border-indigo-border text-xs font-semibold text-indigo hover:bg-indigo/10 transition-all"
                     >
                       <span>Account settings</span>
@@ -236,12 +238,14 @@ export function AppDrawer({ open, onClose }: Props) {
                   <div className="flex gap-2">
                     <button
                       onClick={() => goTo('/login')}
+                      {...intentPrefetch('/login')}
                       className="flex-1 py-3 rounded-xl border border-border text-sm font-semibold text-text-primary hover:bg-surface-2 transition-all"
                     >
                       Log in
                     </button>
                     <button
                       onClick={() => goTo('/signup')}
+                      {...intentPrefetch('/signup')}
                       className="flex-1 py-3 rounded-xl bg-indigo text-white text-sm font-semibold hover:bg-indigo/90 transition-all"
                       style={{ boxShadow: '0 4px 12px rgba(55,48,163,0.2)' }}
                     >
@@ -318,6 +322,7 @@ export function AppDrawer({ open, onClose }: Props) {
                     <button
                       key={tool.id}
                       onClick={() => goTo(tool.path)}
+                      {...intentPrefetch(tool.path)}
                       className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-surface-2 border border-border hover:border-indigo-border hover:bg-indigo-soft transition-all active:scale-[0.99]"
                     >
                       <div className="flex items-center gap-3 min-w-0">
