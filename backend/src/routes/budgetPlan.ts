@@ -4,7 +4,6 @@ import { FlightOption, WeatherSummary } from '@fast-travel/shared';
 import { flightService } from '../services/FlightService';
 import { airportService } from '../services/AirportService';
 import { weatherService } from '../services/WeatherService';
-import { requireAuth } from '../utils/requireAuth';
 import { ok, fail } from '../utils/response';
 import { resolveLocation } from '../utils/resolveLocation';
 import { fetchVisaFreeDestinations } from './visa';
@@ -264,7 +263,14 @@ function classifyFailure(
 }
 
 export const budgetPlanRoutes: FastifyPluginAsync = async (app) => {
-  app.post('/trips/budget-plan', { preHandler: [requireAuth] }, async (req, reply) => {
+  // Public endpoint — Budget Planner is a no-account-required tool by
+  // product requirement. Earlier scaffolding gated it behind requireAuth,
+  // which returned 401 ("Not authenticated") on production for any
+  // signed-out user. Removed so the tool matches the rest of the funnel
+  // (Quick Search, Hop Planner, When To Go are all guest-accessible).
+  // `req.userId` is not read anywhere in this handler, so no further
+  // changes are required.
+  app.post('/trips/budget-plan', async (req, reply) => {
     // ── A1 INVALID_PARAMS ────────────────────────────────────────────────────
     const parsed = bodySchema.safeParse(req.body);
     if (!parsed.success) {

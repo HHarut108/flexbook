@@ -1,5 +1,6 @@
 import { Suspense, useState, useEffect } from 'react';
 import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import { useUrlSync } from './hooks/useUrlSync';
 import { useUrlHydrationOnPop } from './hooks/useUrlHydrationOnPop';
 import { useAnalyticsPageviews } from './hooks/useAnalyticsPageviews';
@@ -59,10 +60,24 @@ const ComingSoonScreen      = lazyNamed(() => import('./screens/ComingSoonScreen
 const HowItWorksScreenV2    = lazyNamed(() => import('./screens/HowItWorksScreenV2'),    'HowItWorksScreenV2');
 const ToolsScreen           = lazyNamed(() => import('./screens/ToolsScreen'),           'ToolsScreen');
 
-// Suspense fallback: keep the chrome (ProgressBar/Toast) on screen and leave
-// the route slot empty. A spinner would flicker on every navigation because
-// most chunks resolve under 100 ms once cached. Empty state = no jank.
-const RouteFallback = () => null;
+// Suspense fallback: keep the chrome (ProgressBar/Toast) on screen and show
+// a subtle, delayed-fade-in spinner so the user gets feedback when they
+// click between tools after a hard reload + cache clear (no cached chunks).
+// The 250 ms `animation-delay` makes the spinner invisible for fast chunk
+// resolves (the common cached case) and only fades in for genuinely slow
+// network conditions — no flicker on warm navigation.
+const RouteFallback = () => (
+  <div
+    role="status"
+    aria-label="Loading"
+    className="flex items-center justify-center min-h-[60vh] opacity-0"
+    style={{
+      animation: 'route-fallback-fade 220ms ease-out 250ms forwards',
+    }}
+  >
+    <Loader2 size={28} className="text-indigo-mid animate-spin" aria-hidden />
+  </div>
+);
 
 export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);

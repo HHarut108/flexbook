@@ -730,6 +730,16 @@ html[data-theme="dark"] .leaflet-control-zoom a:first-child {
   50%      { box-shadow: 0 4px 16px rgba(55,48,163,0.35), 0 0 0 8px rgba(79,70,229,0.08); }
 }
 
+/* ── Route-fallback delayed fade-in ──
+ * Used by Suspense's fallback in App.tsx so a route chunk that resolves
+ * fast (the common cached case) never flashes a spinner — the animation
+ * delay swallows the visibility. Only chunks that genuinely take longer
+ * than ~250 ms (cold cache + slow network) reveal the loader. */
+@keyframes route-fallback-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 /* ── HomeFlightFan animations ──
  * Price pins on the home-page Leaflet map fade-in with a small
  * scale bounce. Honors prefers-reduced-motion. */
