@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback } from 'react';
 import { Airport, LocationSelection } from '@fast-travel/shared';
 import { nearbyAirportsByCoords } from '../api/airports.api';
 import { resolveUserCoords, readCachedCoords, readCachedNearby, cacheNearby } from '../utils/geolocation.utils';
@@ -9,7 +9,12 @@ import { useAuthStore } from '../store/auth.store';
 import { formatYMD } from '../utils/date.utils';
 import { track, AnalyticsEvent } from '../lib/analytics';
 import { addDays, format } from 'date-fns';
-import { HomeFlightFan } from '../components/HomeFlightFan';
+// HomeFlightFan pulls leaflet (~150 KB). Below-the-fold on this screen,
+// so lazy-load it — the heavy basemap only ships if the user scrolls past
+// the search form to the marketing fan.
+const HomeFlightFan = lazy(() =>
+  import('../components/HomeFlightFan').then((m) => ({ default: m.HomeFlightFan })),
+);
 import { MarketingShell } from '../components/MarketingShell';
 import { AirportSearchInput } from '../components/AirportSearchInput';
 import {
@@ -329,7 +334,9 @@ export function HopPlannerScreen({ onMenuOpen }: { onMenuOpen?: () => void }) {
             </span>
           </div>
         </div>
-        <HomeFlightFan bare />
+        <Suspense fallback={<div className="h-[280px]" aria-hidden />}>
+          <HomeFlightFan bare />
+        </Suspense>
         <div className="px-4 py-2.5 flex items-center gap-4 border-t border-border/40 flex-wrap">
           <div className="flex items-center gap-1.5">
             <TrendingUp size={12} className="text-emerald shrink-0" />

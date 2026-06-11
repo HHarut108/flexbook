@@ -6,6 +6,7 @@ import { HomeTestimonialBlock } from '../components/HomeTestimonialBlock';
 import { ToolCard } from '../components/ToolCard';
 import { TOOLS_V2 } from './ToolsScreen';
 import { useAuthStore } from '../store/auth.store';
+import { intentPrefetch } from '../lib/routePrefetch';
 
 interface Props {
   onMenuOpen?: () => void;
@@ -122,6 +123,7 @@ export function HomeScreenV2({ onMenuOpen }: Props) {
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Link
             to="/quick-search"
+            {...intentPrefetch('/quick-search')}
             className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full bg-orange text-white text-sm font-bold hover:bg-orange-dark transition-all"
             style={{ boxShadow: '0 14px 32px -10px rgba(249,115,22,0.5)' }}
           >
@@ -130,6 +132,7 @@ export function HomeScreenV2({ onMenuOpen }: Props) {
           </Link>
           <Link
             to="/trip-planner"
+            {...intentPrefetch('/trip-planner')}
             className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full bg-surface border border-border text-sm font-bold text-text-primary hover:bg-surface-2 transition-all"
           >
             <Wallet size={15} />

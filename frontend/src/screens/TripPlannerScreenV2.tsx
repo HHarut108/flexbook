@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import {
@@ -18,7 +18,12 @@ import { Airport, LocationSelection, selectionLabel } from '@fast-travel/shared'
 import { MarketingShellV2 } from '../components/MarketingShellV2';
 import { V2ToolHero } from '../components/V2ToolHero';
 import { AirportSearchInput } from '../components/AirportSearchInput';
-import { TripMapColumn, type MapLeg } from '../components/TripMapColumn';
+// Map column is leaflet-heavy and below the form CTA → lazy. The MapLeg
+// type is erased at compile time, so it's safe to keep as a `type` import.
+import type { MapLeg } from '../components/TripMapColumn';
+const TripMapColumn = lazy(() =>
+  import('../components/TripMapColumn').then((m) => ({ default: m.TripMapColumn })),
+);
 import { DateRangePicker } from '../components/DateRangePicker';
 import { NearbyAirportRow } from '../components/NearbyAirportRow';
 import { MobileViewToggle, type MobileView } from '../components/MobileViewToggle';
@@ -503,10 +508,12 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
                 md:block
               `}
             >
-              <TripMapColumn
-                origin={origin ? airportToSelection(origin) : null}
-                legs={result && origin ? legsToMapLegs(result.legs, origin) : undefined}
-              />
+              <Suspense fallback={<div className="aspect-square w-full rounded-2xl bg-surface-muted" aria-hidden />}>
+                <TripMapColumn
+                  origin={origin ? airportToSelection(origin) : null}
+                  legs={result && origin ? legsToMapLegs(result.legs, origin) : undefined}
+                />
+              </Suspense>
             </div>
 
             {/* Mobile-map CTA — when the user is on the map tab we still want

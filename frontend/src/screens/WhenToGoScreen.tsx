@@ -35,8 +35,11 @@ import {
 } from '../utils/geolocation.utils';
 import { track, AnalyticsEvent } from '../lib/analytics';
 import { DateRangePicker } from '../components/DateRangePicker';
-import { SingleFlightMap } from '../components/SingleFlightMap';
-
+// SingleFlightMap + TripMap both pull leaflet — keep them in their own chunk.
+// The form ships without leaflet; the map appears once the user submits.
+const SingleFlightMap = lazy(() =>
+  import('../components/SingleFlightMap').then((m) => ({ default: m.SingleFlightMap })),
+);
 const TripMap = lazy(() => import('../components/TripMap').then((m) => ({ default: m.TripMap })));
 
 
@@ -1069,7 +1072,9 @@ export function WhenToGoScreen() {
             )}
             {mobileView === 'map' && mapElement ? (
               <div className="h-72 rounded-2xl overflow-hidden border border-border">
-                {mapElement}
+                <Suspense fallback={<div className="h-full bg-surface-muted" aria-hidden />}>
+                  {mapElement}
+                </Suspense>
                 {result?.cheapest?.itinerary && (
                   <div className="flex items-center justify-between gap-2 mt-2 text-[11px] text-text-muted px-1">
                     <span className="flex items-center gap-1">
@@ -1099,7 +1104,9 @@ export function WhenToGoScreen() {
         <div className="hidden md:block sticky top-[73px]">
           {mapElement ? (
             <div className="h-56 rounded-2xl overflow-hidden border border-border mb-4">
-              {mapElement}
+              <Suspense fallback={<div className="h-full bg-surface-muted" aria-hidden />}>
+                {mapElement}
+              </Suspense>
             </div>
           ) : (
             <div

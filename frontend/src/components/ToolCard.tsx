@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Check, Lock, type LucideIcon } from 'lucide-react';
+import { intentPrefetch } from '../lib/routePrefetch';
 
 export interface Tool {
   id: string;
@@ -34,6 +35,7 @@ export function ToolCard(props: Props) {
     return (
       <Link
         to={tool.path}
+        {...intentPrefetch(tool.path)}
         className="section-shell p-5 flex flex-col gap-3 transition-colors hover:border-indigo-border group"
       >
         <div className="flex items-start gap-3">

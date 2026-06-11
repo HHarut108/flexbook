@@ -11,7 +11,7 @@ import { useWeatherBatch } from '../hooks/useWeatherBatch';
 import { FlightCardSkeleton } from '../components/FlightCard';
 import { DatePickerOverlay } from '../components/DatePickerOverlay';
 import { MapErrorBoundary } from '../components/MapErrorBoundary';
-import { buildDirectDestinations, type DirectDestination } from '../components/FlightFanMap';
+import { buildDirectDestinations, type DirectDestination } from '../components/flightFanData';
 import { CountryGroup } from '../components/CountryGroup';
 import { VisaCheckPopup } from '../components/visa/VisaCheckPopup';
 import { VisaDetailsPopover } from '../components/visa/VisaDetailsPopover';
