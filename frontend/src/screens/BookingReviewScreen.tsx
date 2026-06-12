@@ -468,7 +468,7 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
     </div>
   );
 
-  useDocumentTitle(`${partial ? 'Book flights so far' : 'Book your trip'} · FlexBook`);
+  useDocumentTitle(`${partial ? 'Book flights so far' : 'Book your trip'} · Flexbook`);
 
   return (
     <div className="pb-8">

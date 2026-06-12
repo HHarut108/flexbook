@@ -19,61 +19,11 @@ interface Props {
   onMenuOpen?: () => void;
 }
 
-export const TOOLS: Tool[] = [
-  {
-    id: 'hop-planner',
-    name: 'Hop Planner',
-    tagline: 'Chain the cheapest one-way fares into a 15-stop adventure',
-    description:
-      "Pick a starting airport — we'll surface tonight's cheapest one-way fares out of it. Hop on the one you like, land in a new city, and we'll instantly show you the cheapest next hop from there. Up to 15 stops, no return required, no account needed.",
-    features: [
-      'Start from any airport — we detect your nearest one',
-      'Always the cheapest available next-leg fare',
-      'Build up to a 15-stop trip on the fly — no fixed itinerary',
-    ],
-    path: '/hop-planner',
-    requiresAuth: false,
-    icon: Waypoints,
-    gradient: 'linear-gradient(135deg, rgba(249,115,22,0.97) 0%, rgba(234,108,10,0.97) 100%)',
-  },
-  {
-    id: 'when-to-go',
-    name: 'When To Go',
-    tagline: "Find the cheapest day to fly between any two cities",
-    description:
-      "Pick a departure city, an arrival city, and a flexible window — we'll show you the single cheapest day to fly. Change anything and the answer updates live.",
-    features: [
-      'Search any city pair, no account needed',
-      'Use a preset (this month, next 90 days) or a custom date range',
-      'Tap "Book this flight" to jump straight into the cheapest itinerary',
-    ],
-    path: '/when-to-go',
-    requiresAuth: false,
-    icon: CalendarSearch,
-    gradient: 'linear-gradient(135deg, rgba(13,148,136,0.97) 0%, rgba(16,185,129,0.97) 100%)',
-  },
-  {
-    id: 'budget-planner',
-    name: 'Budget Planner',
-    tagline: 'Find a multi-stop adventure within your budget',
-    description:
-      'Tell us your starting point, travel dates, and a budget per person. We search live fares and build the cheapest multi-stop trip that fits — including return flights — so you can explore more for less.',
-    features: [
-      'Set a total budget per person',
-      'Choose your trip style — best value, surprise me, or off the beaten path',
-      'See every leg on an interactive map',
-    ],
-    path: '/trip-planner',
-    requiresAuth: false,
-    icon: Wallet,
-    gradient: 'linear-gradient(135deg, rgba(55,48,163,0.97) 0%, rgba(79,70,229,0.97) 100%)',
-  },
-];
-
 /**
- * V2 tool catalog — promotes Normal Search ("Quick Search") to a first-class
- * tool and renames Hop Planner → Trip Builder. V1 TOOLS array above stays
- * intact for the legacy ToolsScreen page; do not change it.
+ * Tool catalog — the only catalogue. Four entries: Quick Search, Trip Builder,
+ * When to Go, Budget Planner. Names + URLs are stable; analytics dimensions
+ * use the `id` field. If you rename, update the IDs separately and document
+ * the analytics-event mapping in the PR.
  */
 export const TOOLS_V2: Tool[] = [
   {
@@ -111,7 +61,7 @@ export const TOOLS_V2: Tool[] = [
   {
     id: 'when-to-go',
     name: 'When to Go',
-    tagline: "Find the cheapest day to fly between any two cities",
+    tagline: 'Find the cheapest day to fly between any two cities',
     description:
       "Pick a departure city, an arrival city, and a flexible window — we'll show you the single cheapest day to fly. Change anything and the answer updates live.",
     features: [
@@ -171,7 +121,7 @@ function AuthPrompt({ tool, onClose }: { tool: Tool; onClose: () => void }) {
         <div className="px-6 pb-7 text-center">
           <h3 className="text-xl font-bold text-text-primary mb-2">Sign in to use {tool.name}</h3>
           <p className="text-sm text-text-muted leading-relaxed mb-6">
-            {tool.name} is a free tool for FlexBook members. Log in or create an account to start planning.
+            {tool.name} is a free tool for Flexbook members. Log in or create an account to start planning.
           </p>
           <div className="flex flex-col gap-2.5">
             <Link
@@ -211,7 +161,7 @@ export function ToolsScreen({ onMenuOpen }: Props) {
     <div className="max-w-xl">
       <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-soft border border-indigo-border mb-6">
         <Sparkles size={13} className="text-indigo" />
-        <span className="text-xs font-bold text-indigo tracking-wide uppercase">FlexBook Tools</span>
+        <span className="text-xs font-bold text-indigo tracking-wide uppercase">Flexbook Tools</span>
       </div>
 
       <h1
@@ -223,7 +173,7 @@ export function ToolsScreen({ onMenuOpen }: Props) {
 
       <p className="mt-5 text-base md:text-lg text-text-muted leading-7 max-w-[46ch]">
         A growing toolkit built for multi-stop travellers. Each tool tackles a
-        different part of the trip — pick one and let FlexBook do the heavy
+        different part of the trip — pick one and let Flexbook do the heavy
         lifting.
       </p>
 
@@ -232,7 +182,7 @@ export function ToolsScreen({ onMenuOpen }: Props) {
       <div className="mt-7 flex flex-wrap gap-3">
         <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-2 border border-border text-xs font-semibold text-text-secondary">
           <Sparkles size={11} className="text-indigo" />
-          {TOOLS.length} tool{TOOLS.length === 1 ? '' : 's'} live
+          {TOOLS_V2.length} tool{TOOLS_V2.length === 1 ? '' : 's'} live
         </span>
         <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald/10 border border-emerald/20 text-xs font-semibold text-emerald">
           <Check size={11} strokeWidth={3} />
@@ -244,7 +194,7 @@ export function ToolsScreen({ onMenuOpen }: Props) {
 
   const right = (
     <div className="flex flex-col gap-4">
-      {TOOLS.map((tool) => (
+      {TOOLS_V2.map((tool) => (
         <ToolCard key={tool.id} tool={tool} onOpen={openTool} />
       ))}
       <p className="text-center text-xs text-text-muted/70 pt-1">
@@ -258,7 +208,7 @@ export function ToolsScreen({ onMenuOpen }: Props) {
       <MarketingShell
         active="tools"
         title="Tools"
-        description="FlexBook Tools — smart planning utilities for multi-stop travellers, including Hop Planner (cheapest next-leg chain), When To Go (cheapest day to fly), and Budget Planner (multi-stop trip within your budget)."
+        description="Flexbook Tools — smart planning utilities for multi-stop travellers, including Trip Builder (cheapest next-leg chain), When to Go (cheapest day to fly), and Budget Planner (multi-stop trip within your budget)."
         onMenuOpen={onMenuOpen}
         left={left}
         right={right}

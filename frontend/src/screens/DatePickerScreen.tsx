@@ -57,7 +57,7 @@ export function DatePickerScreen() {
     ? `Departing from ${origin?.city.name}`
     : `Departing from ${legs.at(-1)?.destinationCity}`;
 
-  useDocumentTitle('Pick a departure date · FlexBook');
+  useDocumentTitle('Pick a departure date · Flexbook');
 
   return (
     <div className="px-4 pb-8 pt-4">

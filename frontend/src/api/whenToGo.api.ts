@@ -1,7 +1,7 @@
 import { apiClient } from './client';
 
 /**
- * When To Go — typed client for GET /flights/cheapest-day.
+ * When to Go — typed client for GET /flights/cheapest-day.
  * Mirrors backend/src/routes/cheapestDay.ts. Keep in sync.
  */
 

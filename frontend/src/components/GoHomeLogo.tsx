@@ -42,7 +42,7 @@ export function GoHomeLogo({ size = 'sm', variant = 'dark', onNavigate }: GoHome
     // is mostly a parser nudge.
     <img
       src={logoSrc}
-      alt="FlexBook"
+      alt="Flexbook"
       className={`${logoHeight} w-auto`}
       decoding="async"
       fetchPriority="high"

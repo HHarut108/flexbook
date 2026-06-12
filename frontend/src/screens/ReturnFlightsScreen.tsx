@@ -91,7 +91,7 @@ export function ReturnFlightsScreen() {
     return [...outboundLegs, previewLeg];
   }, [outboundLegs, pendingFlights]);
 
-  useDocumentTitle(`Fly home from ${currentCityName} · FlexBook`);
+  useDocumentTitle(`Fly home from ${currentCityName} · Flexbook`);
 
   return (
     /* App.tsx wraps `/return` in `h-screen overflow-hidden` so each panel can
