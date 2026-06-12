@@ -59,6 +59,7 @@ const AccountScreen         = lazyNamed(() => import('./screens/AccountScreen'),
 const ComingSoonScreen      = lazyNamed(() => import('./screens/ComingSoonScreen'),      'ComingSoonScreen');
 const HowItWorksScreenV2    = lazyNamed(() => import('./screens/HowItWorksScreenV2'),    'HowItWorksScreenV2');
 const ToolsScreen           = lazyNamed(() => import('./screens/ToolsScreen'),           'ToolsScreen');
+const NotFoundScreen        = lazyNamed(() => import('./screens/NotFoundScreen'),        'NotFoundScreen');
 
 // Suspense fallback: keep the chrome (ProgressBar/Toast) on screen and show
 // a subtle, delayed-fade-in spinner so the user gets feedback when they
@@ -186,6 +187,8 @@ export default function App() {
             <Route path="/book/partial" element={<BookingReviewScreen partial onMenuOpen={() => setDrawerOpen(true)} />} />
             <Route path="/plan"         element={<PlanStayScreen />} />
           </Route>
+
+          <Route path="*" element={<NotFoundScreen onMenuOpen={openDrawer} />} />
         </Routes>
       </Suspense>
     </div>
