@@ -42,19 +42,13 @@ export function ProgressBar({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const initials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : null;
   const { pathname } = useLocation();
 
-  // Hide the trip progress bar on the home + auth/account screens. The crumb row
-  // would otherwise render with a placeholder "?" because no trip origin is set yet,
-  // which looks like a broken badge next to the brand mark.
-  const HIDDEN_PATHS = new Set(['/', '/hop-planner', '/search', '/quick-search', '/trip-planner', '/when-to-go', '/book', '/book/partial', '/login', '/signup', '/verify-email', '/account', '/trips', '/deals', '/tools', '/about']);
-  // /trip/:id (new in-app booking-review screen) also shouldn't show the
-  // multi-stop progress strip — it belongs to the Quick Search flow, not
-  // the trip-builder. Same for /book/concierge/:tripId (the Booking Concierge
-  // stepper renders its own progress UI).
-  if (
-    HIDDEN_PATHS.has(pathname) ||
-    pathname.startsWith('/trip/') ||
-    pathname.startsWith('/book/concierge/')
-  ) return null;
+  // The trip progress bar belongs to the multi-stop builder funnel only — the
+  // screens between picking an origin and reviewing the trip. Show-list (not
+  // hide-list) so any new marketing/tool/auth route, including the catch-all
+  // 404, doesn't accidentally inherit the purple "stops left" strip with a
+  // placeholder "?" crumb.
+  const FUNNEL_PATHS = new Set(['/date', '/flights', '/stay', '/review', '/return', '/itinerary', '/plan']);
+  if (!FUNNEL_PATHS.has(pathname)) return null;
 
   const nonReturnLegs = legs.filter((l) => !l.isReturn);
   const stopCount = nonReturnLegs.length;
