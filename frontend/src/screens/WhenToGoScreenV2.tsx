@@ -626,4 +626,4 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 }
 
 // DateField removed — custom range now uses the shared DateRangePicker
-// (same single-month calendar Budget Planner uses).
+// (same single-month calendar Plan by Budget uses).

@@ -20,15 +20,17 @@ interface Props {
 }
 
 /**
- * Tool catalog — the only catalogue. Four entries: Quick Search, Trip Builder,
- * When to Go, Budget Planner. Names + URLs are stable; analytics dimensions
- * use the `id` field. If you rename, update the IDs separately and document
- * the analytics-event mapping in the PR.
+ * Tool catalog — the only catalogue. Four entries: Find a Flight, Trip
+ * Builder, When to Go, Plan by Budget. URLs (`/quick-search`,
+ * `/trip-planner`, `/when-to-go`, `/hop-planner`) and `id` fields are
+ * stable for analytics + shared-link compatibility — only display `name`
+ * is verb-led. If you rename, update the IDs separately and document the
+ * analytics-event mapping in the PR.
  */
-export const TOOLS_V2: Tool[] = [
+export const TOOLS: Tool[] = [
   {
     id: 'quick-search',
-    name: 'Quick Search',
+    name: 'Find a Flight',
     tagline: 'Cheapest one-way, return, or multi-city in seconds',
     description:
       "The classic search you already know — pick origin, destination, dates, and we'll show you the cheapest live fares. One-way, return, or full multi-city — no account needed.",
@@ -76,7 +78,7 @@ export const TOOLS_V2: Tool[] = [
   },
   {
     id: 'budget-planner',
-    name: 'Budget Planner',
+    name: 'Plan by Budget',
     tagline: 'Find a multi-stop adventure within your budget',
     description:
       'Tell us your starting point, travel dates, and a budget per person. We search live fares and build the cheapest multi-stop trip that fits — including return flights — so you can explore more for less.',
@@ -181,7 +183,7 @@ export function ToolsScreen({ onMenuOpen }: Props) {
       <div className="mt-7 flex flex-wrap gap-3">
         <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-2 border border-border text-xs font-semibold text-text-secondary">
           <Sparkles size={11} className="text-indigo" />
-          {TOOLS_V2.length} tool{TOOLS_V2.length === 1 ? '' : 's'} live
+          {TOOLS.length} tool{TOOLS.length === 1 ? '' : 's'} live
         </span>
         <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald/10 border border-emerald/20 text-xs font-semibold text-emerald">
           <Check size={11} strokeWidth={3} />
@@ -193,7 +195,7 @@ export function ToolsScreen({ onMenuOpen }: Props) {
 
   const right = (
     <div className="flex flex-col gap-4">
-      {TOOLS_V2.map((tool) => (
+      {TOOLS.map((tool) => (
         <ToolCard key={tool.id} tool={tool} onOpen={openTool} />
       ))}
       <p className="text-center text-xs text-text-muted/70 pt-1">
@@ -207,7 +209,7 @@ export function ToolsScreen({ onMenuOpen }: Props) {
       <MarketingShell
         active="tools"
         title="Tools"
-        description="Flexbook Tools — smart planning utilities for multi-stop travellers, including Trip Builder (cheapest next-leg chain), When to Go (cheapest day to fly), and Budget Planner (multi-stop trip within your budget)."
+        description="Flexbook Tools — smart planning utilities for multi-stop travellers, including Trip Builder (cheapest next-leg chain), When to Go (cheapest day to fly), and Plan by Budget (multi-stop trip within your budget)."
         onMenuOpen={onMenuOpen}
         left={left}
         right={right}

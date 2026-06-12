@@ -4,7 +4,7 @@ import { HomeHubCard } from '../components/HomeHubCard';
 import { HomeTestimonialBlock } from '../components/HomeTestimonialBlock';
 import { ToolCard } from '../components/ToolCard';
 import { ViewTransitionLink } from '../components/ViewTransitionLink';
-import { TOOLS_V2 } from './ToolsScreen';
+import { TOOLS } from './ToolsScreen';
 import { useAuthStore } from '../store/auth.store';
 import { intentPrefetch } from '../lib/routePrefetch';
 
@@ -83,7 +83,7 @@ export function HomeScreenV2({ onMenuOpen }: Props) {
 
           {/* Right — hub card */}
           <div className="lg:pt-2">
-            <HomeHubCard tools={TOOLS_V2} />
+            <HomeHubCard tools={TOOLS} />
           </div>
         </div>
       </section>
@@ -100,7 +100,7 @@ export function HomeScreenV2({ onMenuOpen }: Props) {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-          {TOOLS_V2.map((tool) => (
+          {TOOLS.map((tool) => (
             <ToolCard key={tool.id} tool={tool} variant="compact" />
           ))}
         </div>

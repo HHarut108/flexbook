@@ -40,7 +40,7 @@ export function Footer() {
             <ul className="space-y-3 text-sm">
               <li>
                 <Link to="/quick-search" className="text-text-muted hover:text-text-primary transition-colors">
-                  Quick Search
+                  Find a Flight
                 </Link>
               </li>
               <li>
@@ -55,7 +55,7 @@ export function Footer() {
               </li>
               <li>
                 <Link to="/trip-planner" className="text-text-muted hover:text-text-primary transition-colors">
-                  Budget Planner
+                  Plan by Budget
                 </Link>
               </li>
             </ul>

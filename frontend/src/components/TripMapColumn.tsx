@@ -13,7 +13,7 @@ interface Props {
   destination?: LocationSelection | null;
   /** Optional extra stops (Trip Builder) — drawn as via-points. */
   stops?: LocationSelection[];
-  /** Multi-leg route (Quick Search multi-city). Takes precedence over
+  /** Multi-leg route (Find a Flight multi-city). Takes precedence over
    *  origin/destination — every leg gets its own dashed line + markers. */
   legs?: MapLeg[];
   /** Hint shown in the top-left pill when only user-location is rendered. */
