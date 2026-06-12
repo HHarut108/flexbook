@@ -34,6 +34,8 @@ import { MobileViewToggle, type MobileView } from '../components/MobileViewToggl
 import { planBudgetTrip, BudgetPlanResult, BudgetPlanLeg } from '../api/budgetTrip.api';
 import { nearbyAirportsByCoords } from '../api/airports.api';
 import { persistSelectedTrip } from '../lib/selectedTrip';
+import { useCurrentPassport } from '../hooks/useCurrentPassport';
+import { VisaCheckPopup } from '../components/visa/VisaCheckPopup';
 import {
   saveBudgetSnapshot,
   loadBudgetSnapshot,
@@ -241,6 +243,14 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
   // Optimizer / trip style
   const [tripStyle, setTripStyle] = useState<TripStyle>('value');
 
+  // Visa-free escape needs a passport to filter destinations against. We read
+  // it from the unified resolver (session override → profile primary → none).
+  const { passport } = useCurrentPassport();
+  // Open the existing VisaCheckPopup when "Visa-free escape" is picked and we
+  // have no passport on file. The popup handles guest signup and the
+  // "save to profile" path internally; we just re-run the plan once it commits.
+  const [showPassportPopup, setShowPassportPopup] = useState(false);
+
   // Submit
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<BudgetPlanResult | null>(null);
@@ -353,6 +363,22 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
 
   async function handleSubmit() {
     if (!canSearch || !origin || destCount === null) return;
+    // Visa-free escape needs a passport. If we don't have one yet (guest, or
+    // signed-in user with no saved citizenship), open VisaCheckPopup and bail —
+    // the popup's onCommitted will call runPlan with the newly-chosen code.
+    if (tripStyle === 'visafree' && !passport) {
+      setError(null);
+      setShowPassportPopup(true);
+      return;
+    }
+    await runPlan(passport ?? undefined);
+  }
+
+  /** Actual API call. Split from handleSubmit so VisaCheckPopup can invoke it
+   *  directly with the freshly-committed passport code (avoids a render-cycle
+   *  race waiting for the hook value to propagate). */
+  async function runPlan(passportCodeOverride?: string) {
+    if (!canSearch || !origin || destCount === null) return;
     setLoading(true);
     setError(null);
     setResult(null);
@@ -371,6 +397,7 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
         nightsPerStop: Math.max(1, Math.floor(tripNights / maxStops)),
         nightsPerStopArray: destCount === 'max' ? undefined : nightsPerStopArr,
         tripStyle,
+        passportCode: tripStyle === 'visafree' ? passportCodeOverride : undefined,
       });
       setResult(res);
       setView('result');
@@ -423,6 +450,7 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
         nightsPerStop: Math.max(1, Math.floor(tripNights / maxStops)),
         nightsPerStopArray: destCount === 'max' ? undefined : nightsPerStopArr,
         tripStyle,
+        passportCode: tripStyle === 'visafree' ? passport ?? undefined : undefined,
         excludedDestinations: nextExcluded,
       });
       setResult(res);
@@ -856,6 +884,19 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
             user already has one reachable modify-search affordance, so
             we don't need this fallback any more. */}
       </section>
+
+      {showPassportPopup && (
+        <VisaCheckPopup
+          onClose={() => setShowPassportPopup(false)}
+          onCommitted={(code) => {
+            setShowPassportPopup(false);
+            // The committed code is already in the session store via
+            // useCurrentPassport.setPassport, but the hook value won't update
+            // until the next render — pass it explicitly so runPlan sees it.
+            runPlan(code);
+          }}
+        />
+      )}
     </MarketingShellV2>
   );
 }
