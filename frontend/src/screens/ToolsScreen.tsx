@@ -168,13 +168,12 @@ export function ToolsScreen({ onMenuOpen }: Props) {
         className="font-black text-text-primary leading-[0.95]"
         style={{ fontSize: 'clamp(2.6rem, 5.2vw, 4.6rem)', letterSpacing: '-0.055em' }}
       >
-        Smarter ways to <span className="text-indigo">explore</span>.
+        One toolkit. <span className="text-indigo">Four</span> entry points.
       </h1>
 
       <p className="mt-5 text-base md:text-lg text-text-muted leading-7 max-w-[46ch]">
-        A growing toolkit built for multi-stop travellers. Each tool tackles a
-        different part of the trip — pick one and let Flexbook do the heavy
-        lifting.
+        Cheaper trips. More stops. No account. Pick the tool that matches
+        what you already know — Flexbook handles the rest.
       </p>
 
       {/* Tool count + free-tier callout so the rail still has personality

@@ -23,7 +23,7 @@ export function HomeScreenV2({ onMenuOpen }: Props) {
     <MarketingShellV2
       active="home"
       title="Flexbook"
-      description="Travel more. Learn more. Spend less. Chain the cheapest multi-stop flights across Europe — no account, ever."
+      description="Cheaper trips. More stops. No account. Chain live one-way fares into one flexible multi-stop trip across Europe."
       onMenuOpen={onMenuOpen}
     >
       {/* ============ HERO ============ */}
@@ -54,10 +54,10 @@ export function HomeScreenV2({ onMenuOpen }: Props) {
               className="font-black text-text-primary leading-[0.95]"
               style={{ fontSize: 'clamp(1.6rem, 6vw, 5rem)', letterSpacing: '-0.06em' }}
             >
-              Travel&nbsp;more.<br />
-              Learn&nbsp;more.<br />
+              Cheaper&nbsp;trips.<br />
+              More&nbsp;stops.<br />
               <span className="relative inline-block">
-                Spend&nbsp;<span className="text-indigo">less</span>
+                No&nbsp;<span className="text-indigo">account</span>
                 <span
                   className="absolute -right-[0.4em] -top-[0.15em] font-black text-orange select-none"
                   style={{ fontSize: '1.6em', lineHeight: 1 }}
@@ -69,8 +69,8 @@ export function HomeScreenV2({ onMenuOpen }: Props) {
             </h1>
 
             <p className="mt-3 md:mt-6 text-[13px] md:text-lg text-text-muted leading-5 md:leading-7 max-w-[48ch]">
-              Flexible by design. Cheaper by default. Live fares, flex dates,
-              open-ended trips — no account, no upsell, no markup.
+              Chain live one-way fares into one flexible multi-stop trip.
+              No login, no markup.
             </p>
 
             {/* Stats: desktop only. */}
@@ -95,7 +95,7 @@ export function HomeScreenV2({ onMenuOpen }: Props) {
             className="font-black text-text-primary leading-tight"
             style={{ fontSize: 'clamp(1.5rem, 4.4vw, 3.4rem)', letterSpacing: '-0.04em' }}
           >
-            Cheaper flights. Bigger trips. Zero markup.
+            Four tools. One job.
           </h2>
         </div>
 
