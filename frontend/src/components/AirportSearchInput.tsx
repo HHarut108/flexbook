@@ -13,7 +13,7 @@ interface Props {
   autoFocus?: boolean;
   ariaLabel?: string;
   /** Show the prominent orange search affordance inside the input. Used on the
-   *  Hop Planner where the airport input is the primary call to action. */
+   *  Trip Builder where the airport input is the primary call to action. */
   accentButton?: boolean;
   /** Pre-seed the "already selected" label so a hydrated input (e.g. when an
    *  Edit Search panel opens with values restored from URL state) doesn't

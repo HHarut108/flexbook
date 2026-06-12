@@ -16,9 +16,9 @@ const PROMISES: { icon: React.ReactNode; text: string }[] = [
 const STEPS: { n: number; title: string; body: string; icon: React.ReactNode; tone: string }[] = [
   {
     n: 1,
-    title: 'Pick how you want to start',
+    title: "Start with Trip Builder — it's the flagship.",
     body:
-      "Know the route? Use Quick Search. Have a city? Open Trip Builder. Got dates but no plan? When to Go. Just a budget? Budget Planner.",
+      "Pick a starting airport, see the cheapest flights out, then keep going — one hop at a time. The other three tools are shortcuts for when you already know the route, the dates, or the budget.",
     icon: <Search size={18} className="text-sky" />,
     tone: 'bg-sky-soft',
   },
@@ -61,12 +61,12 @@ export function HowItWorksScreenV2({ onMenuOpen }: Props) {
               className="font-black text-text-primary leading-[0.95]"
               style={{ fontSize: 'clamp(2.4rem, 5.4vw, 4.4rem)', letterSpacing: '-0.045em' }}
             >
-              Travel further.<br />
-              <span className="text-indigo">Adventure</span> more.
+              Cheaper trips.<br />
+              More stops. <span className="text-indigo">No account.</span>
             </h1>
 
             <p className="mt-6 text-base md:text-lg text-text-muted leading-7 max-w-[48ch]">
-              Flexbook flips the fixed round-trip model. We find the cheapest available flight from wherever you are right now, then let you keep going — the cheapest next hop, one tap at a time.
+              Flexbook flips the fixed round-trip model. We price the cheapest live one-way fare from wherever you are right now, then let you keep going — the cheapest next hop, one tap at a time. No login required.
             </p>
 
             <ul className="mt-7 space-y-2.5">
@@ -166,10 +166,10 @@ export function HowItWorksScreenV2({ onMenuOpen }: Props) {
             </p>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <ToolPill icon={<Search size={15} />} label="Quick Search" to="/quick-search" />
+            <ToolPill icon={<Search size={15} />} label="Find a Flight" to="/quick-search" />
             <ToolPill icon={<Waypoints size={15} />} label="Trip Builder" to="/hop-planner" />
             <ToolPill icon={<CalendarSearch size={15} />} label="When to Go" to="/when-to-go" />
-            <ToolPill icon={<Wallet size={15} />} label="Budget Planner" to="/trip-planner" />
+            <ToolPill icon={<Wallet size={15} />} label="Plan by Budget" to="/trip-planner" />
           </div>
         </div>
       </section>

@@ -313,7 +313,7 @@ export function PlanStayScreen() {
     </div>
   );
 
-  useDocumentTitle(`Plan your stay in ${destinationCity} · FlexBook`);
+  useDocumentTitle(`Plan your stay in ${destinationCity} · Flexbook`);
 
   return (
     <div className="animate-fade-in md:flex md:items-start md:gap-0 md:max-w-6xl md:mx-auto xl:max-w-7xl">

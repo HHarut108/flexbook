@@ -87,8 +87,8 @@ export function DecisionScreen() {
 
   useDocumentTitle(
     hasLegs && lastLeg
-      ? `What's next from ${lastLeg.destinationCity}? · FlexBook`
-      : "What's next? · FlexBook",
+      ? `What's next from ${lastLeg.destinationCity}? · Flexbook`
+      : "What's next? · Flexbook",
   );
 
   // Early return must happen AFTER every hook call above so the hook order is

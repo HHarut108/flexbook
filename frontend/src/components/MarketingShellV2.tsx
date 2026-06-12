@@ -49,15 +49,15 @@ export function MarketingShellV2({
   const initials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : null;
   // QA W1/W2: avoid the doubled "Flexbook — Flexbook" tab title that fires
   // when a screen passes the brand name as its own title (e.g. HomeScreenV2),
-  // and align both V1 and V2 shells on the same capitalization ("FlexBook").
-  // - When the page passes "Flexbook" / "FlexBook" / "" → use the brand
-  //   alone, not "Brand — Brand".
-  // - Otherwise → "{title} — FlexBook" with the canonical brand casing.
+  // and align both V1 and V2 shells on the same capitalization ("Flexbook").
+  // - When the page passes "Flexbook" / any case variant / "" → use the
+  //   brand alone, not "Brand — Brand".
+  // - Otherwise → "{title} — Flexbook" with the canonical brand casing.
   const normalisedTitle = (title ?? '').trim();
   const isBrandOnly =
     normalisedTitle === '' ||
     normalisedTitle.toLowerCase() === 'flexbook';
-  useDocumentTitle(isBrandOnly ? 'FlexBook' : `${normalisedTitle} — FlexBook`);
+  useDocumentTitle(isBrandOnly ? 'Flexbook' : `${normalisedTitle} — Flexbook`);
   useMetaDescription(description);
 
   return (

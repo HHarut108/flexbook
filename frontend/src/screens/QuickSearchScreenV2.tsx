@@ -48,9 +48,11 @@ function emptyLeg(date: string, fromAirport: LocationSelection | null = null): L
 }
 
 /**
- * V2 redesign of the Quick Search (formerly the home form). Wrapped in
- * MarketingShellV2. Submits the same /search?... params as V1 so the
- * downstream flow is unchanged.
+ * V2 redesign of "Find a Flight" (formerly the home form, previously
+ * displayed as "Quick Search"). Route stays at `/quick-search` for
+ * shared-link compatibility; only the display name is verb-led.
+ * Wrapped in MarketingShellV2. Submits the same /search?... params as
+ * V1 so the downstream flow is unchanged.
  */
 export function QuickSearchScreenV2({ onMenuOpen }: Props) {
   const navigate = useNavigate();
@@ -115,8 +117,8 @@ export function QuickSearchScreenV2({ onMenuOpen }: Props) {
   return (
     <MarketingShellV2
       active="search"
-      title="Quick Search"
-      description="Search the cheapest one-way, return, or multi-city flights. Live fares, no account needed."
+      title="Find a Flight"
+      description="Find the cheapest one-way, return, or multi-city flights. Live fares, no account needed."
       onMenuOpen={onMenuOpen}
     >
       <section className="max-w-6xl xl:max-w-7xl mx-auto px-5 md:px-8 lg:px-10 pt-6 md:pt-14 pb-10">
@@ -128,7 +130,7 @@ export function QuickSearchScreenV2({ onMenuOpen }: Props) {
           {/* LEFT: hero + (mobile toggle) + map */}
           <div>
             <V2ToolHero
-              toolName="Quick Search"
+              toolName="Find a Flight"
               titleLine1="Find your"
               titleAccent="flight"
               subhead="Compare cheapest fares across millions of routes. One-way, return, or multi-city — pick the option that fits."

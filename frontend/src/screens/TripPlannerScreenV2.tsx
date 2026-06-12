@@ -212,10 +212,11 @@ function NightsPerStopEditor({
 }
 
 /* ════════════════════════════════════════════════════════════
-   V2 Budget Planner — keeps the slider-driven layout and adds
+   V2 Plan by Budget — keeps the slider-driven layout and adds
    the V1 flow fields the user asked for: travel-window date
    range, passengers stepper, destinations with Auto, per-stop
    nights editor. Submits to the same /trips/budget-plan API.
+   (Display name was renamed from "Budget Planner" in PR 3.)
    ════════════════════════════════════════════════════════════ */
 
 export function TripPlannerScreenV2({ onMenuOpen }: Props) {
@@ -508,7 +509,7 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
   return (
     <MarketingShellV2
       active="budget"
-      title="Budget Planner"
+      title="Plan by Budget"
       description="Set a budget — we build the cheapest multi-stop trip that fits."
       onMenuOpen={onMenuOpen}
     >
@@ -518,7 +519,7 @@ export function TripPlannerScreenV2({ onMenuOpen }: Props) {
           {/* LEFT: hero + (mobile toggle, result-only) + map */}
           <div>
             <V2ToolHero
-              toolName="Budget Planner"
+              toolName="Plan by Budget"
               titleLine1="Plan within your"
               titleAccent="budget"
               subhead="Set a total budget per person — we search live fares and assemble the cheapest multi-stop trip that fits, return flights included."
@@ -1036,8 +1037,8 @@ function ResultPanel({
         </div>
       </div>
 
-      {/* Book hero CTA — same pattern Quick Search / Trip Builder uses to
-          hand off to /trip/:id where each leg's booking link lives. The
+      {/* Book hero CTA — same pattern Find a Flight / Trip Builder uses
+          to hand off to /trip/:id where each leg's booking link lives. The
           modify-search hyperlink sits below per the user's "keep the reset
           hyperlink below the CTA" requirement. */}
       <div className="flex flex-col items-center gap-3 pt-1">

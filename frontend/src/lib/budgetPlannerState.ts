@@ -1,7 +1,7 @@
 import type { Airport } from '@fast-travel/shared';
 import type { BudgetPlanResult } from '../api/budgetTrip.api';
 
-/** A snapshot of the V2 Budget Planner's form + last result. Persisted to
+/** A snapshot of the V2 Plan by Budget form + last result. Persisted to
  *  sessionStorage so a refresh on the result view restores the trip plan
  *  instead of dropping the user back at empty inputs. Cleared by the
  *  "Modify search" link and overwritten by each new submit. */

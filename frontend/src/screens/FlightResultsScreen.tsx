@@ -368,8 +368,8 @@ export function FlightResultsScreen() {
   }
 
   const title = isFirstStop
-    ? `Flights from ${currentCityName} · FlexBook`
-    : `Next hop from ${currentCityName} · FlexBook`;
+    ? `Flights from ${currentCityName} · Flexbook`
+    : `Next hop from ${currentCityName} · Flexbook`;
 
   const backLabel = isFirstStop ? 'Change search' : 'Back to plan';
   // Per-leg ordinal note rendered as a small label in the aside (replaces the

@@ -89,13 +89,13 @@ export function ItineraryScreen() {
     ? [origin.city.name, ...legs.map((l) => l.destinationCity)].join(' → ')
     : 'Your trip';
 
-  useDocumentTitle(`${routeLabel} · FlexBook`);
+  useDocumentTitle(`${routeLabel} · Flexbook`);
   useDocumentMeta({ name: 'description' }, `${legs.length} flights · ${routeLabel}. View and book your full trip plan.`);
-  useDocumentMeta({ property: 'og:title' }, `My FlexBook trip: ${routeLabel}`);
-  useDocumentMeta({ property: 'og:description' }, `${legs.length} flights, estimated total $${Math.round(total)}. Plan yours at flexbook.travel`);
+  useDocumentMeta({ property: 'og:title' }, `My Flexbook trip: ${routeLabel}`);
+  useDocumentMeta({ property: 'og:description' }, `${legs.length} flights, estimated total $${Math.round(total)}. Plan yours at flexbook.space`);
   useDocumentMeta({ property: 'og:type' }, 'website');
   useDocumentMeta({ name: 'twitter:card' }, 'summary');
-  useDocumentMeta({ name: 'twitter:title' }, `My FlexBook trip: ${routeLabel}`);
+  useDocumentMeta({ name: 'twitter:title' }, `My Flexbook trip: ${routeLabel}`);
   useDocumentMeta({ name: 'twitter:description' }, `${legs.length} flights · estimated $${Math.round(total)}`);
 
   return (

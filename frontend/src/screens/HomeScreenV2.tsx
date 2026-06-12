@@ -1,10 +1,10 @@
-import { Send, Wallet } from 'lucide-react';
+import { Send, Wallet, TrendingDown, ArrowRight } from 'lucide-react';
 import { MarketingShellV2 } from '../components/MarketingShellV2';
-import { HomeHubCard } from '../components/HomeHubCard';
+import { HomeRouterCard } from '../components/HomeRouterCard';
 import { HomeTestimonialBlock } from '../components/HomeTestimonialBlock';
 import { ToolCard } from '../components/ToolCard';
 import { ViewTransitionLink } from '../components/ViewTransitionLink';
-import { TOOLS_V2 } from './ToolsScreen';
+import { TOOLS } from './ToolsScreen';
 import { useAuthStore } from '../store/auth.store';
 import { intentPrefetch } from '../lib/routePrefetch';
 
@@ -23,7 +23,7 @@ export function HomeScreenV2({ onMenuOpen }: Props) {
     <MarketingShellV2
       active="home"
       title="Flexbook"
-      description="Travel more. Learn more. Spend less. Chain the cheapest multi-stop flights across Europe — no account, ever."
+      description="Cheaper trips. More stops. No account. Chain live one-way fares into one flexible multi-stop trip across Europe."
       onMenuOpen={onMenuOpen}
     >
       {/* ============ HERO ============ */}
@@ -54,10 +54,10 @@ export function HomeScreenV2({ onMenuOpen }: Props) {
               className="font-black text-text-primary leading-[0.95]"
               style={{ fontSize: 'clamp(1.6rem, 6vw, 5rem)', letterSpacing: '-0.06em' }}
             >
-              Travel&nbsp;more.<br />
-              Learn&nbsp;more.<br />
+              Cheaper&nbsp;trips.<br />
+              More&nbsp;stops.<br />
               <span className="relative inline-block">
-                Spend&nbsp;<span className="text-indigo">less</span>
+                No&nbsp;<span className="text-indigo">account</span>
                 <span
                   className="absolute -right-[0.4em] -top-[0.15em] font-black text-orange select-none"
                   style={{ fontSize: '1.6em', lineHeight: 1 }}
@@ -69,9 +69,36 @@ export function HomeScreenV2({ onMenuOpen }: Props) {
             </h1>
 
             <p className="mt-3 md:mt-6 text-[13px] md:text-lg text-text-muted leading-5 md:leading-7 max-w-[48ch]">
-              Flexible by design. Cheaper by default. Live fares, flex dates,
-              open-ended trips — no account, no upsell, no markup.
+              Chain live one-way fares into one flexible multi-stop trip.
+              No login, no markup.
             </p>
+
+            {/* Featured route — verifiable proof point. Deep-links into When
+                to Go which auto-prefills and auto-runs the search, so one tap
+                takes the visitor from "we say it's cheap" to "real fare for a
+                real route on a real day." When this route stops impressing, swap
+                the from/to params; everything downstream is live. */}
+            <ViewTransitionLink
+              to="/when-to-go?from=BER&to=TBS"
+              {...intentPrefetch('/when-to-go')}
+              className="group inline-flex items-center gap-3 mt-4 md:mt-6 px-3 py-2 md:px-4 md:py-2.5 rounded-2xl bg-surface border border-border hover:border-orange/40 hover:bg-orange-soft/40 transition-all active:scale-[0.99]"
+            >
+              <span className="w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center shrink-0 bg-orange-soft border border-orange/20">
+                <TrendingDown size={15} className="text-orange" strokeWidth={2.4} />
+              </span>
+              <span className="flex flex-col text-left">
+                <span className="text-[10px] md:text-[11px] font-extrabold uppercase tracking-[0.14em] text-orange leading-none">
+                  Try a real route
+                </span>
+                <span className="text-sm md:text-base font-bold text-text-primary leading-tight mt-0.5">
+                  Berlin → Tbilisi · cheapest day today
+                </span>
+              </span>
+              <ArrowRight
+                size={14}
+                className="text-text-muted group-hover:text-orange shrink-0 transition-colors"
+              />
+            </ViewTransitionLink>
 
             {/* Stats: desktop only. */}
             <div className="hidden md:flex items-end gap-12 mt-9">
@@ -81,9 +108,13 @@ export function HomeScreenV2({ onMenuOpen }: Props) {
             </div>
           </div>
 
-          {/* Right — hub card */}
+          {/* Right — router card. Replaces the prior HomeHubCard (still in
+              the codebase at components/HomeHubCard.tsx — revert is a
+              one-line swap if the router underperforms). Picks fire
+              `HomeRouterPick` so we can measure router→tool conversion
+              vs the historical hub click-through. */}
           <div className="lg:pt-2">
-            <HomeHubCard tools={TOOLS_V2} />
+            <HomeRouterCard tools={TOOLS} />
           </div>
         </div>
       </section>
@@ -95,12 +126,12 @@ export function HomeScreenV2({ onMenuOpen }: Props) {
             className="font-black text-text-primary leading-tight"
             style={{ fontSize: 'clamp(1.5rem, 4.4vw, 3.4rem)', letterSpacing: '-0.04em' }}
           >
-            Cheaper flights. Bigger trips. Zero markup.
+            Four tools. One job.
           </h2>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-          {TOOLS_V2.map((tool) => (
+          {TOOLS.map((tool) => (
             <ToolCard key={tool.id} tool={tool} variant="compact" />
           ))}
         </div>
