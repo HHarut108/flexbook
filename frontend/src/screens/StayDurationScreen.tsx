@@ -74,7 +74,7 @@ export function StayDurationScreen() {
   const priorLegs = legs.filter((l) => !l.isReturn);
   const destinationCity = selectedFlight.destinationCity;
   const destinationCountryName = countryDisplayName(selectedFlight.destinationCountry);
-  useDocumentTitle(`Stay in ${destinationCity} · FlexBook`);
+  useDocumentTitle(`Stay in ${destinationCity} · Flexbook`);
 
   return (
     <div className="max-w-6xl xl:max-w-7xl mx-auto px-5 md:px-8 lg:px-10 pt-6 md:pt-10 pb-10 md:pb-16">

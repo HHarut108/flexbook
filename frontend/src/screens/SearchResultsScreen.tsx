@@ -233,7 +233,7 @@ function ToolCrossSell() {
       <div className="flex items-center gap-2 mb-3">
         <Sparkles size={14} className="text-indigo" />
         <p className="text-xs font-bold uppercase tracking-wider text-indigo">
-          No luck? Try a FlexBook tool
+          No luck? Try a Flexbook tool
         </p>
       </div>
       <p className="text-sm text-text-muted mb-4">
@@ -251,7 +251,7 @@ function ToolCrossSell() {
             <Waypoints size={18} className="text-white" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-text-primary">Hop Planner</p>
+            <p className="text-sm font-bold text-text-primary">Trip Builder</p>
             <p className="text-[11px] text-text-muted truncate">
               Chain the cheapest one-way fares
             </p>
@@ -269,7 +269,7 @@ function ToolCrossSell() {
             <CalendarSearch size={18} className="text-white" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-text-primary">When To Go</p>
+            <p className="text-sm font-bold text-text-primary">When to Go</p>
             <p className="text-[11px] text-text-muted truncate">
               Find the cheapest day to fly
             </p>

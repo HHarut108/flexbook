@@ -38,12 +38,12 @@ export function MarketingShell({ active, title, description, onMenuOpen, left, r
   const user = useAuthStore((s) => s.user);
   const initials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : null;
   // QA W2: align with MarketingShellV2's title rules so "Tools" and a V2
-  // screen both produce "{title} — FlexBook" with the canonical brand casing.
+  // screen both produce "{title} — Flexbook" with the canonical brand casing.
   const normalisedTitle = (title ?? '').trim();
   const isBrandOnly =
     normalisedTitle === '' ||
     normalisedTitle.toLowerCase() === 'flexbook';
-  useDocumentTitle(isBrandOnly ? 'FlexBook' : `${normalisedTitle} — FlexBook`);
+  useDocumentTitle(isBrandOnly ? 'Flexbook' : `${normalisedTitle} — Flexbook`);
   useMetaDescription(description);
 
   return (

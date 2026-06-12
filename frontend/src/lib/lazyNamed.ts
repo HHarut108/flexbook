@@ -16,7 +16,7 @@ import { lazy, type ComponentType } from 'react';
  *
  * Module record is typed loosely (`Record<string, unknown>`) so modules that
  * also re-export non-component values (constants, types, helpers like
- * `ToolsScreen` does with TOOLS) don't trip TypeScript when passed in.
+ * `ToolsScreen` does with TOOLS_V2) don't trip TypeScript when passed in.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any -- intentional:
  * the props of the underlying screen vary per call site; ComponentType<any>

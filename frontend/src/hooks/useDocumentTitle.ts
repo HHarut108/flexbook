@@ -10,7 +10,7 @@ import { useEffect } from 'react';
  *   that run under jsdom but ssr-mode imports).
  *
  * Usage:
- *   useDocumentTitle(`Stay in ${destinationCity} · FlexBook`);
+ *   useDocumentTitle(`Stay in ${destinationCity} · Flexbook`);
  *
  * Why not Helmet? `react-helmet-async` ships ~12 KB and pulls in
  * `react-fast-compare` + its own context. For this app — which only ever

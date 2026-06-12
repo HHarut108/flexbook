@@ -115,7 +115,7 @@ function AutoFit({ pins }: { pins: MapPin[] }) {
 }
 
 /* ── Pinless mode controller ──
- * When the map has no pins (empty state on the When To Go / Trip Planner
+ * When the map has no pins (empty state on the When to Go / Trip Planner
  * screens before a route is picked), drive the center imperatively so it
  * can react to async geolocation. MapContainer.center is honoured only on
  * first render, so we use map.setView() here.

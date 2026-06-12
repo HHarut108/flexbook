@@ -10,7 +10,7 @@ const DEBOUNCE_MS = 150;
 
 // Routes that own their own URL state and should never carry the trip-store
 // `?t=` / session `?s=` params. `/` is the generic flight-search home;
-// `/hop-planner` is the Hop Planner entry point (origin not yet picked);
+// `/hop-planner` is the Trip Builder entry point (origin not yet picked);
 // `/search` carries its own search-form params (origin/destination/depart/...).
 const HOME_LIKE_PATHS = new Set(['/', '/hop-planner', '/search']);
 

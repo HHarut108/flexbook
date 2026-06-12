@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 /* ────────────────────────────────────────────────────────────────────────────
    DateRangePicker — single-month calendar with prev/next month navigation.
    Range-select: tap once for the start date, again for the end date. Used by
-   the V2 Budget Planner and When To Go custom-range form.
+   the V2 Budget Planner and When to Go custom-range form.
 
    Pagination is intentionally one *month* at a time (not one week) so the
    header always reads "June 2026" and the user always knows what they're
