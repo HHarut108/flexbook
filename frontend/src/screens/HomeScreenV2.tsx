@@ -1,4 +1,4 @@
-import { Send, Wallet } from 'lucide-react';
+import { Send, Wallet, TrendingDown, ArrowRight } from 'lucide-react';
 import { MarketingShellV2 } from '../components/MarketingShellV2';
 import { HomeHubCard } from '../components/HomeHubCard';
 import { HomeTestimonialBlock } from '../components/HomeTestimonialBlock';
@@ -72,6 +72,33 @@ export function HomeScreenV2({ onMenuOpen }: Props) {
               Chain live one-way fares into one flexible multi-stop trip.
               No login, no markup.
             </p>
+
+            {/* Featured route — verifiable proof point. Deep-links into When
+                to Go which auto-prefills and auto-runs the search, so one tap
+                takes the visitor from "we say it's cheap" to "real fare for a
+                real route on a real day." When this route stops impressing, swap
+                the from/to params; everything downstream is live. */}
+            <ViewTransitionLink
+              to="/when-to-go?from=BER&to=TBS"
+              {...intentPrefetch('/when-to-go')}
+              className="group inline-flex items-center gap-3 mt-4 md:mt-6 px-3 py-2 md:px-4 md:py-2.5 rounded-2xl bg-surface border border-border hover:border-orange/40 hover:bg-orange-soft/40 transition-all active:scale-[0.99]"
+            >
+              <span className="w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center shrink-0 bg-orange-soft border border-orange/20">
+                <TrendingDown size={15} className="text-orange" strokeWidth={2.4} />
+              </span>
+              <span className="flex flex-col text-left">
+                <span className="text-[10px] md:text-[11px] font-extrabold uppercase tracking-[0.14em] text-orange leading-none">
+                  Try a real route
+                </span>
+                <span className="text-sm md:text-base font-bold text-text-primary leading-tight mt-0.5">
+                  Berlin → Tbilisi · cheapest day today
+                </span>
+              </span>
+              <ArrowRight
+                size={14}
+                className="text-text-muted group-hover:text-orange shrink-0 transition-colors"
+              />
+            </ViewTransitionLink>
 
             {/* Stats: desktop only. */}
             <div className="hidden md:flex items-end gap-12 mt-9">
