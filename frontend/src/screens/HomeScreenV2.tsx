@@ -1,6 +1,6 @@
 import { Send, Wallet, TrendingDown, ArrowRight } from 'lucide-react';
 import { MarketingShellV2 } from '../components/MarketingShellV2';
-import { HomeHubCard } from '../components/HomeHubCard';
+import { HomeRouterCard } from '../components/HomeRouterCard';
 import { HomeTestimonialBlock } from '../components/HomeTestimonialBlock';
 import { ToolCard } from '../components/ToolCard';
 import { ViewTransitionLink } from '../components/ViewTransitionLink';
@@ -108,9 +108,13 @@ export function HomeScreenV2({ onMenuOpen }: Props) {
             </div>
           </div>
 
-          {/* Right — hub card */}
+          {/* Right — router card. Replaces the prior HomeHubCard (still in
+              the codebase at components/HomeHubCard.tsx — revert is a
+              one-line swap if the router underperforms). Picks fire
+              `HomeRouterPick` so we can measure router→tool conversion
+              vs the historical hub click-through. */}
           <div className="lg:pt-2">
-            <HomeHubCard tools={TOOLS} />
+            <HomeRouterCard tools={TOOLS} />
           </div>
         </div>
       </section>

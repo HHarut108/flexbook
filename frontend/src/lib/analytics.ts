@@ -39,6 +39,11 @@ export const AnalyticsEvent = {
   WhenToGoSearch: 'when_to_go_search',
   WhenToGoCtaClick: 'when_to_go_cta_click',
   WhenToGoWindowPreset: 'when_to_go_window_preset',
+  // Home router — fires when a visitor picks one of the four "What are you
+  // starting with?" options on the V2 home (HomeRouterCard). Properties:
+  //   { pick: 'route' | 'dates' | 'budget' | 'open', tool: <tool id> }
+  // We need this to compare router conversion against the prior 4-card hub.
+  HomeRouterPick: 'home_router_pick',
 } as const;
 
 type AnalyticsEventName =
