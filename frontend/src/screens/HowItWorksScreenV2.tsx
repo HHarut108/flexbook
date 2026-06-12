@@ -166,10 +166,10 @@ export function HowItWorksScreenV2({ onMenuOpen }: Props) {
             </p>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <ToolPill icon={<Search size={15} />} label="Quick Search" to="/quick-search" />
+            <ToolPill icon={<Search size={15} />} label="Find a Flight" to="/quick-search" />
             <ToolPill icon={<Waypoints size={15} />} label="Trip Builder" to="/hop-planner" />
             <ToolPill icon={<CalendarSearch size={15} />} label="When to Go" to="/when-to-go" />
-            <ToolPill icon={<Wallet size={15} />} label="Budget Planner" to="/trip-planner" />
+            <ToolPill icon={<Wallet size={15} />} label="Plan by Budget" to="/trip-planner" />
           </div>
         </div>
       </section>

@@ -393,7 +393,7 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
   }, [orderedLegs]);
 
   // DIY path: persist the trip to sessionStorage so the BookingConciergeScreen
-  // can load it by id (same mechanism Quick Search uses for /trip/:id). Then
+  // can load it by id (same mechanism Find a Flight uses for /trip/:id). Then
   // navigate to /book/concierge/:id where the user walks through each leg's
   // unified Kiwi /booking/?token= checkout one at a time.
   const handleStartConcierge = useCallback(() => {
@@ -419,7 +419,7 @@ export function BookingReviewScreen({ partial = false, onMenuOpen }: { partial?:
   // Single-leg edge case (typically a Trip Builder user who added exactly one
   // stop with no return). One ticket = one Kiwi /booking/?token= — there's no
   // checklist to manage, so don't burden the user with the DIY-vs-Assisted
-  // choice. Match the Quick Search one-way/round-trip UX: a single direct CTA.
+  // choice. Match the Find a Flight one-way/round-trip UX: a single direct CTA.
   // Anything ≥2 legs is genuinely N separate tickets — that's where the
   // BookingChoice (and the Concierge stepper or Assistance request) earns
   // its keep.

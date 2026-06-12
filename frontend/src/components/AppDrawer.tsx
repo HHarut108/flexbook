@@ -11,7 +11,7 @@ import { formatPrice } from '../utils/price.utils';
 import { useThemeStore } from '../store/theme.store';
 import { X, MapPin, Share2, Trash2, Plane, BookmarkCheck, Loader2, Sun, Moon, User, LogOut, ChevronRight, ChevronDown } from 'lucide-react';
 import { GoHomeLogo } from './GoHomeLogo';
-import { TOOLS_V2 } from '../screens/ToolsScreen';
+import { TOOLS } from '../screens/ToolsScreen';
 import { intentPrefetch } from '../lib/routePrefetch';
 
 interface Props {
@@ -312,11 +312,11 @@ export function AppDrawer({ open, onClose }: Props) {
               )}
             </div>
 
-            {/* Tools — all 4 from TOOLS_V2 */}
+            {/* Tools — all 4 from TOOLS */}
             <div className="px-5 pb-5 pt-2 border-t border-border">
               <h3 className="text-sm font-bold uppercase tracking-wider text-text-muted mb-3 mt-3">Tools</h3>
               <div className="space-y-2">
-                {TOOLS_V2.map((tool) => {
+                {TOOLS.map((tool) => {
                   const Icon = tool.icon;
                   return (
                     <button

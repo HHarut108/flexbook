@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 
 interface Props {
-  /** Appears after "FLEXBOOK TOOL · " in the orange tracked badge. */
+  /** Appears after "FLEXBOOK TOOL · " in the orange tracked badge (rendered
+   *  as "Flexbook tool · {toolName}" with the canonical brand casing). */
   toolName: string;
   /** First line of the headline, rendered in default text colour. */
   titleLine1: string;

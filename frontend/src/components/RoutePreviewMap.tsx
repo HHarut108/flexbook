@@ -89,11 +89,11 @@ export interface MapLeg {
 }
 
 interface Props {
-  /** Single-route preview (used by Quick Search one-way/return + others). */
+  /** Single-route preview (used by Find a Flight one-way/return + others). */
   origin?: LocationSelection | null;
   destination?: LocationSelection | null;
   stops?: LocationSelection[];
-  /** Multi-leg preview (Quick Search multi-city). When provided, takes
+  /** Multi-leg preview (Find a Flight multi-city). When provided, takes
    *  precedence: every leg gets its own dashed polyline + markers. */
   legs?: MapLeg[];
   /** Fallback coords used when nothing else is on the map — drops a small

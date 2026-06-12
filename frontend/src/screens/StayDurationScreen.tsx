@@ -80,7 +80,7 @@ export function StayDurationScreen() {
     <div className="max-w-6xl xl:max-w-7xl mx-auto px-5 md:px-8 lg:px-10 pt-6 md:pt-10 pb-10 md:pb-16">
 
       {/* Two-column on lg+: hero on the left, picker card on the right. Mobile
-          stacks them. Matches the V2 Trip Builder / Quick Search shells. */}
+          stacks them. Matches the V2 Trip Builder / Find a Flight shells. */}
       <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-6 lg:gap-10">
         {/* LEFT — hero */}
         <div>
