@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { airlineLogoService } from '../services/AirlineLogoService';
 import { fail, ok } from '../utils/response';
+import { setCacheControl, CACHE_CONTROL } from '../utils/httpCache';
 
 const logoQuerySchema = z.object({
   codes: z.string().min(1, 'codes is required'),
@@ -24,6 +25,7 @@ export async function airlineRoutes(app: FastifyInstance) {
 
     try {
       const logos = await airlineLogoService.getLogos(codeList, height, apiMode);
+      setCacheControl(reply, CACHE_CONTROL.AIRLINE_LOGOS);
       return ok(logos);
     } catch (err) {
       app.log.error(err, 'Airline logo lookup failed');
