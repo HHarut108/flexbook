@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { airportService } from '../services/AirportService';
 import { ok, fail } from '../utils/response';
+import { setCacheControl, CACHE_CONTROL } from '../utils/httpCache';
 
 const searchQuerySchema = z.object({
   q: z.string().min(1).max(100),
@@ -26,6 +27,7 @@ export async function airportRoutes(app: FastifyInstance) {
       return reply.status(400).send(fail('INVALID_PARAMS', 'Query param "q" is required'));
     }
     const result = airportService.searchWithFallback(parsed.data.q);
+    setCacheControl(reply, CACHE_CONTROL.AIRPORTS);
     return ok(result);
   });
 
@@ -37,6 +39,7 @@ export async function airportRoutes(app: FastifyInstance) {
         .send(fail('INVALID_PARAMS', 'Query param "iata" must be a 3-letter code'));
     }
     const results = airportService.nearby(parsed.data.iata);
+    setCacheControl(reply, CACHE_CONTROL.AIRPORTS);
     return ok(results);
   });
 
@@ -49,6 +52,7 @@ export async function airportRoutes(app: FastifyInstance) {
         .send(fail('INVALID_PARAMS', 'Query params "lat" and "lng" are required numbers'));
     }
     const results = airportService.nearbyByCoords(parsed.data.lat, parsed.data.lng);
+    setCacheControl(reply, CACHE_CONTROL.AIRPORTS);
     return ok(results);
   });
 }

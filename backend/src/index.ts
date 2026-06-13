@@ -2,6 +2,7 @@ import Fastify, { FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import cookie from '@fastify/cookie';
+import compress from '@fastify/compress';
 import { config } from './config';
 import { db } from './db';
 import { setRedisLogger } from './utils/redisClient';
@@ -146,6 +147,16 @@ async function start() {
   });
 
   await app.register(cookie);
+
+  // Compress responses (brotli > gzip > deflate, negotiated via Accept-Encoding).
+  // Flight-result and suggested-route payloads are large JSON arrays that shrink
+  // 70-85% on the wire; the 1 KB threshold skips tiny bodies where the CPU cost
+  // would outweigh the savings. Render → Vercel edge → browser all benefit.
+  await app.register(compress, {
+    global: true,
+    threshold: 1024,
+    encodings: ['br', 'gzip', 'deflate'],
+  });
 
   await app.register(rateLimit, {
     global: true,

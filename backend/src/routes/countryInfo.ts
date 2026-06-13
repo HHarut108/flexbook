@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { getCache, setCache } from '../utils/cache';
 import { fetchWithTimeout } from '../utils/http';
+import { setCacheControl, CACHE_CONTROL } from '../utils/httpCache';
 
 const TTL = 24 * 60 * 60; // 24 hours
 
@@ -23,7 +24,10 @@ export async function countryInfoRoutes(app: FastifyInstance) {
 
     const cacheKey = `country:${country.toLowerCase()}`;
     const cached = getCache<CountryInfo>(cacheKey);
-    if (cached) return reply.send(cached);
+    if (cached) {
+      setCacheControl(reply, CACHE_CONTROL.COUNTRY_INFO);
+      return reply.send(cached);
+    }
 
     try {
       const res = await fetchWithTimeout(
@@ -51,6 +55,7 @@ export async function countryInfoRoutes(app: FastifyInstance) {
       };
 
       setCache(cacheKey, info, TTL);
+      setCacheControl(reply, CACHE_CONTROL.COUNTRY_INFO);
       return reply.send(info);
     } catch {
       return reply.status(502).send({ error: 'Failed to fetch country data' });
