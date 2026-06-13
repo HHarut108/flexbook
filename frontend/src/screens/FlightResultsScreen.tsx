@@ -490,10 +490,24 @@ export function FlightResultsScreen() {
           <div className="mt-3 flex items-stretch gap-2">
             <div className="flex-1 min-w-0 rounded-xl border border-border bg-surface px-3 py-2">
               <div className="text-[9px] uppercase tracking-[0.18em] text-text-muted">From</div>
-              <div className="flex items-baseline gap-1.5 min-w-0">
-                <span className="font-mono text-sm font-black text-indigo">{currentIata}</span>
-                <span className="text-xs text-text-secondary truncate">{currentCityName}</span>
-              </div>
+              {expandMetro ? (
+                // Mid-trip hops search every airport in the arrival city's
+                // metro — leading with the IATA would be misleading because
+                // results may depart from peer airports (e.g. CDG when the
+                // user arrived BVA). Show the city as the identifier; each
+                // result row carries an airport-specific badge.
+                <div className="flex items-baseline gap-1.5 min-w-0">
+                  <span className="text-sm font-black text-indigo truncate">{currentCityName || currentIata}</span>
+                  <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider shrink-0">All airports</span>
+                </div>
+              ) : (
+                // Leg 1: user picked a specific home airport. Keep the IATA
+                // prominent so they know exactly where they're departing from.
+                <div className="flex items-baseline gap-1.5 min-w-0">
+                  <span className="font-mono text-sm font-black text-indigo">{currentIata}</span>
+                  <span className="text-xs text-text-secondary truncate">{currentCityName}</span>
+                </div>
+              )}
             </div>
 
             <div className="shrink-0 inline-flex items-stretch rounded-xl border border-border bg-surface overflow-hidden">
