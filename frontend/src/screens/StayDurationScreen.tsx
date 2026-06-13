@@ -3,10 +3,10 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useNavigate } from 'react-router-dom';
 import { useSessionStore } from '../store/session.store';
 import { useTripStore } from '../store/trip.store';
-import { computeNextDeparture, formatDateLong } from '../utils/date.utils';
+import { computeNextDeparture, formatDate, formatDateLong, formatTime, durationLabel } from '../utils/date.utils';
 import { formatPrice, totalPrice } from '../utils/price.utils';
 import { countryDisplayName } from '../utils/country.utils';
-import { ArrowLeft, ArrowRight, Minus, Plus, AlertTriangle, Waypoints, MapPin } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Minus, Plus, AlertTriangle, Waypoints, MapPin, Plane } from 'lucide-react';
 import { TripTimeline } from '../components/TripTimeline';
 import { DestinationGuideCard } from '../components/DestinationGuideCard';
 import { useCurrentPassport } from '../hooks/useCurrentPassport';
@@ -148,6 +148,47 @@ export function StayDurationScreen() {
               <Waypoints size={11} />
               Stop {stopIndex}
             </span>
+          </div>
+
+          {/* Just-picked flight summary — shows the user the exact leg
+              they're about to commit so the stay step never feels detached
+              from the previous pick. Lives at the top of the picker so it's
+              the first thing they read after the "Your stay" header. */}
+          <div className="mb-4 rounded-2xl border border-indigo-border bg-indigo-soft/40 px-3.5 py-3">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-indigo font-bold">
+                Flight you just picked
+              </p>
+              <span className="font-mono text-orange font-bold text-sm shrink-0">
+                {formatPrice(selectedFlight.priceUsd)}
+              </span>
+            </div>
+            {/* Route line — origin city + IATA → destination city + IATA. The
+                departure airport is baked in so a leg that departs from a
+                metro peer (e.g. CDG when previous arrival was BVA) is visible
+                without needing a separate chip. */}
+            <div className="flex items-center gap-1.5 text-sm text-text-primary font-semibold min-w-0 flex-wrap">
+              <span className="truncate">{selectedFlight.originCity}</span>
+              <span className="font-mono text-[10px] text-text-muted bg-surface-2 px-1.5 py-0.5 rounded-md shrink-0">
+                {selectedFlight.originIata}
+              </span>
+              <Plane size={11} className="rotate-90 text-text-xmuted shrink-0" />
+              <span className="truncate">{selectedFlight.destinationCity}</span>
+              <span className="font-mono text-[10px] text-text-muted bg-surface-2 px-1.5 py-0.5 rounded-md shrink-0">
+                {selectedFlight.destinationIata}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 mt-1 text-[11px] text-text-muted min-w-0 flex-wrap">
+              <span className="truncate max-w-[9rem]">{selectedFlight.airlineName}</span>
+              <span className="text-text-xmuted">·</span>
+              <span className="font-mono">{formatDate(selectedFlight.departureDatetime.slice(0, 10))}</span>
+              <span className="text-text-xmuted">·</span>
+              <span className="font-mono">
+                {formatTime(selectedFlight.departureDatetime)}–{formatTime(selectedFlight.arrivalDatetime)}
+              </span>
+              <span className="text-text-xmuted">·</span>
+              <span>{durationLabel(selectedFlight.durationMinutes)}</span>
+            </div>
           </div>
 
           {/* Quick-select pills */}

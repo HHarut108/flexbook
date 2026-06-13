@@ -20,6 +20,12 @@ export interface FlightSearchOptions {
    *  instead of the "anywhere" endpoint — surfaces routes that the unfiltered
    *  search misses (e.g. Wizz LCC routes). Debug-only. */
   country?: string;
+  /** When true and `originIata` is a bare IATA in a multi-airport city,
+   *  the backend expands the search to all peer airports in that metro
+   *  (e.g. BVA → CDG/ORY/BVA/LBG). Used by Trip Builder for mid-trip hops
+   *  and the return-leg origin so a Paris-arriving traveller isn't locked
+   *  to BVA when continuing the trip. The first/home origin stays single. */
+  expandMetro?: boolean;
 }
 
 export async function searchFlights(
@@ -30,7 +36,7 @@ export async function searchFlights(
   const mode = getApiMode();
 
   // Real API call - pass mode to backend
-  const { destination, deduplicate = true, sort, maxStopovers, currency, cabinClass, passengers, fresh, country } = options;
+  const { destination, deduplicate = true, sort, maxStopovers, currency, cabinClass, passengers, fresh, country, expandMetro } = options;
   // Debug opt-in: `?fresh=1` anywhere in the app's URL forces a live provider call,
   // bypassing the backend schedule cache. Useful when comparing against Kiwi.com.
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -56,6 +62,7 @@ export async function searchFlights(
         ...(passengers !== undefined && { passengers }),
         ...(bypassCache && { fresh: true }),
         ...(effectiveCountry && { country: effectiveCountry }),
+        ...(expandMetro && { expandMetro: true }),
         apiMode: mode,
       },
     },

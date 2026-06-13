@@ -125,6 +125,11 @@ export class AirportService {
    *  (`${cityNorm}_${cc.lower}`), used by /api/airports/search results and
    *  resolved back to member IATAs in cityById(). */
   private cityIndex: Map<string, DerivedCity>;
+  /** Reverse index: each multi-airport member IATA → the DerivedCity it
+   *  belongs to. Lets flight routes resolve a bare arrival IATA (e.g. "BVA")
+   *  back to its metro group when expandMetro is requested. Single-airport
+   *  cities are absent. */
+  private cityByIataIndex: Map<string, DerivedCity>;
 
   constructor() {
     this.byIata = new Map(this.airports.map((a) => [a.iata.toUpperCase(), a]));
@@ -142,6 +147,12 @@ export class AirportService {
     }
 
     this.cityIndex = this.buildCityIndex();
+    this.cityByIataIndex = new Map();
+    for (const city of this.cityIndex.values()) {
+      for (const iata of city.airports) {
+        this.cityByIataIndex.set(iata.toUpperCase(), city);
+      }
+    }
   }
 
   /** Group airports by (normalized city name, country code). Any group with
@@ -189,6 +200,15 @@ export class AirportService {
    *  flight route handlers into the list of member IATAs to fan out across. */
   cityById(id: string): DerivedCity | undefined {
     return this.cityIndex.get(id.toLowerCase());
+  }
+
+  /** Reverse lookup: which multi-airport city does this IATA belong to?
+   *  Returns undefined for airports that are the sole commercial field in
+   *  their city. Powers Trip Builder's expandMetro flag — when the user
+   *  arrived at BVA and wants to continue, we resolve BVA → Paris and fan
+   *  out the next leg's origin across CDG/ORY/BVA/LBG. */
+  cityByIata(iata: string): DerivedCity | undefined {
+    return this.cityByIataIndex.get(iata.toUpperCase());
   }
 
   /** Fuzzy search across IATA, city, airport name, and keyword aliases.

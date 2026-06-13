@@ -27,11 +27,20 @@ export function FlightCard({ flight, weather, onSelect }: Props) {
       onClick={() => onSelect(flight)}
       className="group w-full text-left bg-surface border border-border rounded-2xl px-3.5 py-3 flex items-center gap-3 transition-all duration-150 animate-fade-in active:scale-[0.99] hover:border-indigo-border hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)]"
     >
-      {/* Main content — compact stack: city/stops, optional risk chips, meta, optional layover */}
+      {/* Main content — compact stack: route, optional risk chips, meta, optional layover */}
       <div className="flex-1 min-w-0">
-        {/* Line 1: city + IATA + stops/route. Risk chips live below so they
-            don't squeeze long city names into "L…". */}
-        <div className="flex items-center gap-2 min-w-0">
+        {/* Line 1: origin city + IATA → destination city + IATA + stops. The
+            departure airport is baked into the route so a flight departing
+            from a metro peer (e.g. CDG when arrival was BVA) is visible
+            inline. Risk chips live below so they don't squeeze long names. */}
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-base font-bold text-text-primary truncate leading-tight">
+            {flight.originCity}
+          </span>
+          <span className="font-mono text-[10px] text-text-muted bg-surface-2 px-1.5 py-0.5 rounded-md shrink-0">
+            {flight.originIata}
+          </span>
+          <span className="text-text-xmuted shrink-0">→</span>
           <span className="text-base font-bold text-text-primary truncate leading-tight">
             {flight.destinationCity}
           </span>
