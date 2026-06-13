@@ -11,6 +11,19 @@ const VisaDetailsPopover = lazy(() =>
   import('./visa/VisaDetailsPopover').then((m) => ({ default: m.VisaDetailsPopover })),
 );
 
+/** Compact layover summary used in the row meta line: "3h FCO" for a
+ *  single stop, "3h FCO + 2h 40m SVQ" for two. Filters zero-duration
+ *  layovers (rare data-quality holes from Kiwi) so we never render "0m
+ *  XXX". Returns null when the flight is direct or all layovers are
+ *  zero so callers can render the separator conditionally. */
+function layoverLabel(flight: FlightOption): string | null {
+  if (!flight.layovers || flight.layovers.length === 0) return null;
+  const parts = flight.layovers
+    .filter((l) => l.durationMinutes > 0)
+    .map((l) => `${durationLabel(l.durationMinutes)} ${l.iata}`);
+  return parts.length > 0 ? parts.join(' + ') : null;
+}
+
 interface CompactFlightRowProps {
   flight: FlightOption;
   onSelect: (flight: FlightOption) => void;
@@ -31,35 +44,26 @@ function CompactFlightRow({ flight, onSelect, returnHome = false }: CompactFligh
       className="group w-full text-left flex items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2.5 transition-colors hover:border-indigo-border hover:bg-indigo-soft/40"
     >
       <div className="flex-1 min-w-0">
-        {/* Route line — origin city + IATA → destination city + IATA. Surfaces
-            the actual departure airport inline so a metro-expanded result that
-            departs from a peer airport (e.g. CDG when arrival was BVA) is
-            self-evident, with no separate chip needed. flex-wrap so long city
-            names on narrow screens push "Direct"/stops to the next line
-            instead of truncating into "Pa…". */}
-        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-          <span className="text-sm font-semibold text-text-primary">
-            {flight.originCity}
-          </span>
-          <span className="font-mono text-[10px] text-text-muted bg-surface-2 px-1.5 py-0.5 rounded-md">
-            {flight.originIata}
-          </span>
-          <span className="text-text-xmuted">→</span>
-          <span className="text-sm font-semibold text-text-primary">
-            {flight.destinationCity}
-          </span>
-          <span className="font-mono text-[10px] text-text-muted bg-surface-2 px-1.5 py-0.5 rounded-md">
-            {flight.destinationIata}
-          </span>
-          {direct ? (
-            <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
-              Direct
+        {/* Route line — origin city + IATA → destination city + IATA.
+            Each endpoint is an atomic inline-flex span so the city name
+            and its IATA pill never split across a wrap (the old layout
+            could land "Thessaloniki" on line 1 and "SKG" alone on line 2).
+            Direct/N-stops moved to the meta line below so the route line
+            looks consistent across all rows regardless of name length. */}
+        <div className="flex items-center gap-x-1.5 gap-y-0.5 min-w-0 flex-wrap text-sm font-semibold text-text-primary">
+          <span className="inline-flex items-center gap-1.5">
+            <span>{flight.originCity}</span>
+            <span className="font-mono text-[10px] text-text-muted bg-surface-2 px-1.5 py-0.5 rounded-md">
+              {flight.originIata}
             </span>
-          ) : (
-            <span className="text-[10px] font-semibold text-sky-700 dark:text-sky-400">
-              {flight.stops} stop{flight.stops > 1 ? 's' : ''}
+          </span>
+          <span className="text-text-xmuted" aria-hidden>→</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span>{flight.destinationCity}</span>
+            <span className="font-mono text-[10px] text-text-muted bg-surface-2 px-1.5 py-0.5 rounded-md">
+              {flight.destinationIata}
             </span>
-          )}
+          </span>
           {returnHome && (
             <span
               className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-orange-700 dark:text-orange-300 bg-orange/10 border border-orange/30 rounded-md px-1.5 py-0.5"
@@ -70,16 +74,40 @@ function CompactFlightRow({ flight, onSelect, returnHome = false }: CompactFligh
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-text-muted font-mono min-w-0">
-          <span className="truncate max-w-[7rem] not-italic font-sans">{flight.airlineName}</span>
+        <div className="flex items-center gap-x-1.5 gap-y-0.5 mt-1 text-[11px] text-text-muted font-mono min-w-0 flex-wrap">
+          {direct ? (
+            <span className="font-semibold text-emerald-700 dark:text-emerald-400 not-italic font-sans">
+              Direct
+            </span>
+          ) : (
+            <span className="font-semibold text-sky-700 dark:text-sky-400 not-italic font-sans">
+              {flight.stops} stop{flight.stops > 1 ? 's' : ''}
+              {/* Layover detail — prefer duration-aware label ("11h OTP")
+                  when available, otherwise fall back to bare IATAs
+                  ("via OTP, MAD"). Keeps the row informative without
+                  doubling up the airport code. */}
+              {(() => {
+                const layovers = layoverLabel(flight);
+                if (layovers) {
+                  return <span className="font-normal text-text-muted"> · {layovers}</span>;
+                }
+                if (flight.viaIatas && flight.viaIatas.length > 0) {
+                  return <span className="font-normal text-text-muted"> via {flight.viaIatas.join(', ')}</span>;
+                }
+                return null;
+              })()}
+            </span>
+          )}
           <span className="text-text-xmuted">·</span>
-          <span className="inline-flex items-center gap-1 shrink-0">
+          <span className="not-italic font-sans">{flight.airlineName}</span>
+          <span className="text-text-xmuted">·</span>
+          <span className="inline-flex items-center gap-1">
             <span>{formatTime(flight.departureDatetime)}</span>
             <Plane size={9} className="rotate-90 text-text-xmuted" />
             <span>{formatTime(flight.arrivalDatetime)}</span>
           </span>
-          <span className="text-text-xmuted hidden sm:inline">·</span>
-          <span className="hidden sm:inline text-text-muted shrink-0">
+          <span className="text-text-xmuted">·</span>
+          <span className="text-text-muted">
             {durationLabel(flight.durationMinutes)}
           </span>
         </div>
