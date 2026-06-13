@@ -81,7 +81,7 @@ export function FlightCard({ flight, weather, onSelect, arrivalIata }: Props) {
             )}
             {airportMismatch && (
               <span
-                className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800/60 rounded px-1.5 py-0.5 shrink-0"
+                className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5 shrink-0"
                 title={`This flight departs ${flight.originIata}. You arrived at ${arrivalIata} — you'll need to transfer between airports.`}
               >
                 Departs {flight.originIata} · arrived {arrivalIata}

@@ -80,12 +80,12 @@ function CompactFlightRow({ flight, onSelect, returnHome = false, arrivalIata }:
           </span>
         </div>
         {airportMismatch && (
-          <div className="flex items-center gap-1.5 mt-1">
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             <span
-              className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800/60 rounded-md px-1.5 py-0.5"
+              className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5 max-w-full"
               title={`This flight departs ${flight.originIata}. You arrived at ${arrivalIata} — you'll need to transfer between airports.`}
             >
-              Departs {flight.originIata} · arrived {arrivalIata}
+              <span className="truncate">Departs {flight.originIata} · arrived {arrivalIata}</span>
             </span>
           </div>
         )}
