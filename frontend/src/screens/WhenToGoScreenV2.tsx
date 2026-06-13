@@ -176,10 +176,14 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
     });
   }
 
-  async function handleSearch() {
-    if (!origin || !destination) return;
-    const originMarker = selectionToMarker(origin);
-    const destMarker = selectionToMarker(destination);
+  async function handleSearch(
+    searchOrigin: LocationSelection | null = origin,
+    searchDest: LocationSelection | null = destination,
+    searchRange: DateRange = range,
+  ) {
+    if (!searchOrigin || !searchDest) return;
+    const originMarker = selectionToMarker(searchOrigin);
+    const destMarker = selectionToMarker(searchDest);
     if (originMarker === destMarker) {
       setError('Origin and destination must differ.');
       return;
@@ -193,12 +197,12 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
     track(AnalyticsEvent.WhenToGoSearch, {
       from: originMarker,
       to: destMarker,
-      start: range.start,
-      end: range.end,
-      preset: range.id,
+      start: searchRange.start,
+      end: searchRange.end,
+      preset: searchRange.id,
     });
     try {
-      const res = await fetchCheapestDay(originMarker, destMarker, range.start, range.end, ctrl.signal);
+      const res = await fetchCheapestDay(originMarker, destMarker, searchRange.start, searchRange.end, ctrl.signal);
       if (ctrl.signal.aborted) return;
       setResult(res);
     } catch (err: unknown) {
@@ -208,6 +212,21 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
     } finally {
       if (!ctrl.signal.aborted) setLoading(false);
     }
+  }
+
+  function handleReturnSearch(start: string, end: string) {
+    if (!origin || !destination) return;
+    const newOrigin = destination;
+    const newDest = origin;
+    const newRange: DateRange = { id: 'custom', label: 'Custom range', start, end };
+    setOrigin(newOrigin);
+    setDestination(newDest);
+    setOriginQuery(selectionLabel(newOrigin));
+    setDestQuery(selectionLabel(newDest));
+    setRange(newRange);
+    setCustomStart(start);
+    setCustomEnd(end);
+    void handleSearch(newOrigin, newDest, newRange);
   }
 
   function handleCtaClick() {
@@ -364,7 +383,7 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
 
                 <button
                   type="button"
-                  onClick={handleSearch}
+                  onClick={() => handleSearch()}
                   disabled={!origin || !destination || loading}
                   className="w-full flex items-center justify-center gap-2 py-4 rounded-full bg-orange text-white text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-orange-dark transition-all"
                   style={{ boxShadow: '0 14px 32px -10px rgba(249,115,22,0.5)' }}
@@ -393,6 +412,7 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
                 onCtaClick={handleCtaClick}
                 onPickDay={pickDay}
                 onNewSearch={handleNewSearch}
+                onReturnSearch={handleReturnSearch}
               />
             )}
           </div>
@@ -413,6 +433,7 @@ interface ResultPanelProps {
   onCtaClick: () => void;
   onPickDay: (day: CalendarDay) => void;
   onNewSearch: () => void;
+  onReturnSearch: (start: string, end: string) => void;
 }
 
 function NewSearchLink({ onClick }: { onClick: () => void }) {
@@ -438,6 +459,7 @@ function ResultPanel({
   onCtaClick,
   onPickDay,
   onNewSearch,
+  onReturnSearch,
 }: ResultPanelProps) {
   const cheapest = result?.cheapest ?? null;
 
@@ -590,29 +612,144 @@ function ResultPanel({
         </a>
       )}
 
-      {result && result.days.length > 1 && (
-        <div className="mt-5 pt-5 border-t border-border/60">
-          <div className="text-[11px] uppercase tracking-wide text-text-muted font-bold mb-2">
-            Other cheap days nearby
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {result.days
-              .filter((d) => d.date !== cheapest.date)
-              .slice(0, 6)
-              .map((d) => (
-                <button
-                  key={d.date}
-                  type="button"
-                  onClick={() => onPickDay(d)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface-2 border border-border hover:border-indigo-border transition-all text-xs"
-                >
-                  <span className="font-semibold text-text-primary">{FMT_DATE_TINY(d.date)}</span>
-                  <span className="text-text-muted">${Math.round(d.priceUsd)}</span>
-                </button>
-              ))}
-          </div>
-        </div>
-      )}
+      {result && result.days.length > 1 && (() => {
+        const cheapestDate = cheapest.date;
+        const cheapestTs = new Date(cheapestDate + 'T12:00:00').getTime();
+        const DAY_MS = 86_400_000;
+        const isNearby = (d: CalendarDay) => {
+          if (d.date === cheapestDate) return false;
+          const t = new Date(d.date + 'T12:00:00').getTime();
+          const delta = Math.abs(t - cheapestTs);
+          return delta > 0 && delta <= 2 * DAY_MS;
+        };
+        const nearbyDays = result.days
+          .filter(isNearby)
+          .sort((a, b) => a.date.localeCompare(b.date));
+        const otherCheap = result.days
+          .filter((d) => d.date !== cheapestDate && !isNearby(d))
+          .sort((a, b) => a.priceUsd - b.priceUsd)
+          .slice(0, 5);
+        return (
+          <>
+            {nearbyDays.length > 0 && (
+              <div className="mt-5 pt-5 border-t border-border/60">
+                <div className="text-[11px] uppercase tracking-wide text-text-muted font-bold mb-2">
+                  Nearby dates
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {nearbyDays.map((d) => (
+                    <button
+                      key={d.date}
+                      type="button"
+                      onClick={() => onPickDay(d)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface-2 border border-border hover:border-indigo-border transition-all text-xs"
+                    >
+                      <span className="font-semibold text-text-primary">{FMT_DATE_TINY(d.date)}</span>
+                      <span className="text-text-muted">${Math.round(d.priceUsd)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {otherCheap.length > 0 && (
+              <div className="mt-5 pt-5 border-t border-border/60">
+                <div className="text-[11px] uppercase tracking-wide text-text-muted font-bold mb-2">
+                  Other cheap dates
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {otherCheap.map((d) => (
+                    <button
+                      key={d.date}
+                      type="button"
+                      onClick={() => onPickDay(d)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface-2 border border-border hover:border-indigo-border transition-all text-xs"
+                    >
+                      <span className="font-semibold text-text-primary">{FMT_DATE_TINY(d.date)}</span>
+                      <span className="text-text-muted">${Math.round(d.priceUsd)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        );
+      })()}
+
+      <ReturnTripForm
+        key={`${destinationLabel}->${originLabel}`}
+        originLabel={destinationLabel}
+        destinationLabel={originLabel}
+        cheapestDate={cheapest.date}
+        loading={loading}
+        onSubmit={onReturnSearch}
+      />
+    </div>
+  );
+}
+
+interface ReturnTripFormProps {
+  originLabel: string;
+  destinationLabel: string;
+  cheapestDate: string;
+  loading: boolean;
+  onSubmit: (start: string, end: string) => void;
+}
+
+function ReturnTripForm({
+  originLabel,
+  destinationLabel,
+  cheapestDate,
+  loading,
+  onSubmit,
+}: ReturnTripFormProps) {
+  const todayStr = formatYMD(new Date());
+  const initialStart =
+    cheapestDate >= todayStr ? cheapestDate : todayStr;
+  const initialEnd = formatYMD(addDays(new Date(initialStart + 'T12:00:00'), 14));
+  const [start, setStart] = useState(initialStart);
+  const [end, setEnd] = useState(initialEnd);
+
+  return (
+    <div className="mt-6 pt-5 border-t border-border/60">
+      <div className="text-[11px] uppercase tracking-wide text-text-muted font-bold mb-2">
+        Plan return trip
+      </div>
+      <div className="flex items-center gap-1.5 text-sm font-semibold text-text-primary mb-3 truncate">
+        <span className="truncate">{originLabel}</span>
+        <ArrowRight size={14} className="shrink-0 text-text-muted" />
+        <span className="truncate">{destinationLabel}</span>
+      </div>
+      <Suspense fallback={<div className="h-[260px] rounded-2xl bg-surface-muted" aria-hidden />}>
+        <DateRangePicker
+          dateFrom={start}
+          dateTo={end}
+          today={todayStr}
+          label=""
+          fromLabel="Earliest"
+          toLabel="Latest"
+          onChangeFrom={setStart}
+          onChangeTo={setEnd}
+        />
+      </Suspense>
+      <button
+        type="button"
+        onClick={() => onSubmit(start, end)}
+        disabled={loading}
+        className="mt-4 w-full flex items-center justify-center gap-2 py-3.5 rounded-full bg-orange text-white text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-orange-dark transition-all"
+        style={{ boxShadow: '0 14px 32px -10px rgba(249,115,22,0.5)' }}
+      >
+        {loading ? (
+          <>
+            <Loader2 size={14} className="animate-spin" />
+            Searching…
+          </>
+        ) : (
+          <>
+            Find cheapest return
+            <ArrowRight size={14} />
+          </>
+        )}
+      </button>
     </div>
   );
 }
