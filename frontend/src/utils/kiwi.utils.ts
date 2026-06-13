@@ -41,3 +41,28 @@ export function buildKiwiMultiCitySearchUrl(
   if (segments.length === 0) return null;
   return `https://www.kiwi.com/en/search/results/${segments.join('/')}/?adults=${adults}&sortBy=price`;
 }
+
+/**
+ * Round-trip *search* URL. Unlike multi-city, the round-trip format only
+ * carries ONE city pair plus two dates — repeating FROM/TO/DATE/FROM/TO/DATE
+ * lands on a Kiwi page that won't parse the IATAs into the form (we saw this
+ * empirically: OPO/MAD/.../MAD/OPO/... opened but the From/To fields were blank).
+ *
+ * Format confirmed against kiwi.com's current router:
+ *   /en/search/results/{FROM}/{TO}/{outbound-YYYY-MM-DD}/{return-YYYY-MM-DD}/?adults=N
+ */
+export function buildKiwiRoundTripSearchUrl(
+  originIata: string,
+  destinationIata: string,
+  outboundDate: string,
+  returnDate: string,
+  passengers: number,
+): string | null {
+  const from = originIata?.trim().toUpperCase();
+  const to = destinationIata?.trim().toUpperCase();
+  const out = outboundDate?.slice(0, 10);
+  const back = returnDate?.slice(0, 10);
+  if (!from || !to || !out || !back) return null;
+  const adults = Math.max(1, Math.floor(passengers || 1));
+  return `https://www.kiwi.com/en/search/results/${from}/${to}/${out}/${back}/?adults=${adults}&sortBy=price`;
+}
