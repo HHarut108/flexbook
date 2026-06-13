@@ -5,13 +5,18 @@ import { formatPrice } from '../utils/price.utils';
 interface Props {
   flight: FlightOption;
   onSelect: (flight: FlightOption) => void;
+  /** IATA of the airport the traveller arrived at for the current stop.
+   *  When the return flight departs from a metro peer airport (e.g. CDG
+   *  when arrival was BVA), an inline chip surfaces the mismatch. */
+  arrivalIata?: string;
 }
 
-export function ReturnFlightCard({ flight, onSelect }: Props) {
+export function ReturnFlightCard({ flight, onSelect, arrivalIata }: Props) {
   const isDirect = flight.stops === 0;
   const via = flight.viaIatas ?? [];
   const iataStops = [flight.originIata, ...via, flight.destinationIata];
   const departDate = flight.departureDatetime?.slice(0, 10);
+  const airportMismatch = !!arrivalIata && flight.originIata !== arrivalIata;
 
   return (
     <button
@@ -34,6 +39,17 @@ export function ReturnFlightCard({ flight, onSelect }: Props) {
           {formatPrice(flight.priceUsd)}
         </span>
       </div>
+
+      {airportMismatch && (
+        <div className="mb-3">
+          <span
+            className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800/60 rounded-md px-1.5 py-0.5"
+            title={`This flight departs ${flight.originIata}. You arrived at ${arrivalIata} — you'll need to transfer between airports.`}
+          >
+            Departs {flight.originIata} · arrived {arrivalIata}
+          </span>
+        </div>
+      )}
 
       {/* Direct / stopover indicator */}
       {isDirect ? (

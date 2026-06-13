@@ -12,14 +12,19 @@ interface Props {
   flight: FlightOption;
   weather?: WeatherSummary;
   onSelect: (flight: FlightOption) => void;
+  /** IATA the traveller arrived at for the current stop. When the flight's
+   *  `originIata` differs (metro peer airport), an amber chip surfaces the
+   *  mismatch alongside the other risk chips. */
+  arrivalIata?: string;
 }
 
-export function FlightCard({ flight, weather, onSelect }: Props) {
+export function FlightCard({ flight, weather, onSelect, arrivalIata }: Props) {
   const passengers = useTripStore((s) => s.passengers);
   const carriersLabel = formatCarriers(flight);
   const multiCarrier = (flight.carriers?.length ?? 1) > 1;
   const hasSelfTransfer = flight.layovers?.some((l) => l.selfTransfer) ?? false;
   const layoverLabel = formatLayovers(flight);
+  const airportMismatch = !!arrivalIata && flight.originIata !== arrivalIata;
 
   return (
     <button
@@ -52,10 +57,11 @@ export function FlightCard({ flight, weather, onSelect }: Props) {
           )}
         </div>
 
-        {/* Optional risk-chip row — Mixed carriers and/or Self-transfer.
-            Only renders when at least one applies, so single-carrier
-            non-transfer flights stay just as compact as before. */}
-        {(multiCarrier || hasSelfTransfer) && (
+        {/* Optional risk-chip row — Mixed carriers and/or Self-transfer
+            and/or metro-airport mismatch. Only renders when at least one
+            applies, so single-carrier non-transfer flights stay just as
+            compact as before. */}
+        {(multiCarrier || hasSelfTransfer || airportMismatch) && (
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             {multiCarrier && (
               <span
@@ -71,6 +77,14 @@ export function FlightCard({ flight, weather, onSelect }: Props) {
                 title="You must collect bags and re-check between flights"
               >
                 <AlertTriangle size={10} /> Self-transfer
+              </span>
+            )}
+            {airportMismatch && (
+              <span
+                className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800/60 rounded px-1.5 py-0.5 shrink-0"
+                title={`This flight departs ${flight.originIata}. You arrived at ${arrivalIata} — you'll need to transfer between airports.`}
+              >
+                Departs {flight.originIata} · arrived {arrivalIata}
               </span>
             )}
           </div>

@@ -146,14 +146,19 @@ export function FlightResultsScreen() {
 
   useWeatherBatch(pendingFlights, localDate);
 
+  // Mid-trip hops fan out across all airports of the current metro (e.g. a
+  // BVA arrival can depart CDG/ORY/BVA/LBG on the next leg). Leg 1 keeps the
+  // user's deliberate origin pick — no expansion.
+  const expandMetro = !!lastOutboundLeg;
+
   useEffect(() => {
     if (!currentIata || !localDate) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      search(currentIata, localDate);
+      search(currentIata, localDate, { expandMetro });
     }, 400);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [currentIata, localDate, search]);
+  }, [currentIata, localDate, expandMetro, search]);
 
   function shiftDate(delta: number) {
     const newDate = format(addDays(parseISO(localDate), delta), 'yyyy-MM-dd');
@@ -634,7 +639,7 @@ export function FlightResultsScreen() {
             </p>
             <div className="flex gap-2">
               <button
-                onClick={() => currentIata && refetch(currentIata, localDate)}
+                onClick={() => currentIata && refetch(currentIata, localDate, { expandMetro })}
                 className="btn-primary py-2.5 px-4 text-sm flex items-center justify-center gap-2"
               >
                 <RefreshCw size={14} /> Try again
@@ -703,6 +708,7 @@ export function FlightResultsScreen() {
                   visa={visa}
                   visaLoading={visaLoading}
                   passport={passport}
+                  arrivalIata={lastOutboundLeg?.destinationIata}
                 />
               );
             })}

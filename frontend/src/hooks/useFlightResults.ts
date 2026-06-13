@@ -15,7 +15,7 @@ export function useFlightResults() {
 
   const runFetch = useCallback(
     async (iata: string, date: string, options?: FlightSearchOptions) => {
-      const key = flightsCacheKey(iata, date, passengers);
+      const key = flightsCacheKey(iata, date, passengers, options?.expandMetro);
       const store = useFlightsStore.getState();
       if (store.inFlight[key]) return;
       store.setInFlight(key, true);
@@ -41,7 +41,7 @@ export function useFlightResults() {
 
   const search = useCallback(
     (iata: string, date: string, options?: FlightSearchOptions) => {
-      const key = flightsCacheKey(iata, date, passengers);
+      const key = flightsCacheKey(iata, date, passengers, options?.expandMetro);
       setActiveKey(key);
       const store = useFlightsStore.getState();
       // Cache hit (success or error) → don't re-fetch. Use refetch() to force.
@@ -55,7 +55,7 @@ export function useFlightResults() {
   // can retry without polluting the imperative search() contract.
   const refetch = useCallback(
     (iata: string, date: string, options?: FlightSearchOptions) => {
-      const key = flightsCacheKey(iata, date, passengers);
+      const key = flightsCacheKey(iata, date, passengers, options?.expandMetro);
       setActiveKey(key);
       useFlightsStore.getState().clearEntry(key);
       return runFetch(iata, date, options);

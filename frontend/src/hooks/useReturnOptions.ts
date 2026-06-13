@@ -39,6 +39,10 @@ export function useReturnOptions() {
               destination: toIata,
               deduplicate: false,
               passengers,
+              // FROM is always a mid-trip arrival city on this screen, so
+              // expand to all metro airports: a traveller who arrived BVA
+              // can return home from CDG/ORY too. Home (TO) stays single.
+              expandMetro: true,
             }),
           ),
         );
