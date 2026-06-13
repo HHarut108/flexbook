@@ -7,15 +7,17 @@ import {
   UserCircle2,
   Save,
   X,
-  Globe2,
+  Zap,
+  FileText,
   FileCheck,
   ShieldAlert,
-  ShieldX,
+  Ban,
 } from 'lucide-react';
 import type { AuthUser } from '../../store/auth.store';
 import type { VisaRequirement } from '../../api/visa.api';
 import { countryDisplayName } from '../../utils/country.utils';
 import type { PassportSource } from '../../hooks/useCurrentPassport';
+import { VISA_TONE_COLORS, visaTone } from './VisaPill';
 
 type Status = VisaRequirement['status'];
 
@@ -61,25 +63,16 @@ const STATUS_SHORT: Record<Status, string> = {
   eta: 'ETA',
   'e-visa': 'eVisa',
   'visa required': 'visa required',
-  'no admission': 'no admission',
-};
-
-const STATUS_TONE: Record<Status, string> = {
-  'visa free': 'text-emerald-700 dark:text-emerald-300',
-  'visa on arrival': 'text-amber-700 dark:text-amber-300',
-  eta: 'text-sky-700 dark:text-sky-300',
-  'e-visa': 'text-sky-700 dark:text-sky-300',
-  'visa required': 'text-rose-700 dark:text-rose-300',
-  'no admission': 'text-rose-700 dark:text-rose-300',
+  'no admission': 'not allowed',
 };
 
 const STATUS_ICON: Record<Status, typeof ShieldCheck> = {
   'visa free': ShieldCheck,
   'visa on arrival': FileCheck,
-  eta: Globe2,
-  'e-visa': Globe2,
+  eta: Zap,
+  'e-visa': FileText,
   'visa required': ShieldAlert,
-  'no admission': ShieldX,
+  'no admission': Ban,
 };
 
 function countryFlag(code: string | null | undefined): string {
@@ -388,16 +381,25 @@ function SummaryRow({ entries }: { entries: SummaryEntry[] }) {
       className="w-full text-left border-t border-border/60 dark:border-white/10 px-3.5 py-2 hover:bg-surface-2/40 transition-colors rounded-b-2xl"
     >
       <div className="flex items-center gap-2">
-        <p className="text-[12px] text-text-secondary leading-snug flex-1 min-w-0">
-          {ordered.map((group, i) => (
-            <span key={group.status}>
-              <span className={`font-semibold ${STATUS_TONE[group.status]}`}>
-                {group.list.length} {STATUS_SHORT[group.status]}
+        <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-3 gap-y-1">
+          {ordered.map((group) => {
+            const dotColor = VISA_TONE_COLORS[visaTone(group.status)].solid;
+            return (
+              <span
+                key={group.status}
+                className="inline-flex items-center gap-1.5 text-[12px] text-text-primary"
+              >
+                <span
+                  className="inline-block rounded-full shrink-0"
+                  style={{ width: 8, height: 8, backgroundColor: dotColor }}
+                  aria-hidden
+                />
+                <span className="font-semibold">{group.list.length}</span>
+                <span className="text-text-secondary">{STATUS_SHORT[group.status]}</span>
               </span>
-              {i < ordered.length - 1 && <span className="text-text-muted">, </span>}
-            </span>
-          ))}
-        </p>
+            );
+          })}
+        </div>
         <ChevronDown
           size={14}
           className={`text-text-muted shrink-0 motion-safe:transition-transform ${expanded ? '' : '-rotate-90'}`}
@@ -408,11 +410,15 @@ function SummaryRow({ entries }: { entries: SummaryEntry[] }) {
         <div className="mt-2 pt-2 border-t border-border/60 dark:border-white/10 space-y-1.5">
           {ordered.map((group) => {
             const Icon = STATUS_ICON[group.status];
+            const tone = VISA_TONE_COLORS[visaTone(group.status)];
             return (
               <div key={group.status} className="flex items-start gap-2">
-                <Icon size={12} className={`mt-0.5 shrink-0 ${STATUS_TONE[group.status]}`} />
+                <Icon size={12} style={{ color: tone.solid }} className="mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className={`text-[11px] font-semibold uppercase tracking-wide ${STATUS_TONE[group.status]}`}>
+                  <p
+                    className="text-[11px] font-semibold uppercase tracking-wide"
+                    style={{ color: tone.solid }}
+                  >
                     {STATUS_SHORT[group.status]}
                     {group.list[0].visa.days && (
                       <span className="ml-1 text-text-muted normal-case tracking-normal">
