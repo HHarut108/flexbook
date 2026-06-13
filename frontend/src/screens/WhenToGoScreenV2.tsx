@@ -102,11 +102,16 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
   const [customStart, setCustomStart] = useState(formatYMD(new Date()));
   const [customEnd, setCustomEnd] = useState(formatYMD(addDays(new Date(), 30)));
   const [mobileView, setMobileView] = useState<MobileView>('list');
-  const [result, setResult] = useState<CheapestDayResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [outboundResult, setOutboundResult] = useState<CheapestDayResponse | null>(null);
+  const [outboundLoading, setOutboundLoading] = useState(false);
+  const [outboundError, setOutboundError] = useState<string | null>(null);
+  const [returnResult, setReturnResult] = useState<CheapestDayResponse | null>(null);
+  const [returnLoading, setReturnLoading] = useState(false);
+  const [returnError, setReturnError] = useState<string | null>(null);
+  const [returnRangeLabel, setReturnRangeLabel] = useState<string>('');
   const [view, setView] = useState<'search' | 'result'>('search');
   const abortRef = useRef<AbortController | null>(null);
+  const abortReturnRef = useRef<AbortController | null>(null);
 
   // URL pre-fill: ?from=EVN&to=MAD&start=2026-06-11&end=2026-06-19 (typically
   // arrived here from the search-results "When to fly" CTA). Resolves the
@@ -185,14 +190,20 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
     const originMarker = selectionToMarker(searchOrigin);
     const destMarker = selectionToMarker(searchDest);
     if (originMarker === destMarker) {
-      setError('Origin and destination must differ.');
+      setOutboundError('Origin and destination must differ.');
       return;
     }
     abortRef.current?.abort();
+    abortReturnRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    setLoading(true);
-    setError(null);
+    setOutboundLoading(true);
+    setOutboundError(null);
+    // Reset the return panel — a new outbound direction or window invalidates it.
+    setReturnResult(null);
+    setReturnError(null);
+    setReturnLoading(false);
+    setReturnRangeLabel('');
     setView('result');
     track(AnalyticsEvent.WhenToGoSearch, {
       from: originMarker,
@@ -204,50 +215,93 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
     try {
       const res = await fetchCheapestDay(originMarker, destMarker, searchRange.start, searchRange.end, ctrl.signal);
       if (ctrl.signal.aborted) return;
-      setResult(res);
+      setOutboundResult(res);
     } catch (err: unknown) {
       if (axios.isCancel(err)) return;
       const message = err instanceof Error ? err.message : 'Something went wrong fetching the calendar.';
-      setError(message);
+      setOutboundError(message);
     } finally {
-      if (!ctrl.signal.aborted) setLoading(false);
+      if (!ctrl.signal.aborted) setOutboundLoading(false);
     }
   }
 
-  function handleReturnSearch(start: string, end: string) {
+  async function handleReturnSearch(start: string, end: string) {
     if (!origin || !destination) return;
-    const newOrigin = destination;
-    const newDest = origin;
-    const newRange: DateRange = { id: 'custom', label: 'Custom range', start, end };
-    setOrigin(newOrigin);
-    setDestination(newDest);
-    setOriginQuery(selectionLabel(newOrigin));
-    setDestQuery(selectionLabel(newDest));
-    setRange(newRange);
-    setCustomStart(start);
-    setCustomEnd(end);
-    void handleSearch(newOrigin, newDest, newRange);
+    // Reverse the leg for the fetch, but keep parent origin/destination as-is so
+    // the outbound panel stays put — the return result renders alongside it.
+    const fetchOrigin = selectionToMarker(destination);
+    const fetchDest = selectionToMarker(origin);
+    if (fetchOrigin === fetchDest) {
+      setReturnError('Origin and destination must differ.');
+      return;
+    }
+    abortReturnRef.current?.abort();
+    const ctrl = new AbortController();
+    abortReturnRef.current = ctrl;
+    setReturnLoading(true);
+    setReturnError(null);
+    setReturnRangeLabel(fmtRange(start, end));
+    track(AnalyticsEvent.WhenToGoSearch, {
+      from: fetchOrigin,
+      to: fetchDest,
+      start,
+      end,
+      preset: 'custom',
+      leg: 'return',
+    });
+    try {
+      const res = await fetchCheapestDay(fetchOrigin, fetchDest, start, end, ctrl.signal);
+      if (ctrl.signal.aborted) return;
+      setReturnResult(res);
+    } catch (err: unknown) {
+      if (axios.isCancel(err)) return;
+      const message = err instanceof Error ? err.message : 'Something went wrong fetching the return calendar.';
+      setReturnError(message);
+    } finally {
+      if (!ctrl.signal.aborted) setReturnLoading(false);
+    }
   }
 
-  function handleCtaClick() {
+  function handleOutboundCtaClick() {
     track(AnalyticsEvent.WhenToGoCtaClick, {
       from: origin ? selectionToMarker(origin) : '',
       to: destination ? selectionToMarker(destination) : '',
-      date: result?.cheapest?.date,
-      priceUsd: result?.cheapest?.priceUsd,
+      date: outboundResult?.cheapest?.date,
+      priceUsd: outboundResult?.cheapest?.priceUsd,
+      leg: 'outbound',
     });
   }
 
-  function pickDay(day: CalendarDay) {
-    if (!result) return;
-    setResult({ ...result, cheapest: day });
+  function handleReturnCtaClick() {
+    track(AnalyticsEvent.WhenToGoCtaClick, {
+      from: destination ? selectionToMarker(destination) : '',
+      to: origin ? selectionToMarker(origin) : '',
+      date: returnResult?.cheapest?.date,
+      priceUsd: returnResult?.cheapest?.priceUsd,
+      leg: 'return',
+    });
+  }
+
+  function pickOutboundDay(day: CalendarDay) {
+    if (!outboundResult) return;
+    setOutboundResult({ ...outboundResult, cheapest: day });
+  }
+
+  function pickReturnDay(day: CalendarDay) {
+    if (!returnResult) return;
+    setReturnResult({ ...returnResult, cheapest: day });
   }
 
   function handleNewSearch() {
     abortRef.current?.abort();
-    setLoading(false);
-    setResult(null);
-    setError(null);
+    abortReturnRef.current?.abort();
+    setOutboundLoading(false);
+    setReturnLoading(false);
+    setOutboundResult(null);
+    setReturnResult(null);
+    setOutboundError(null);
+    setReturnError(null);
+    setReturnRangeLabel('');
     setView('search');
   }
 
@@ -384,11 +438,11 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
                 <button
                   type="button"
                   onClick={() => handleSearch()}
-                  disabled={!origin || !destination || loading}
+                  disabled={!origin || !destination || outboundLoading}
                   className="w-full flex items-center justify-center gap-2 py-4 rounded-full bg-orange text-white text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-orange-dark transition-all"
                   style={{ boxShadow: '0 14px 32px -10px rgba(249,115,22,0.5)' }}
                 >
-                  {loading ? (
+                  {outboundLoading ? (
                     <>
                       <Loader2 size={14} className="animate-spin" />
                       Searching…
@@ -403,14 +457,20 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
               </>
             ) : (
               <ResultPanel
-                loading={loading}
-                error={error}
-                result={result}
+                outboundLoading={outboundLoading}
+                outboundError={outboundError}
+                outboundResult={outboundResult}
+                returnLoading={returnLoading}
+                returnError={returnError}
+                returnResult={returnResult}
                 originLabel={origin ? selectionLabel(origin) : ''}
                 destinationLabel={destination ? selectionLabel(destination) : ''}
-                rangeLabel={fmtRange(range.start, range.end)}
-                onCtaClick={handleCtaClick}
-                onPickDay={pickDay}
+                outboundRangeLabel={fmtRange(range.start, range.end)}
+                returnRangeLabel={returnRangeLabel}
+                onOutboundCtaClick={handleOutboundCtaClick}
+                onReturnCtaClick={handleReturnCtaClick}
+                onPickOutboundDay={pickOutboundDay}
+                onPickReturnDay={pickReturnDay}
                 onNewSearch={handleNewSearch}
                 onReturnSearch={handleReturnSearch}
               />
@@ -424,14 +484,20 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
 }
 
 interface ResultPanelProps {
-  loading: boolean;
-  error: string | null;
-  result: CheapestDayResponse | null;
+  outboundLoading: boolean;
+  outboundError: string | null;
+  outboundResult: CheapestDayResponse | null;
+  returnLoading: boolean;
+  returnError: string | null;
+  returnResult: CheapestDayResponse | null;
   originLabel: string;
   destinationLabel: string;
-  rangeLabel: string;
-  onCtaClick: () => void;
-  onPickDay: (day: CalendarDay) => void;
+  outboundRangeLabel: string;
+  returnRangeLabel: string;
+  onOutboundCtaClick: () => void;
+  onReturnCtaClick: () => void;
+  onPickOutboundDay: (day: CalendarDay) => void;
+  onPickReturnDay: (day: CalendarDay) => void;
   onNewSearch: () => void;
   onReturnSearch: (start: string, end: string) => void;
 }
@@ -450,29 +516,118 @@ function NewSearchLink({ onClick }: { onClick: () => void }) {
 }
 
 function ResultPanel({
-  loading,
-  error,
-  result,
+  outboundLoading,
+  outboundError,
+  outboundResult,
+  returnLoading,
+  returnError,
+  returnResult,
   originLabel,
   destinationLabel,
-  rangeLabel,
-  onCtaClick,
-  onPickDay,
+  outboundRangeLabel,
+  returnRangeLabel,
+  onOutboundCtaClick,
+  onReturnCtaClick,
+  onPickOutboundDay,
+  onPickReturnDay,
   onNewSearch,
   onReturnSearch,
 }: ResultPanelProps) {
+  const showReturnSection = !!(returnResult || returnLoading || returnError);
+  const cheapestOutboundDate = outboundResult?.cheapest?.date;
+
+  return (
+    <div>
+      <div className="mb-5">
+        <NewSearchLink onClick={onNewSearch} />
+      </div>
+
+      <DirectionPanel
+        label="Outbound"
+        originLabel={originLabel}
+        destinationLabel={destinationLabel}
+        rangeLabel={outboundRangeLabel}
+        loading={outboundLoading}
+        error={outboundError}
+        result={outboundResult}
+        onPickDay={onPickOutboundDay}
+        onCtaClick={onOutboundCtaClick}
+      />
+
+      {showReturnSection && (
+        <div className="mt-7 pt-6 border-t-2 border-border/70">
+          <DirectionPanel
+            label="Return"
+            originLabel={destinationLabel}
+            destinationLabel={originLabel}
+            rangeLabel={returnRangeLabel}
+            loading={returnLoading}
+            error={returnError}
+            result={returnResult}
+            onPickDay={onPickReturnDay}
+            onCtaClick={onReturnCtaClick}
+          />
+        </div>
+      )}
+
+      {/* Defer the form until the outbound cheapest day is known so its date
+          picker can default to "after I land," not today. Re-mount on outbound
+          chip-pick so the suggested return shifts with the new outbound day. */}
+      {cheapestOutboundDate && (
+        <ReturnTripForm
+          key={`${destinationLabel}->${originLabel}-${cheapestOutboundDate}`}
+          originLabel={destinationLabel}
+          destinationLabel={originLabel}
+          cheapestDate={cheapestOutboundDate}
+          loading={returnLoading}
+          hasResult={!!returnResult}
+          onSubmit={onReturnSearch}
+        />
+      )}
+    </div>
+  );
+}
+
+interface DirectionPanelProps {
+  label: string;
+  originLabel: string;
+  destinationLabel: string;
+  rangeLabel: string;
+  loading: boolean;
+  error: string | null;
+  result: CheapestDayResponse | null;
+  onPickDay: (day: CalendarDay) => void;
+  onCtaClick: () => void;
+}
+
+function DirectionPanel({
+  label,
+  originLabel,
+  destinationLabel,
+  rangeLabel,
+  loading,
+  error,
+  result,
+  onPickDay,
+  onCtaClick,
+}: DirectionPanelProps) {
   const cheapest = result?.cheapest ?? null;
 
-  const header = (
-    <div className="flex items-center justify-between mb-4">
-      <NewSearchLink onClick={onNewSearch} />
-      {(originLabel || destinationLabel) && (
-        <div className="text-[11px] text-text-muted truncate ml-2 max-w-[60%] text-right">
+  const sectionHeader = (
+    <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span className="text-[11px] font-bold uppercase tracking-widest text-indigo">
+          {label}
+        </span>
+        <span className="text-text-muted">·</span>
+        <span className="text-[11px] text-text-secondary font-semibold truncate">
           {originLabel}
           {originLabel && destinationLabel && <span className="mx-1">→</span>}
           {destinationLabel}
-          {rangeLabel && <span className="ml-1.5">· {rangeLabel}</span>}
-        </div>
+        </span>
+      </div>
+      {rangeLabel && (
+        <span className="text-[11px] text-text-muted">{rangeLabel}</span>
       )}
     </div>
   );
@@ -480,7 +635,7 @@ function ResultPanel({
   if (error) {
     return (
       <div>
-        {header}
+        {sectionHeader}
         <div className="bg-red-50 border border-red-200 rounded-2xl px-5 py-4">
           <p className="text-sm font-semibold text-red-700">Couldn&rsquo;t fetch prices</p>
           <p className="text-xs text-red-600/80 mt-1">{error}</p>
@@ -492,7 +647,7 @@ function ResultPanel({
   if (loading && !result) {
     return (
       <div>
-        {header}
+        {sectionHeader}
         <div className="h-5 w-32 bg-surface-2 rounded animate-pulse mb-3" />
         <div className="h-8 w-56 bg-surface-2 rounded animate-pulse mb-2" />
         <div className="h-12 w-32 bg-surface-2 rounded animate-pulse mb-4" />
@@ -504,7 +659,7 @@ function ResultPanel({
   if (result && !cheapest) {
     return (
       <div>
-        {header}
+        {sectionHeader}
         <div className="text-center py-4">
           <p className="text-sm font-semibold text-text-primary mb-1">
             No flights found in this window
@@ -517,7 +672,7 @@ function ResultPanel({
     );
   }
 
-  if (!cheapest) return <div>{header}</div>;
+  if (!cheapest) return <div>{sectionHeader}</div>;
 
   const it = cheapest.itinerary;
   const stopsLabel =
@@ -526,6 +681,23 @@ function ResultPanel({
       : it.viaIatas && it.viaIatas.length > 0
         ? `${it.stops} stop${it.stops > 1 ? 's' : ''} · via ${it.viaIatas.join(', ')}`
         : `${it.stops} stop${it.stops > 1 ? 's' : ''}`;
+
+  const cheapestDate = cheapest.date;
+  const cheapestTs = new Date(cheapestDate + 'T12:00:00').getTime();
+  const DAY_MS = 86_400_000;
+  const isNearby = (d: CalendarDay) => {
+    if (d.date === cheapestDate) return false;
+    const t = new Date(d.date + 'T12:00:00').getTime();
+    const delta = Math.abs(t - cheapestTs);
+    return delta > 0 && delta <= 2 * DAY_MS;
+  };
+  const nearbyDays = (result?.days ?? [])
+    .filter(isNearby)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const otherCheap = (result?.days ?? [])
+    .filter((d) => d.date !== cheapestDate && !isNearby(d))
+    .sort((a, b) => a.priceUsd - b.priceUsd)
+    .slice(0, 5);
 
   return (
     <div className="relative">
@@ -537,7 +709,7 @@ function ResultPanel({
           </div>
         </div>
       )}
-      {header}
+      {sectionHeader}
       <div className="flex items-center gap-2 mb-3">
         <TrendingDown size={14} className="text-emerald" />
         <span className="text-xs font-bold text-emerald uppercase tracking-wide">
@@ -612,77 +784,47 @@ function ResultPanel({
         </a>
       )}
 
-      {result && result.days.length > 1 && (() => {
-        const cheapestDate = cheapest.date;
-        const cheapestTs = new Date(cheapestDate + 'T12:00:00').getTime();
-        const DAY_MS = 86_400_000;
-        const isNearby = (d: CalendarDay) => {
-          if (d.date === cheapestDate) return false;
-          const t = new Date(d.date + 'T12:00:00').getTime();
-          const delta = Math.abs(t - cheapestTs);
-          return delta > 0 && delta <= 2 * DAY_MS;
-        };
-        const nearbyDays = result.days
-          .filter(isNearby)
-          .sort((a, b) => a.date.localeCompare(b.date));
-        const otherCheap = result.days
-          .filter((d) => d.date !== cheapestDate && !isNearby(d))
-          .sort((a, b) => a.priceUsd - b.priceUsd)
-          .slice(0, 5);
-        return (
-          <>
-            {nearbyDays.length > 0 && (
-              <div className="mt-5 pt-5 border-t border-border/60">
-                <div className="text-[11px] uppercase tracking-wide text-text-muted font-bold mb-2">
-                  Nearby dates
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {nearbyDays.map((d) => (
-                    <button
-                      key={d.date}
-                      type="button"
-                      onClick={() => onPickDay(d)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface-2 border border-border hover:border-indigo-border transition-all text-xs"
-                    >
-                      <span className="font-semibold text-text-primary">{FMT_DATE_TINY(d.date)}</span>
-                      <span className="text-text-muted">${Math.round(d.priceUsd)}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {otherCheap.length > 0 && (
-              <div className="mt-5 pt-5 border-t border-border/60">
-                <div className="text-[11px] uppercase tracking-wide text-text-muted font-bold mb-2">
-                  Other cheap dates
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {otherCheap.map((d) => (
-                    <button
-                      key={d.date}
-                      type="button"
-                      onClick={() => onPickDay(d)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface-2 border border-border hover:border-indigo-border transition-all text-xs"
-                    >
-                      <span className="font-semibold text-text-primary">{FMT_DATE_TINY(d.date)}</span>
-                      <span className="text-text-muted">${Math.round(d.priceUsd)}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        );
-      })()}
+      {nearbyDays.length > 0 && (
+        <div className="mt-5 pt-5 border-t border-border/60">
+          <div className="text-[11px] uppercase tracking-wide text-text-muted font-bold mb-2">
+            Nearby dates
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {nearbyDays.map((d) => (
+              <button
+                key={d.date}
+                type="button"
+                onClick={() => onPickDay(d)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface-2 border border-border hover:border-indigo-border transition-all text-xs"
+              >
+                <span className="font-semibold text-text-primary">{FMT_DATE_TINY(d.date)}</span>
+                <span className="text-text-muted">${Math.round(d.priceUsd)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
-      <ReturnTripForm
-        key={`${destinationLabel}->${originLabel}`}
-        originLabel={destinationLabel}
-        destinationLabel={originLabel}
-        cheapestDate={cheapest.date}
-        loading={loading}
-        onSubmit={onReturnSearch}
-      />
+      {otherCheap.length > 0 && (
+        <div className="mt-5 pt-5 border-t border-border/60">
+          <div className="text-[11px] uppercase tracking-wide text-text-muted font-bold mb-2">
+            Other cheap dates
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {otherCheap.map((d) => (
+              <button
+                key={d.date}
+                type="button"
+                onClick={() => onPickDay(d)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface-2 border border-border hover:border-indigo-border transition-all text-xs"
+              >
+                <span className="font-semibold text-text-primary">{FMT_DATE_TINY(d.date)}</span>
+                <span className="text-text-muted">${Math.round(d.priceUsd)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -692,6 +834,7 @@ interface ReturnTripFormProps {
   destinationLabel: string;
   cheapestDate: string;
   loading: boolean;
+  hasResult: boolean;
   onSubmit: (start: string, end: string) => void;
 }
 
@@ -700,6 +843,7 @@ function ReturnTripForm({
   destinationLabel,
   cheapestDate,
   loading,
+  hasResult,
   onSubmit,
 }: ReturnTripFormProps) {
   const todayStr = formatYMD(new Date());
@@ -709,10 +853,12 @@ function ReturnTripForm({
   const [start, setStart] = useState(initialStart);
   const [end, setEnd] = useState(initialEnd);
 
+  const submitLabel = hasResult ? 'Update return search' : 'Find cheapest return';
+
   return (
-    <div className="mt-6 pt-5 border-t border-border/60">
+    <div className="mt-7 pt-6 border-t-2 border-border/70">
       <div className="text-[11px] uppercase tracking-wide text-text-muted font-bold mb-2">
-        Plan return trip
+        {hasResult ? 'Adjust return dates' : 'Plan return trip'}
       </div>
       <div className="flex items-center gap-1.5 text-sm font-semibold text-text-primary mb-3 truncate">
         <span className="truncate">{originLabel}</span>
@@ -745,7 +891,7 @@ function ReturnTripForm({
           </>
         ) : (
           <>
-            Find cheapest return
+            {submitLabel}
             <ArrowRight size={14} />
           </>
         )}
