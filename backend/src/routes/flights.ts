@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { FlightOption } from '@fast-travel/shared';
 import { flightService } from '../services/FlightService';
 import { ok, fail } from '../utils/response';
-import { resolveLocation } from '../utils/resolveLocation';
+import { resolveLocation, isCityMarker, CITY_AIRPORT_CAP } from '../utils/resolveLocation';
+import { airportService } from '../services/AirportService';
 import { SerpApiRateLimitError, SerpApiUnavailableError, SerpApiResponseError } from '../providers/SerpApiFlightProvider';
 import { RapidApiRateLimitError, RapidApiAuthError, RapidApiUnavailableError } from '../providers/RapidApiKiwiFlightProvider';
 import { FlightProviderConfigError } from '../services/FlightService';
@@ -46,6 +47,15 @@ const searchQuerySchema = z.object({
   apiMode: z.enum(['real', 'mock']).optional(),
   fresh: z.coerce.boolean().default(false),
   country: z.string().length(2).toUpperCase().optional(),
+  /** When true and `originIata` is a bare IATA belonging to a multi-airport
+   *  city (e.g. BVA → Paris), expand the search to all peer airports in that
+   *  metro (capped at CITY_AIRPORT_CAP). Trip Builder sets this for mid-trip
+   *  hops and the return leg, where users typically don't care which
+   *  airport they depart from on day 3 of a Paris stay. The initial origin
+   *  airport stays single — that's the user's deliberate pick. No-op when
+   *  the marker is already a `@city_id` (already expanded) or the IATA's
+   *  city has only one commercial airport. */
+  expandMetro: z.coerce.boolean().default(false),
 });
 
 /**
@@ -89,11 +99,18 @@ export async function flightRoutes(app: FastifyInstance) {
       return reply.status(400).send(fail('INVALID_PARAMS', parsed.error.issues[0]?.message ?? 'Invalid params'));
     }
 
-    const { originIata, date, destination, deduplicate, sort, maxStopovers, currency, cabinClass, passengers, apiMode, fresh, country } = parsed.data;
+    const { originIata, date, destination, deduplicate, sort, maxStopovers, currency, cabinClass, passengers, apiMode, fresh, country, expandMetro } = parsed.data;
 
-    const originIatas = resolveLocation(originIata);
+    let originIatas = resolveLocation(originIata);
     if (originIatas.length === 0) {
       return reply.status(400).send(fail('INVALID_PARAMS', `Unknown origin city marker: ${originIata}`));
+    }
+    // expandMetro: bare arrival IATA → all peer airports of its metro. Skipped
+    // when the caller already passed a `@city_id` (resolveLocation handled it)
+    // or when the airport is the only commercial field in its city.
+    if (expandMetro && !isCityMarker(originIata)) {
+      const metro = airportService.cityByIata(originIata);
+      if (metro) originIatas = metro.airports.slice(0, CITY_AIRPORT_CAP);
     }
     const destinationIatas = destination ? resolveLocation(destination) : undefined;
     if (destination && (!destinationIatas || destinationIatas.length === 0)) {

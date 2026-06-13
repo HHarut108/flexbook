@@ -15,9 +15,16 @@ interface CompactFlightRowProps {
   flight: FlightOption;
   onSelect: (flight: FlightOption) => void;
   returnHome?: boolean;
+  /** The airport the traveller arrived at for the current stop. When the
+   *  flight's `originIata` differs (i.e. departing from a metro peer like
+   *  CDG when arrival was BVA), an amber chip surfaces the mismatch so the
+   *  user isn't surprised at the gate. Undefined on leg 1 — no prior leg
+   *  to compare against. */
+  arrivalIata?: string;
 }
 
-function CompactFlightRow({ flight, onSelect, returnHome = false }: CompactFlightRowProps) {
+function CompactFlightRow({ flight, onSelect, returnHome = false, arrivalIata }: CompactFlightRowProps) {
+  const airportMismatch = !!arrivalIata && flight.originIata !== arrivalIata;
   const direct = flight.stops === 0;
   return (
     <button
@@ -26,7 +33,9 @@ function CompactFlightRow({ flight, onSelect, returnHome = false }: CompactFligh
       aria-label={
         returnHome
           ? `Wrap up and fly home to ${flight.destinationCity}`
-          : `Select flight to ${flight.destinationCity}`
+          : airportMismatch
+            ? `Select flight to ${flight.destinationCity}. Departs ${flight.originIata}; you arrived ${arrivalIata}.`
+            : `Select flight to ${flight.destinationCity}`
       }
       className="group w-full text-left flex items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2.5 transition-colors hover:border-indigo-border hover:bg-indigo-soft/40"
     >
@@ -70,6 +79,16 @@ function CompactFlightRow({ flight, onSelect, returnHome = false }: CompactFligh
             {durationLabel(flight.durationMinutes)}
           </span>
         </div>
+        {airportMismatch && (
+          <div className="flex items-center gap-1.5 mt-1">
+            <span
+              className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800/60 rounded-md px-1.5 py-0.5"
+              title={`This flight departs ${flight.originIata}. You arrived at ${arrivalIata} — you'll need to transfer between airports.`}
+            >
+              Departs {flight.originIata} · arrived {arrivalIata}
+            </span>
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <span className="font-mono text-orange font-bold text-sm">
@@ -101,6 +120,9 @@ interface CountryGroupProps {
   visaLoading?: boolean;
   /** ISO-2 of the user's current passport, for the popover header. */
   passport?: string | null;
+  /** Forwarded to every CompactFlightRow so each row can flag flights that
+   *  depart from a metro peer airport (e.g. CDG when arrival was BVA). */
+  arrivalIata?: string;
 }
 
 export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function CountryGroup(
@@ -117,6 +139,7 @@ export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function 
     visa,
     visaLoading,
     passport,
+    arrivalIata,
   },
   ref,
 ) {
@@ -202,6 +225,7 @@ export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function 
               flight={flight}
               onSelect={onSelectFlight}
               returnHome={isReturnHomeFlight?.(flight) ?? false}
+              arrivalIata={arrivalIata}
             />
           ))}
         </div>

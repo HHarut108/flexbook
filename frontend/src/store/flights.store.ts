@@ -73,8 +73,11 @@ export const useFlightsStore = create<FlightsStoreState>((set) => ({
     })),
 }));
 
-export function flightsCacheKey(iata: string, date: string, passengers: number) {
-  return `${iata}|${date}|${passengers}`;
+export function flightsCacheKey(iata: string, date: string, passengers: number, expandMetro = false) {
+  // expandMetro changes the underlying result set (BVA vs CDG/ORY/BVA/LBG),
+  // so it must disambiguate cache entries — otherwise a non-expanded BVA hit
+  // would short-circuit an expanded request for the same key.
+  return expandMetro ? `${iata}|${date}|${passengers}|m` : `${iata}|${date}|${passengers}`;
 }
 
 export function flightsUiKey(iata: string, date: string) {
