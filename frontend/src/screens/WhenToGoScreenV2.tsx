@@ -282,6 +282,20 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
     });
   }
 
+  function handleRoundTripCtaClick() {
+    if (!outboundResult?.cheapest || !returnResult?.cheapest) return;
+    track(AnalyticsEvent.WhenToGoCtaClick, {
+      from: origin ? selectionToMarker(origin) : '',
+      to: destination ? selectionToMarker(destination) : '',
+      outboundDate: outboundResult.cheapest.date,
+      outboundPriceUsd: outboundResult.cheapest.priceUsd,
+      returnDate: returnResult.cheapest.date,
+      returnPriceUsd: returnResult.cheapest.priceUsd,
+      totalUsd: outboundResult.cheapest.priceUsd + returnResult.cheapest.priceUsd,
+      leg: 'round_trip',
+    });
+  }
+
   function pickOutboundDay(day: CalendarDay) {
     if (!outboundResult) return;
     setOutboundResult({ ...outboundResult, cheapest: day });
@@ -469,6 +483,7 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
                 returnRangeLabel={returnRangeLabel}
                 onOutboundCtaClick={handleOutboundCtaClick}
                 onReturnCtaClick={handleReturnCtaClick}
+                onRoundTripCtaClick={handleRoundTripCtaClick}
                 onPickOutboundDay={pickOutboundDay}
                 onPickReturnDay={pickReturnDay}
                 onNewSearch={handleNewSearch}
@@ -496,6 +511,7 @@ interface ResultPanelProps {
   returnRangeLabel: string;
   onOutboundCtaClick: () => void;
   onReturnCtaClick: () => void;
+  onRoundTripCtaClick: () => void;
   onPickOutboundDay: (day: CalendarDay) => void;
   onPickReturnDay: (day: CalendarDay) => void;
   onNewSearch: () => void;
@@ -528,6 +544,7 @@ function ResultPanel({
   returnRangeLabel,
   onOutboundCtaClick,
   onReturnCtaClick,
+  onRoundTripCtaClick,
   onPickOutboundDay,
   onPickReturnDay,
   onNewSearch,
@@ -535,6 +552,9 @@ function ResultPanel({
 }: ResultPanelProps) {
   const showReturnSection = !!(returnResult || returnLoading || returnError);
   const cheapestOutboundDate = outboundResult?.cheapest?.date;
+  const outboundCheapest = outboundResult?.cheapest;
+  const returnCheapest = returnResult?.cheapest;
+  const bothFlightsReady = !!(outboundCheapest && returnCheapest);
 
   return (
     <div>
@@ -570,20 +590,96 @@ function ResultPanel({
         </div>
       )}
 
-      {/* Defer the form until the outbound cheapest day is known so its date
-          picker can default to "after I land," not today. Re-mount on outbound
-          chip-pick so the suggested return shifts with the new outbound day. */}
-      {cheapestOutboundDate && (
+      {/* Once both flights are picked, swap the date-picker form for a single
+          round-trip CTA — the user is no longer planning, they're booking. */}
+      {bothFlightsReady ? (
+        <BookRoundTripButton
+          outboundDate={outboundCheapest!.date}
+          outboundPrice={outboundCheapest!.priceUsd}
+          outboundUrl={outboundCheapest!.bookingUrl}
+          returnDate={returnCheapest!.date}
+          returnPrice={returnCheapest!.priceUsd}
+          returnUrl={returnCheapest!.bookingUrl}
+          currency={outboundCheapest!.currency || returnCheapest!.currency}
+          onClick={onRoundTripCtaClick}
+        />
+      ) : cheapestOutboundDate ? (
+        // Defer the form until the outbound cheapest day is known so its date
+        // picker can default to "after I land," not today. Re-mount on outbound
+        // chip-pick so the suggested return shifts with the new outbound day.
         <ReturnTripForm
           key={`${destinationLabel}->${originLabel}-${cheapestOutboundDate}`}
           originLabel={destinationLabel}
           destinationLabel={originLabel}
           cheapestDate={cheapestOutboundDate}
           loading={returnLoading}
-          hasResult={!!returnResult}
           onSubmit={onReturnSearch}
         />
-      )}
+      ) : null}
+    </div>
+  );
+}
+
+interface BookRoundTripButtonProps {
+  outboundDate: string;
+  outboundPrice: number;
+  outboundUrl?: string;
+  returnDate: string;
+  returnPrice: number;
+  returnUrl?: string;
+  currency: string;
+  onClick: () => void;
+}
+
+function BookRoundTripButton({
+  outboundDate,
+  outboundPrice,
+  outboundUrl,
+  returnDate,
+  returnPrice,
+  returnUrl,
+  currency,
+  onClick,
+}: BookRoundTripButtonProps) {
+  const total = Math.round(outboundPrice + returnPrice);
+  const canBook = !!(outboundUrl && returnUrl);
+
+  function handleClick() {
+    onClick();
+    // Open both Kiwi deep links — the click is a user gesture so the second
+    // window.open is allowed by browsers. Outbound first so the active tab is
+    // the more important leg if a pop-up blocker only lets one through.
+    if (outboundUrl) window.open(outboundUrl, '_blank', 'noopener,noreferrer');
+    if (returnUrl) window.open(returnUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  return (
+    <div className="mt-7 pt-6 border-t-2 border-border/70">
+      <div className="text-[11px] uppercase tracking-wide text-text-muted font-bold mb-3">
+        Round trip total
+      </div>
+      <div className="flex items-baseline gap-2 mb-4 flex-wrap">
+        <span className="text-3xl font-black text-indigo tracking-tight">${total}</span>
+        <span className="text-sm font-bold text-text-muted">{currency}</span>
+        <span className="ml-auto text-[11px] text-text-muted">
+          {FMT_DATE_TINY(outboundDate)}
+          <ArrowRight size={11} className="inline mx-1 -mt-0.5" />
+          {FMT_DATE_TINY(returnDate)}
+        </span>
+      </div>
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={!canBook}
+        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full bg-orange text-white text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-orange-dark transition-all"
+        style={{ boxShadow: '0 14px 32px -10px rgba(249,115,22,0.5)' }}
+      >
+        Book round trip
+        <ExternalLink size={14} />
+      </button>
+      <p className="text-[10px] text-text-muted mt-2 text-center">
+        Opens both legs in new tabs on Kiwi
+      </p>
     </div>
   );
 }
@@ -834,7 +930,6 @@ interface ReturnTripFormProps {
   destinationLabel: string;
   cheapestDate: string;
   loading: boolean;
-  hasResult: boolean;
   onSubmit: (start: string, end: string) => void;
 }
 
@@ -843,7 +938,6 @@ function ReturnTripForm({
   destinationLabel,
   cheapestDate,
   loading,
-  hasResult,
   onSubmit,
 }: ReturnTripFormProps) {
   const todayStr = formatYMD(new Date());
@@ -853,12 +947,10 @@ function ReturnTripForm({
   const [start, setStart] = useState(initialStart);
   const [end, setEnd] = useState(initialEnd);
 
-  const submitLabel = hasResult ? 'Update return search' : 'Find cheapest return';
-
   return (
     <div className="mt-7 pt-6 border-t-2 border-border/70">
       <div className="text-[11px] uppercase tracking-wide text-text-muted font-bold mb-2">
-        {hasResult ? 'Adjust return dates' : 'Plan return trip'}
+        Plan return trip
       </div>
       <div className="flex items-center gap-1.5 text-sm font-semibold text-text-primary mb-3 truncate">
         <span className="truncate">{originLabel}</span>
@@ -891,7 +983,7 @@ function ReturnTripForm({
           </>
         ) : (
           <>
-            {submitLabel}
+            Find cheapest return
             <ArrowRight size={14} />
           </>
         )}
