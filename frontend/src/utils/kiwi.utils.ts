@@ -41,3 +41,35 @@ export function buildKiwiMultiCitySearchUrl(
   if (segments.length === 0) return null;
   return `https://www.kiwi.com/en/search/results/${segments.join('/')}/?adults=${adults}&sortBy=price`;
 }
+
+/**
+ * Round-trip *search* URL.
+ *
+ * Kiwi's canonical search-result path uses hyphenated city/country slugs
+ * (e.g. /paris-france/london-united-kingdom/...) — raw 3-letter IATAs in the
+ * path are NOT recognized, so /EVN/BBU/{out}/{back}/ lands on "Nothing here
+ * yet …" with empty From/To fields. We confirmed this against kiwi.com's
+ * router for both /FROM/TO/out/back/ (round-trip) and the older multi-city
+ * /FROM/TO/out/FROM/TO/back/ shape — both fail the same way.
+ *
+ * The /deep entry point, however, accepts IATA codes via query string and
+ * Kiwi's server resolves them to the right slug-based URL on the redirect:
+ *   /deep?from=EVN&to=BBU&departure=2026-06-23&return=2026-06-30&adults=1
+ * lands on a populated search ("Yerevan EVN" → "Bucharest BBU", both dates
+ * filled), which is what we want.
+ */
+export function buildKiwiRoundTripSearchUrl(
+  originIata: string,
+  destinationIata: string,
+  outboundDate: string,
+  returnDate: string,
+  passengers: number,
+): string | null {
+  const from = originIata?.trim().toUpperCase();
+  const to = destinationIata?.trim().toUpperCase();
+  const out = outboundDate?.slice(0, 10);
+  const back = returnDate?.slice(0, 10);
+  if (!from || !to || !out || !back) return null;
+  const adults = Math.max(1, Math.floor(passengers || 1));
+  return `https://www.kiwi.com/deep?from=${from}&to=${to}&departure=${out}&return=${back}&adults=${adults}`;
+}

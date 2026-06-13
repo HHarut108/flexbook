@@ -1,14 +1,16 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getAirportIndex, resolveMarkerInIndex } from '../lib/airportIndex';
 import axios from 'axios';
-import { LocationSelection, selectionLabel, selectionToMarker } from '@fast-travel/shared';
+import { FlightOption, LocationSelection, selectionLabel, selectionToMarker } from '@fast-travel/shared';
 import { format, addDays, addMonths, endOfMonth, startOfMonth } from 'date-fns';
 import { ArrowLeft, ArrowRight, ExternalLink, Loader2, PlaneTakeoff, TrendingDown } from 'lucide-react';
 import { MarketingShellV2 } from '../components/MarketingShellV2';
 import { AirportSearchInput } from '../components/AirportSearchInput';
 import { V2ToolHero } from '../components/V2ToolHero';
 import { MobileViewToggle, type MobileView } from '../components/MobileViewToggle';
+import { persistSelectedTrip } from '../lib/selectedTrip';
+import { buildKiwiRoundTripSearchUrl } from '../utils/kiwi.utils';
 // Leaflet map + DateRangePicker calendar — both below-the-fold or
 // conditionally rendered, both lazy so the form ships smaller.
 const TripMapColumn = lazy(() =>
@@ -19,6 +21,7 @@ const DateRangePicker = lazy(() =>
 );
 import { formatYMD } from '../utils/date.utils';
 import { fetchCheapestDay, CheapestDayResponse, CalendarDay } from '../api/whenToGo.api';
+import { searchRoundTrip } from '../api/flights.api';
 import { track, AnalyticsEvent } from '../lib/analytics';
 
 interface Props {
@@ -93,7 +96,38 @@ function fmtDuration(minutes: number): string {
   return `${h}h ${m}m`;
 }
 
+/**
+ * Adapt a When-to-Go CalendarDay to the FlightOption shape that the
+ * TripDetailsScreen / persistSelectedTrip pipeline expects. The price + booking
+ * URL live on CalendarDay, not on the embedded itinerary, so we lift them here.
+ */
+function calendarDayToFlight(day: CalendarDay): FlightOption | null {
+  const it = day.itinerary;
+  if (!it) return null;
+  return {
+    flightId: `wtg-${it.originIata}-${it.destinationIata}-${day.date}`,
+    originIata: it.originIata,
+    originCity: it.originCity,
+    destinationIata: it.destinationIata,
+    destinationCity: it.destinationCity,
+    destinationCountry: it.destinationCountry,
+    destinationLat: it.destinationLat,
+    destinationLng: it.destinationLng,
+    departureDatetime: it.departureDatetime,
+    arrivalDatetime: it.arrivalDatetime,
+    durationMinutes: it.durationMinutes,
+    airlineName: it.airlineName,
+    airlineCode: it.airlineCode,
+    stops: it.stops,
+    viaIatas: it.viaIatas,
+    viaCoords: it.viaCoords,
+    priceUsd: day.priceUsd,
+    bookingUrl: day.bookingUrl ?? '',
+  };
+}
+
 export function WhenToGoScreenV2({ onMenuOpen }: Props) {
+  const navigate = useNavigate();
   const [destQuery, setDestQuery] = useState('');
   const [destination, setDestination] = useState<LocationSelection | null>(null);
   const [origin, setOrigin] = useState<LocationSelection | null>(null);
@@ -110,6 +144,7 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
   const [returnError, setReturnError] = useState<string | null>(null);
   const [returnRangeLabel, setReturnRangeLabel] = useState<string>('');
   const [view, setView] = useState<'search' | 'result'>('search');
+  const [roundTripLoading, setRoundTripLoading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const abortReturnRef = useRef<AbortController | null>(null);
 
@@ -282,18 +317,86 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
     });
   }
 
-  function handleRoundTripCtaClick() {
-    if (!outboundResult?.cheapest || !returnResult?.cheapest) return;
+  async function handleRoundTripCtaClick() {
+    const outDay = outboundResult?.cheapest;
+    const retDay = returnResult?.cheapest;
+    if (!outDay || !retDay) return;
+    const outFlightSeed = calendarDayToFlight(outDay);
+    const retFlightSeed = calendarDayToFlight(retDay);
+    if (!outFlightSeed || !retFlightSeed) return;
+
     track(AnalyticsEvent.WhenToGoCtaClick, {
       from: origin ? selectionToMarker(origin) : '',
       to: destination ? selectionToMarker(destination) : '',
-      outboundDate: outboundResult.cheapest.date,
-      outboundPriceUsd: outboundResult.cheapest.priceUsd,
-      returnDate: returnResult.cheapest.date,
-      returnPriceUsd: returnResult.cheapest.priceUsd,
-      totalUsd: outboundResult.cheapest.priceUsd + returnResult.cheapest.priceUsd,
+      outboundDate: outDay.date,
+      outboundPriceUsd: outDay.priceUsd,
+      returnDate: retDay.date,
+      returnPriceUsd: retDay.priceUsd,
+      totalUsd: outFlightSeed.priceUsd + retFlightSeed.priceUsd,
       leg: 'round_trip',
     });
+
+    setRoundTripLoading(true);
+
+    // Try to fetch a bundled round-trip itinerary for these dates so the user
+    // ends up on Kiwi's real round-trip deep-link (a single tab, both legs
+    // pre-filled). The previous slash-multi-city search URL only had the
+    // OUTBOUND date and IATAs parsed by Kiwi's router — From/To stayed empty.
+    // Fallback: a /from/to/depart/return/ search URL, which Kiwi *does* parse
+    // for the round-trip case.
+    let outFlight: FlightOption = outFlightSeed;
+    let retFlight: FlightOption = retFlightSeed;
+    let totalPriceUsd = outFlightSeed.priceUsd + retFlightSeed.priceUsd;
+    let bookingUrl: string | null = null;
+
+    try {
+      const pairs = await searchRoundTrip(
+        outFlightSeed.originIata,
+        outFlightSeed.destinationIata,
+        outDay.date,
+        retDay.date,
+        { passengers: 1, limit: 5 },
+      );
+      if (pairs.length > 0) {
+        // pairs come back sorted cheapest-first.
+        const best = pairs[0];
+        outFlight = best.outbound;
+        retFlight = best.inbound;
+        totalPriceUsd = best.priceUsd;
+        bookingUrl = best.bookingUrl;
+      }
+    } catch {
+      // Backend failure → fall through to the search-URL fallback.
+    }
+
+    if (!bookingUrl) {
+      bookingUrl =
+        buildKiwiRoundTripSearchUrl(
+          outFlight.originIata,
+          outFlight.destinationIata,
+          outDay.date,
+          retDay.date,
+          1,
+        ) ?? outFlight.bookingUrl;
+    }
+
+    const saved = persistSelectedTrip({
+      type: 'return',
+      passengers: 1,
+      flights: [outFlight, retFlight],
+      bookings: [
+        {
+          label: 'Book round trip on Kiwi',
+          url: bookingUrl,
+        },
+      ],
+      totalPriceUsd,
+    });
+
+    setRoundTripLoading(false);
+    // Pass the trip via location state so /trip/:id paints instantly without
+    // waiting on sessionStorage (it also writes there for refresh recovery).
+    navigate(`/trip/${saved.id}`, { state: { trip: saved } });
   }
 
   function pickOutboundDay(day: CalendarDay) {
@@ -481,6 +584,7 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
                 destinationLabel={destination ? selectionLabel(destination) : ''}
                 outboundRangeLabel={fmtRange(range.start, range.end)}
                 returnRangeLabel={returnRangeLabel}
+                roundTripLoading={roundTripLoading}
                 onOutboundCtaClick={handleOutboundCtaClick}
                 onReturnCtaClick={handleReturnCtaClick}
                 onRoundTripCtaClick={handleRoundTripCtaClick}
@@ -509,6 +613,7 @@ interface ResultPanelProps {
   destinationLabel: string;
   outboundRangeLabel: string;
   returnRangeLabel: string;
+  roundTripLoading: boolean;
   onOutboundCtaClick: () => void;
   onReturnCtaClick: () => void;
   onRoundTripCtaClick: () => void;
@@ -542,6 +647,7 @@ function ResultPanel({
   destinationLabel,
   outboundRangeLabel,
   returnRangeLabel,
+  roundTripLoading,
   onOutboundCtaClick,
   onReturnCtaClick,
   onRoundTripCtaClick,
@@ -596,11 +702,10 @@ function ResultPanel({
         <BookRoundTripButton
           outboundDate={outboundCheapest!.date}
           outboundPrice={outboundCheapest!.priceUsd}
-          outboundUrl={outboundCheapest!.bookingUrl}
           returnDate={returnCheapest!.date}
           returnPrice={returnCheapest!.priceUsd}
-          returnUrl={returnCheapest!.bookingUrl}
           currency={outboundCheapest!.currency || returnCheapest!.currency}
+          loading={roundTripLoading}
           onClick={onRoundTripCtaClick}
         />
       ) : cheapestOutboundDate ? (
@@ -623,35 +728,23 @@ function ResultPanel({
 interface BookRoundTripButtonProps {
   outboundDate: string;
   outboundPrice: number;
-  outboundUrl?: string;
   returnDate: string;
   returnPrice: number;
-  returnUrl?: string;
   currency: string;
+  loading: boolean;
   onClick: () => void;
 }
 
 function BookRoundTripButton({
   outboundDate,
   outboundPrice,
-  outboundUrl,
   returnDate,
   returnPrice,
-  returnUrl,
   currency,
+  loading,
   onClick,
 }: BookRoundTripButtonProps) {
   const total = Math.round(outboundPrice + returnPrice);
-  const canBook = !!(outboundUrl && returnUrl);
-
-  function handleClick() {
-    onClick();
-    // Open both Kiwi deep links — the click is a user gesture so the second
-    // window.open is allowed by browsers. Outbound first so the active tab is
-    // the more important leg if a pop-up blocker only lets one through.
-    if (outboundUrl) window.open(outboundUrl, '_blank', 'noopener,noreferrer');
-    if (returnUrl) window.open(returnUrl, '_blank', 'noopener,noreferrer');
-  }
 
   return (
     <div className="mt-7 pt-6 border-t-2 border-border/70">
@@ -669,16 +762,25 @@ function BookRoundTripButton({
       </div>
       <button
         type="button"
-        onClick={handleClick}
-        disabled={!canBook}
-        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full bg-orange text-white text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-orange-dark transition-all"
+        onClick={onClick}
+        disabled={loading}
+        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full bg-orange text-white text-sm font-bold hover:bg-orange-dark transition-all disabled:opacity-70 disabled:cursor-wait"
         style={{ boxShadow: '0 14px 32px -10px rgba(249,115,22,0.5)' }}
       >
-        Book round trip
-        <ExternalLink size={14} />
+        {loading ? (
+          <>
+            <Loader2 size={14} className="animate-spin" />
+            Finding round trip…
+          </>
+        ) : (
+          <>
+            Book round trip
+            <ArrowRight size={14} />
+          </>
+        )}
       </button>
       <p className="text-[10px] text-text-muted mt-2 text-center">
-        Opens both legs in new tabs on Kiwi
+        Review on Flexbook, then continue to Kiwi
       </p>
     </div>
   );
