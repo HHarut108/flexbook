@@ -1,14 +1,16 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getAirportIndex, resolveMarkerInIndex } from '../lib/airportIndex';
 import axios from 'axios';
-import { LocationSelection, selectionLabel, selectionToMarker } from '@fast-travel/shared';
+import { FlightOption, LocationSelection, selectionLabel, selectionToMarker } from '@fast-travel/shared';
 import { format, addDays, addMonths, endOfMonth, startOfMonth } from 'date-fns';
 import { ArrowLeft, ArrowRight, ExternalLink, Loader2, PlaneTakeoff, TrendingDown } from 'lucide-react';
 import { MarketingShellV2 } from '../components/MarketingShellV2';
 import { AirportSearchInput } from '../components/AirportSearchInput';
 import { V2ToolHero } from '../components/V2ToolHero';
 import { MobileViewToggle, type MobileView } from '../components/MobileViewToggle';
+import { persistSelectedTrip } from '../lib/selectedTrip';
+import { buildKiwiMultiCitySearchUrl } from '../utils/kiwi.utils';
 // Leaflet map + DateRangePicker calendar — both below-the-fold or
 // conditionally rendered, both lazy so the form ships smaller.
 const TripMapColumn = lazy(() =>
@@ -93,7 +95,38 @@ function fmtDuration(minutes: number): string {
   return `${h}h ${m}m`;
 }
 
+/**
+ * Adapt a When-to-Go CalendarDay to the FlightOption shape that the
+ * TripDetailsScreen / persistSelectedTrip pipeline expects. The price + booking
+ * URL live on CalendarDay, not on the embedded itinerary, so we lift them here.
+ */
+function calendarDayToFlight(day: CalendarDay): FlightOption | null {
+  const it = day.itinerary;
+  if (!it) return null;
+  return {
+    flightId: `wtg-${it.originIata}-${it.destinationIata}-${day.date}`,
+    originIata: it.originIata,
+    originCity: it.originCity,
+    destinationIata: it.destinationIata,
+    destinationCity: it.destinationCity,
+    destinationCountry: it.destinationCountry,
+    destinationLat: it.destinationLat,
+    destinationLng: it.destinationLng,
+    departureDatetime: it.departureDatetime,
+    arrivalDatetime: it.arrivalDatetime,
+    durationMinutes: it.durationMinutes,
+    airlineName: it.airlineName,
+    airlineCode: it.airlineCode,
+    stops: it.stops,
+    viaIatas: it.viaIatas,
+    viaCoords: it.viaCoords,
+    priceUsd: day.priceUsd,
+    bookingUrl: day.bookingUrl ?? '',
+  };
+}
+
 export function WhenToGoScreenV2({ onMenuOpen }: Props) {
+  const navigate = useNavigate();
   const [destQuery, setDestQuery] = useState('');
   const [destination, setDestination] = useState<LocationSelection | null>(null);
   const [origin, setOrigin] = useState<LocationSelection | null>(null);
@@ -283,17 +316,64 @@ export function WhenToGoScreenV2({ onMenuOpen }: Props) {
   }
 
   function handleRoundTripCtaClick() {
-    if (!outboundResult?.cheapest || !returnResult?.cheapest) return;
+    const outDay = outboundResult?.cheapest;
+    const retDay = returnResult?.cheapest;
+    if (!outDay || !retDay) return;
+    const outFlight = calendarDayToFlight(outDay);
+    const retFlight = calendarDayToFlight(retDay);
+    if (!outFlight || !retFlight) return;
+
+    // Build a Kiwi multi-city *search* URL covering both legs in a single tab,
+    // so the user lands on a round-trip search (not the one-way deep-link Kiwi
+    // returns per CalendarDay). Falls back to the outbound deep-link only if
+    // the URL builder can't produce one — should never happen with valid IATA
+    // codes, but the fallback keeps the CTA functional.
+    const kiwiUrl =
+      buildKiwiMultiCitySearchUrl(
+        [
+          {
+            originIata: outFlight.originIata,
+            destinationIata: outFlight.destinationIata,
+            departureDatetime: outFlight.departureDatetime,
+          },
+          {
+            originIata: retFlight.originIata,
+            destinationIata: retFlight.destinationIata,
+            departureDatetime: retFlight.departureDatetime,
+          },
+        ],
+        1,
+      ) ?? outFlight.bookingUrl;
+
+    const totalPriceUsd = outFlight.priceUsd + retFlight.priceUsd;
+
     track(AnalyticsEvent.WhenToGoCtaClick, {
       from: origin ? selectionToMarker(origin) : '',
       to: destination ? selectionToMarker(destination) : '',
-      outboundDate: outboundResult.cheapest.date,
-      outboundPriceUsd: outboundResult.cheapest.priceUsd,
-      returnDate: returnResult.cheapest.date,
-      returnPriceUsd: returnResult.cheapest.priceUsd,
-      totalUsd: outboundResult.cheapest.priceUsd + returnResult.cheapest.priceUsd,
+      outboundDate: outDay.date,
+      outboundPriceUsd: outDay.priceUsd,
+      returnDate: retDay.date,
+      returnPriceUsd: retDay.priceUsd,
+      totalUsd: totalPriceUsd,
       leg: 'round_trip',
     });
+
+    const saved = persistSelectedTrip({
+      type: 'return',
+      passengers: 1,
+      flights: [outFlight, retFlight],
+      bookings: [
+        {
+          label: 'Book round trip on Kiwi',
+          url: kiwiUrl,
+        },
+      ],
+      totalPriceUsd,
+    });
+
+    // Pass the trip via location state so /trip/:id paints instantly without
+    // waiting on sessionStorage (it also writes there for refresh recovery).
+    navigate(`/trip/${saved.id}`, { state: { trip: saved } });
   }
 
   function pickOutboundDay(day: CalendarDay) {
@@ -596,10 +676,8 @@ function ResultPanel({
         <BookRoundTripButton
           outboundDate={outboundCheapest!.date}
           outboundPrice={outboundCheapest!.priceUsd}
-          outboundUrl={outboundCheapest!.bookingUrl}
           returnDate={returnCheapest!.date}
           returnPrice={returnCheapest!.priceUsd}
-          returnUrl={returnCheapest!.bookingUrl}
           currency={outboundCheapest!.currency || returnCheapest!.currency}
           onClick={onRoundTripCtaClick}
         />
@@ -623,10 +701,8 @@ function ResultPanel({
 interface BookRoundTripButtonProps {
   outboundDate: string;
   outboundPrice: number;
-  outboundUrl?: string;
   returnDate: string;
   returnPrice: number;
-  returnUrl?: string;
   currency: string;
   onClick: () => void;
 }
@@ -634,24 +710,12 @@ interface BookRoundTripButtonProps {
 function BookRoundTripButton({
   outboundDate,
   outboundPrice,
-  outboundUrl,
   returnDate,
   returnPrice,
-  returnUrl,
   currency,
   onClick,
 }: BookRoundTripButtonProps) {
   const total = Math.round(outboundPrice + returnPrice);
-  const canBook = !!(outboundUrl && returnUrl);
-
-  function handleClick() {
-    onClick();
-    // Open both Kiwi deep links — the click is a user gesture so the second
-    // window.open is allowed by browsers. Outbound first so the active tab is
-    // the more important leg if a pop-up blocker only lets one through.
-    if (outboundUrl) window.open(outboundUrl, '_blank', 'noopener,noreferrer');
-    if (returnUrl) window.open(returnUrl, '_blank', 'noopener,noreferrer');
-  }
 
   return (
     <div className="mt-7 pt-6 border-t-2 border-border/70">
@@ -669,16 +733,15 @@ function BookRoundTripButton({
       </div>
       <button
         type="button"
-        onClick={handleClick}
-        disabled={!canBook}
-        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full bg-orange text-white text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-orange-dark transition-all"
+        onClick={onClick}
+        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full bg-orange text-white text-sm font-bold hover:bg-orange-dark transition-all"
         style={{ boxShadow: '0 14px 32px -10px rgba(249,115,22,0.5)' }}
       >
         Book round trip
-        <ExternalLink size={14} />
+        <ArrowRight size={14} />
       </button>
       <p className="text-[10px] text-text-muted mt-2 text-center">
-        Opens both legs in new tabs on Kiwi
+        Review on Flexbook, then continue to Kiwi
       </p>
     </div>
   );
