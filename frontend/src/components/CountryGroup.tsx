@@ -165,7 +165,7 @@ export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function 
   const headerId = `country-${safe}-header`;
   const panelId = `country-${safe}-panel`;
   const tone = visaTone(visa?.status);
-  const leftRail = tone === 'gray' ? '' : `border-l-4 ${VISA_TONE_BORDER[tone]}`;
+  const railColor = tone === 'gray' ? null : VISA_TONE_BORDER[tone];
   const [popoverOpen, setPopoverOpen] = useState(false);
   // The header is split into two side-by-side buttons (title-area and
   // price-area) so the chip can sit between them as its own button without
@@ -174,7 +174,8 @@ export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function 
   return (
     <section
       ref={ref}
-      className={`bg-surface border rounded-2xl overflow-hidden scroll-mt-4 lg:scroll-mt-6 transition-shadow ${leftRail} ${
+      style={railColor ? { borderLeftWidth: 4, borderLeftStyle: 'solid', borderLeftColor: railColor } : undefined}
+      className={`bg-surface border rounded-2xl overflow-hidden scroll-mt-4 lg:scroll-mt-6 transition-shadow ${
         expanded
           ? 'border-indigo-border shadow-[0_10px_28px_rgba(55,48,163,0.10)]'
           : 'border-border shadow-[0_2px_8px_rgba(15,23,42,0.04)]'

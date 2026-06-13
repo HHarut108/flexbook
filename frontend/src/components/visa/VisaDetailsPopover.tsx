@@ -3,9 +3,10 @@ import {
   X,
   ShieldCheck,
   FileCheck,
-  Globe2,
+  Zap,
+  FileText,
   ShieldAlert,
-  ShieldX,
+  Ban,
   DollarSign,
   Clock,
   Plane,
@@ -38,10 +39,10 @@ const STATUS_LABEL: Record<VisaRequirement['status'], string> = {
 const STATUS_ICON: Record<VisaRequirement['status'], typeof ShieldCheck> = {
   'visa free': ShieldCheck,
   'visa on arrival': FileCheck,
-  eta: Globe2,
-  'e-visa': Globe2,
+  eta: Zap,
+  'e-visa': FileText,
   'visa required': ShieldAlert,
-  'no admission': ShieldX,
+  'no admission': Ban,
 };
 
 const APPLY_FORMAT_ICON = {
@@ -64,6 +65,7 @@ const HEADER_GRADIENT: Record<VisaTone, string> = {
   amber: 'linear-gradient(135deg, rgba(217,119,6,0.97) 0%, rgba(245,158,11,0.97) 100%)',
   blue: 'linear-gradient(135deg, rgba(2,132,199,0.97) 0%, rgba(14,165,233,0.97) 100%)',
   red: 'linear-gradient(135deg, rgba(190,18,60,0.97) 0%, rgba(244,63,94,0.97) 100%)',
+  slate: 'linear-gradient(135deg, rgba(71,85,105,0.97) 0%, rgba(100,116,139,0.97) 100%)',
   gray: 'linear-gradient(135deg, rgba(71,85,105,0.97) 0%, rgba(100,116,139,0.97) 100%)',
 };
 
