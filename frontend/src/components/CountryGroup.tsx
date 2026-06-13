@@ -15,16 +15,9 @@ interface CompactFlightRowProps {
   flight: FlightOption;
   onSelect: (flight: FlightOption) => void;
   returnHome?: boolean;
-  /** The airport the traveller arrived at for the current stop. When the
-   *  flight's `originIata` differs (i.e. departing from a metro peer like
-   *  CDG when arrival was BVA), an amber chip surfaces the mismatch so the
-   *  user isn't surprised at the gate. Undefined on leg 1 — no prior leg
-   *  to compare against. */
-  arrivalIata?: string;
 }
 
-function CompactFlightRow({ flight, onSelect, returnHome = false, arrivalIata }: CompactFlightRowProps) {
-  const airportMismatch = !!arrivalIata && flight.originIata !== arrivalIata;
+function CompactFlightRow({ flight, onSelect, returnHome = false }: CompactFlightRowProps) {
   const direct = flight.stops === 0;
   return (
     <button
@@ -33,32 +26,43 @@ function CompactFlightRow({ flight, onSelect, returnHome = false, arrivalIata }:
       aria-label={
         returnHome
           ? `Wrap up and fly home to ${flight.destinationCity}`
-          : airportMismatch
-            ? `Select flight to ${flight.destinationCity}. Departs ${flight.originIata}; you arrived ${arrivalIata}.`
-            : `Select flight to ${flight.destinationCity}`
+          : `Select flight ${flight.originCity} (${flight.originIata}) to ${flight.destinationCity} (${flight.destinationIata})`
       }
       className="group w-full text-left flex items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2.5 transition-colors hover:border-indigo-border hover:bg-indigo-soft/40"
     >
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-sm font-semibold text-text-primary truncate">
+        {/* Route line — origin city + IATA → destination city + IATA. Surfaces
+            the actual departure airport inline so a metro-expanded result that
+            departs from a peer airport (e.g. CDG when arrival was BVA) is
+            self-evident, with no separate chip needed. flex-wrap so long city
+            names on narrow screens push "Direct"/stops to the next line
+            instead of truncating into "Pa…". */}
+        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+          <span className="text-sm font-semibold text-text-primary">
+            {flight.originCity}
+          </span>
+          <span className="font-mono text-[10px] text-text-muted bg-surface-2 px-1.5 py-0.5 rounded-md">
+            {flight.originIata}
+          </span>
+          <span className="text-text-xmuted">→</span>
+          <span className="text-sm font-semibold text-text-primary">
             {flight.destinationCity}
           </span>
-          <span className="font-mono text-[10px] text-text-muted bg-surface-2 px-1.5 py-0.5 rounded-md shrink-0">
+          <span className="font-mono text-[10px] text-text-muted bg-surface-2 px-1.5 py-0.5 rounded-md">
             {flight.destinationIata}
           </span>
           {direct ? (
-            <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 shrink-0">
+            <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
               Direct
             </span>
           ) : (
-            <span className="text-[10px] font-semibold text-sky-700 dark:text-sky-400 shrink-0">
+            <span className="text-[10px] font-semibold text-sky-700 dark:text-sky-400">
               {flight.stops} stop{flight.stops > 1 ? 's' : ''}
             </span>
           )}
           {returnHome && (
             <span
-              className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-orange-700 dark:text-orange-300 bg-orange/10 border border-orange/30 rounded-md px-1.5 py-0.5 shrink-0"
+              className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-orange-700 dark:text-orange-300 bg-orange/10 border border-orange/30 rounded-md px-1.5 py-0.5"
               title="Selecting this finalizes your trip"
             >
               <Home size={9} />
@@ -79,16 +83,6 @@ function CompactFlightRow({ flight, onSelect, returnHome = false, arrivalIata }:
             {durationLabel(flight.durationMinutes)}
           </span>
         </div>
-        {airportMismatch && (
-          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-            <span
-              className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5 max-w-full"
-              title={`This flight departs ${flight.originIata}. You arrived at ${arrivalIata} — you'll need to transfer between airports.`}
-            >
-              <span className="truncate">Departs {flight.originIata} · arrived {arrivalIata}</span>
-            </span>
-          </div>
-        )}
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <span className="font-mono text-orange font-bold text-sm">
@@ -120,9 +114,6 @@ interface CountryGroupProps {
   visaLoading?: boolean;
   /** ISO-2 of the user's current passport, for the popover header. */
   passport?: string | null;
-  /** Forwarded to every CompactFlightRow so each row can flag flights that
-   *  depart from a metro peer airport (e.g. CDG when arrival was BVA). */
-  arrivalIata?: string;
 }
 
 export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function CountryGroup(
@@ -139,7 +130,6 @@ export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function 
     visa,
     visaLoading,
     passport,
-    arrivalIata,
   },
   ref,
 ) {
@@ -225,7 +215,6 @@ export const CountryGroup = forwardRef<HTMLElement, CountryGroupProps>(function 
               flight={flight}
               onSelect={onSelectFlight}
               returnHome={isReturnHomeFlight?.(flight) ?? false}
-              arrivalIata={arrivalIata}
             />
           ))}
         </div>

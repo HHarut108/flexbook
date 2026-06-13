@@ -58,14 +58,6 @@ export function StayDurationScreen() {
   const nextDeparture = computeNextDeparture(selectedFlight.arrivalDatetime, days);
   const stopIndex = legs.filter((l) => !l.isReturn).length + 1;
 
-  // The IATA the user landed at on the *previous* leg (= the city they're
-  // staying in now). For hop 2+ with metro expansion, the just-picked flight
-  // may depart from a peer airport (e.g. CDG when arrival was BVA) — surface
-  // that on the stay card so it's not a surprise on the next-hop screen.
-  const priorArrivalIata = legs.filter((l) => !l.isReturn).at(-1)?.destinationIata;
-  const airportMismatch =
-    !!priorArrivalIata && selectedFlight.originIata !== priorArrivalIata;
-
   function handleConfirm() {
     if (!selectedFlight) return;
     addLeg({
@@ -171,12 +163,19 @@ export function StayDurationScreen() {
                 {formatPrice(selectedFlight.priceUsd)}
               </span>
             </div>
-            <div className="flex items-center gap-1.5 text-sm text-text-primary font-semibold min-w-0">
-              <span className="font-mono shrink-0">{selectedFlight.originIata}</span>
+            {/* Route line — origin city + IATA → destination city + IATA. The
+                departure airport is baked in so a leg that departs from a
+                metro peer (e.g. CDG when previous arrival was BVA) is visible
+                without needing a separate chip. */}
+            <div className="flex items-center gap-1.5 text-sm text-text-primary font-semibold min-w-0 flex-wrap">
+              <span className="truncate">{selectedFlight.originCity}</span>
+              <span className="font-mono text-[10px] text-text-muted bg-surface-2 px-1.5 py-0.5 rounded-md shrink-0">
+                {selectedFlight.originIata}
+              </span>
               <Plane size={11} className="rotate-90 text-text-xmuted shrink-0" />
-              <span className="font-mono shrink-0">{selectedFlight.destinationIata}</span>
-              <span className="text-text-muted text-xs font-normal truncate ml-1">
-                · {selectedFlight.destinationCity}
+              <span className="truncate">{selectedFlight.destinationCity}</span>
+              <span className="font-mono text-[10px] text-text-muted bg-surface-2 px-1.5 py-0.5 rounded-md shrink-0">
+                {selectedFlight.destinationIata}
               </span>
             </div>
             <div className="flex items-center gap-1.5 mt-1 text-[11px] text-text-muted min-w-0 flex-wrap">
@@ -190,16 +189,6 @@ export function StayDurationScreen() {
               <span className="text-text-xmuted">·</span>
               <span>{durationLabel(selectedFlight.durationMinutes)}</span>
             </div>
-            {airportMismatch && (
-              <div className="mt-2">
-                <span
-                  className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5"
-                  title={`This flight departs ${selectedFlight.originIata}. You arrived at ${priorArrivalIata} on the previous leg — you'll need to transfer between airports.`}
-                >
-                  Departs {selectedFlight.originIata} · arrived {priorArrivalIata}
-                </span>
-              </div>
-            )}
           </div>
 
           {/* Quick-select pills */}

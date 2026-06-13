@@ -12,19 +12,14 @@ interface Props {
   flight: FlightOption;
   weather?: WeatherSummary;
   onSelect: (flight: FlightOption) => void;
-  /** IATA the traveller arrived at for the current stop. When the flight's
-   *  `originIata` differs (metro peer airport), an amber chip surfaces the
-   *  mismatch alongside the other risk chips. */
-  arrivalIata?: string;
 }
 
-export function FlightCard({ flight, weather, onSelect, arrivalIata }: Props) {
+export function FlightCard({ flight, weather, onSelect }: Props) {
   const passengers = useTripStore((s) => s.passengers);
   const carriersLabel = formatCarriers(flight);
   const multiCarrier = (flight.carriers?.length ?? 1) > 1;
   const hasSelfTransfer = flight.layovers?.some((l) => l.selfTransfer) ?? false;
   const layoverLabel = formatLayovers(flight);
-  const airportMismatch = !!arrivalIata && flight.originIata !== arrivalIata;
 
   return (
     <button
@@ -32,11 +27,20 @@ export function FlightCard({ flight, weather, onSelect, arrivalIata }: Props) {
       onClick={() => onSelect(flight)}
       className="group w-full text-left bg-surface border border-border rounded-2xl px-3.5 py-3 flex items-center gap-3 transition-all duration-150 animate-fade-in active:scale-[0.99] hover:border-indigo-border hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)]"
     >
-      {/* Main content — compact stack: city/stops, optional risk chips, meta, optional layover */}
+      {/* Main content — compact stack: route, optional risk chips, meta, optional layover */}
       <div className="flex-1 min-w-0">
-        {/* Line 1: city + IATA + stops/route. Risk chips live below so they
-            don't squeeze long city names into "L…". */}
-        <div className="flex items-center gap-2 min-w-0">
+        {/* Line 1: origin city + IATA → destination city + IATA + stops. The
+            departure airport is baked into the route so a flight departing
+            from a metro peer (e.g. CDG when arrival was BVA) is visible
+            inline. Risk chips live below so they don't squeeze long names. */}
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-base font-bold text-text-primary truncate leading-tight">
+            {flight.originCity}
+          </span>
+          <span className="font-mono text-[10px] text-text-muted bg-surface-2 px-1.5 py-0.5 rounded-md shrink-0">
+            {flight.originIata}
+          </span>
+          <span className="text-text-xmuted shrink-0">→</span>
           <span className="text-base font-bold text-text-primary truncate leading-tight">
             {flight.destinationCity}
           </span>
@@ -57,11 +61,10 @@ export function FlightCard({ flight, weather, onSelect, arrivalIata }: Props) {
           )}
         </div>
 
-        {/* Optional risk-chip row — Mixed carriers and/or Self-transfer
-            and/or metro-airport mismatch. Only renders when at least one
-            applies, so single-carrier non-transfer flights stay just as
-            compact as before. */}
-        {(multiCarrier || hasSelfTransfer || airportMismatch) && (
+        {/* Optional risk-chip row — Mixed carriers and/or Self-transfer.
+            Only renders when at least one applies, so single-carrier
+            non-transfer flights stay just as compact as before. */}
+        {(multiCarrier || hasSelfTransfer) && (
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             {multiCarrier && (
               <span
@@ -77,14 +80,6 @@ export function FlightCard({ flight, weather, onSelect, arrivalIata }: Props) {
                 title="You must collect bags and re-check between flights"
               >
                 <AlertTriangle size={10} /> Self-transfer
-              </span>
-            )}
-            {airportMismatch && (
-              <span
-                className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5 shrink-0"
-                title={`This flight departs ${flight.originIata}. You arrived at ${arrivalIata} — you'll need to transfer between airports.`}
-              >
-                Departs {flight.originIata} · arrived {arrivalIata}
               </span>
             )}
           </div>

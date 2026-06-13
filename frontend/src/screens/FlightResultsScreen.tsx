@@ -722,7 +722,6 @@ export function FlightResultsScreen() {
                   visa={visa}
                   visaLoading={visaLoading}
                   passport={passport}
-                  arrivalIata={lastOutboundLeg?.destinationIata}
                 />
               );
             })}

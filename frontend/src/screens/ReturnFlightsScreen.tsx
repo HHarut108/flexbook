@@ -250,7 +250,6 @@ export function ReturnFlightsScreen() {
                   key={flight.flightId}
                   flight={flight}
                   onSelect={handleSelect}
-                  arrivalIata={lastOutboundLeg?.destinationIata}
                 />
               ))}
         </div>
